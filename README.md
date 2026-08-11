@@ -114,13 +114,16 @@ Two areas are the likely sources of first-build failures:
   change signature often. If the mixin fails to apply, the message names the
   method it could not find, which is usually a one-line fix.
 
-The build uses **Yarn mappings**, matching the names used throughout the source
-(`MinecraftClient`, `DrawContext`, `mc.options.attackKey`), and **Java 25**,
-which Loom requires for Minecraft 26.2.
+The build uses **official Mojang mappings** and **Java 25**.
 
-The `yarn_mappings` value in `gradle.properties` is a guess at the build number.
-If Gradle reports it cannot resolve `net.fabricmc:yarn:26.2+build.N`, check
-https://fabricmc.net/develop for the exact string and correct that one line.
+Yarn is not an option here: Minecraft ships unobfuscated from 26.1 onwards, and
+Fabric stopped publishing Yarn from that version on. The whole source therefore
+uses Mojang names — `Minecraft`, `GuiGraphics`, `Component`, `mc.options.keyAttack`
+— rather than the Yarn equivalents most older tutorials show.
+
+That conversion was done mechanically across all 35 source files, so expect a
+handful of method names to still be off on the first build. Each one is a
+one-line fix that the compiler names precisely.
 
 ## License
 

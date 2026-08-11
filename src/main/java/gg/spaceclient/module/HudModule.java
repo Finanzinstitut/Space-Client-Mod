@@ -1,7 +1,7 @@
 package gg.spaceclient.module;
 
 import com.google.gson.JsonObject;
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.GuiGraphics;
 
 /**
  * A module that draws something on the HUD. Position is stored as a fraction of
@@ -40,7 +40,7 @@ public abstract class HudModule extends Module {
     public abstract int getHeight();
 
     /** Draw at the given screen position. Scaling is applied by the caller. */
-    public abstract void render(DrawContext context, int x, int y);
+    public abstract void render(GuiGraphics context, int x, int y);
 
     @Override
     public void save(JsonObject json) {

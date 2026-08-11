@@ -8,10 +8,10 @@ import gg.spaceclient.ui.SpaceMenuScreen;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
+import net.fabricmc.fabric.api.client.keybinding.v1.KeyMappingHelper;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.KeyMapping;
+import com.mojang.blaze3d.platform.InputConstants;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,7 +23,7 @@ public class SpaceClient implements ClientModInitializer {
 
     private static ModuleManager moduleManager;
     private static ConfigManager configManager;
-    private static KeyBinding menuKey;
+    private static KeyMapping menuKey;
 
     public static ModuleManager getModuleManager() { return moduleManager; }
     public static ConfigManager getConfigManager() { return configManager; }
@@ -39,28 +39,28 @@ public class SpaceClient implements ClientModInitializer {
 
         // Right Shift opens the menu. Registered as a keybind so players can
         // rebind it in vanilla controls if they want.
-        menuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        menuKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.spaceclient.menu",
-                InputUtil.Type.KEYSYM,
+                InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_RIGHT_SHIFT,
                 "category.spaceclient"
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (menuKey.wasPressed()) {
+            while (menuKey.consumeClick()) {
                 client.setScreen(new SpaceMenuScreen());
             }
             moduleManager.onTick();
         });
 
         HudRenderCallback.EVENT.register((context, tickCounter) -> {
-            MinecraftClient client = MinecraftClient.getInstance();
-            if (client.options.hudHidden) return;
+            Minecraft client = Minecraft.getInstance();
+            if (client.options.hideGui) return;
             // The HUD editor draws its own preview, so skip the normal pass there
             if (client.currentScreen instanceof gg.spaceclient.ui.HudEditorScreen) return;
 
-            int width = client.getWindow().getScaledWidth();
-            int height = client.getWindow().getScaledHeight();
+            int width = client.getWindow().getGuiScaledWidth();
+            int height = client.getWindow().getGuiScaledHeight();
 
             for (HudModule module : moduleManager.getHudModules()) {
                 if (!module.isEnabled()) continue;
@@ -70,11 +70,11 @@ public class SpaceClient implements ClientModInitializer {
                 float scale = module.getScale();
 
                 if (scale != 1.0f) {
-                    context.getMatrices().push();
-                    context.getMatrices().translate(x, y, 0);
-                    context.getMatrices().scale(scale, scale, 1.0f);
+                    context.pose().push();
+                    context.pose().translate(x, y, 0);
+                    context.pose().scale(scale, scale, 1.0f);
                     module.render(context, 0, 0);
-                    context.getMatrices().pop();
+                    context.pose().pop();
                 } else {
                     module.render(context, x, y);
                 }

@@ -4,11 +4,11 @@ import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
 import gg.spaceclient.setting.IntSetting;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.util.hit.EntityHitResult;
-import net.minecraft.util.hit.HitResult;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.HitResult;
 
 /**
  * Counts consecutive hits on the same target.
@@ -49,14 +49,14 @@ public class ComboCounterModule extends HudModule {
             currentTarget = null;
         }
 
-        boolean attacking = mc.options != null && mc.options.attackKey.isPressed();
+        boolean attacking = mc.options != null && mc.options.keyAttack.isDown();
         boolean edge = attacking && !wasAttacking;
         wasAttacking = attacking;
 
-        if (!edge || mc.crosshairTarget == null) return;
-        if (mc.crosshairTarget.getType() != HitResult.Type.ENTITY) return;
+        if (!edge || mc.hitResult == null) return;
+        if (mc.hitResult.getType() != HitResult.Type.ENTITY) return;
 
-        Entity target = ((EntityHitResult) mc.crosshairTarget).getEntity();
+        Entity target = ((EntityHitResult) mc.hitResult).getEntity();
         if (!(target instanceof LivingEntity living)) return;
 
         // Switching targets starts a fresh combo
@@ -87,15 +87,15 @@ public class ComboCounterModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return Math.max(20, mc.textRenderer.getWidth(text())); }
+    public int getWidth() { return Math.max(20, mc.font.width(text())); }
 
     @Override
-    public int getHeight() { return mc.textRenderer.fontHeight; }
+    public int getHeight() { return mc.font.lineHeight; }
 
     @Override
-    public void render(DrawContext context, int x, int y) {
+    public void render(GuiGraphics context, int x, int y) {
         String text = text();
         if (text.isEmpty()) return;
-        context.drawText(mc.textRenderer, text, x, y, textColor.get(), true);
+        context.drawString(mc.font, text, x, y, textColor.get(), true);
     }
 }

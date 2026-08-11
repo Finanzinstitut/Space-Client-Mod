@@ -30,8 +30,8 @@ public class ToggleSprintModule extends Module {
     public void onTick() {
         if (mc.player == null || mc.options == null) return;
 
-        if (pauseInMenus.get() && mc.currentScreen != null) {
-            mc.options.sprintKey.setPressed(false);
+        if (pauseInMenus.get() && mc.screen != null) {
+            mc.options.keySprint.setDown(false);
             return;
         }
 
@@ -39,19 +39,19 @@ public class ToggleSprintModule extends Module {
         if (hungerAware.get()) {
             // Below 7 shanks vanilla stops letting you sprint anyway; stopping
             // at 8 keeps a buffer so you never eat into the last one.
-            allowed = mc.player.getHungerManager().getFoodLevel() > 8;
+            allowed = mc.player.getFoodData().getFoodLevel() > 8;
         }
 
-        mc.options.sprintKey.setPressed(allowed);
+        mc.options.keySprint.setDown(allowed);
         if (sneakToo.get()) {
-            mc.options.sneakKey.setPressed(true);
+            mc.options.keyShift.setDown(true);
         }
     }
 
     @Override
     protected void onDisable() {
         if (mc.options == null) return;
-        mc.options.sprintKey.setPressed(false);
-        mc.options.sneakKey.setPressed(false);
+        mc.options.keySprint.setDown(false);
+        mc.options.keyShift.setDown(false);
     }
 }

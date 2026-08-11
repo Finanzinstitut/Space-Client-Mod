@@ -3,9 +3,9 @@ package gg.spaceclient.modules.hud;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -45,15 +45,15 @@ public class ItemCounterModule extends HudModule {
 
         if (mc.player == null) return counts;
 
-        for (int i = 0; i < mc.player.getInventory().size(); i++) {
-            ItemStack stack = mc.player.getInventory().getStack(i);
+        for (int i = 0; i < mc.player.getInventory().getContainerSize(); i++) {
+            ItemStack stack = mc.player.getInventory().getItem(i);
             if (stack.isEmpty()) continue;
 
-            if (stack.isOf(Items.GOLDEN_APPLE) || stack.isOf(Items.ENCHANTED_GOLDEN_APPLE)) {
+            if (stack.is(Items.GOLDEN_APPLE) || stack.is(Items.ENCHANTED_GOLDEN_APPLE)) {
                 counts.merge("Gapples", stack.getCount(), Integer::sum);
-            } else if (stack.isOf(Items.ENDER_PEARL)) {
+            } else if (stack.is(Items.ENDER_PEARL)) {
                 counts.merge("Pearls", stack.getCount(), Integer::sum);
-            } else if (stack.isOf(Items.ARROW) || stack.isOf(Items.SPECTRAL_ARROW)) {
+            } else if (stack.is(Items.ARROW) || stack.is(Items.SPECTRAL_ARROW)) {
                 counts.merge("Arrows", stack.getCount(), Integer::sum);
             } else if (stack.getItem().toString().contains("cobblestone")
                     || stack.getItem().toString().contains("obsidian")) {
@@ -101,7 +101,7 @@ public class ItemCounterModule extends HudModule {
         int max = 70;
         for (Map.Entry<String, Integer> e : currentCounts().entrySet()) {
             if (hideEmpty.get() && e.getValue() == 0) continue;
-            max = Math.max(max, mc.textRenderer.getWidth(lineFor(e.getKey(), e.getValue())));
+            max = Math.max(max, mc.font.width(lineFor(e.getKey(), e.getValue())));
         }
         return max;
     }
@@ -113,17 +113,17 @@ public class ItemCounterModule extends HudModule {
             if (hideEmpty.get() && v == 0) continue;
             rows++;
         }
-        return Math.max(mc.textRenderer.fontHeight, rows * (mc.textRenderer.fontHeight + 2));
+        return Math.max(mc.font.lineHeight, rows * (mc.font.lineHeight + 2));
     }
 
     @Override
-    public void render(DrawContext context, int x, int y) {
+    public void render(GuiGraphics context, int x, int y) {
         int offset = 0;
         for (Map.Entry<String, Integer> e : currentCounts().entrySet()) {
             if (hideEmpty.get() && e.getValue() == 0) continue;
-            context.drawText(mc.textRenderer, lineFor(e.getKey(), e.getValue()),
+            context.drawString(mc.font, lineFor(e.getKey(), e.getValue()),
                     x, y + offset, textColor.get(), true);
-            offset += mc.textRenderer.fontHeight + 2;
+            offset += mc.font.lineHeight + 2;
         }
     }
 }

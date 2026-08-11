@@ -4,7 +4,7 @@ import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
 
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.GuiGraphics;
 
 /**
  * Draws a mouse and lights up whichever button is being pressed.
@@ -47,8 +47,8 @@ public class MouseTrackerModule extends HudModule {
 
         // Movement is derived from how far the view turned this tick, which is
         // the closest we can get to raw mouse deltas without hooking the device.
-        double yaw = mc.player.getYaw();
-        double pitch = mc.player.getPitch();
+        double yaw = mc.player.getYRot();
+        double pitch = mc.player.getXRot();
         double deltaYaw = yaw - lastYaw;
         double deltaPitch = pitch - lastPitch;
         lastYaw = yaw;
@@ -70,7 +70,7 @@ public class MouseTrackerModule extends HudModule {
         dotY = Math.max(-limit, Math.min(limit, dotY));
     }
 
-    private void outlineRect(DrawContext context, int x1, int y1, int x2, int y2, int color) {
+    private void outlineRect(GuiGraphics context, int x1, int y1, int x2, int y2, int color) {
         context.fill(x1, y1, x2, y1 + 1, color);
         context.fill(x1, y2 - 1, x2, y2, color);
         context.fill(x1, y1, x1 + 1, y2, color);
@@ -84,9 +84,9 @@ public class MouseTrackerModule extends HudModule {
     public int getHeight() { return showCps.get() ? BODY_H + 12 : BODY_H; }
 
     @Override
-    public void render(DrawContext context, int x, int y) {
-        boolean left = mc.options != null && mc.options.attackKey.isPressed();
-        boolean right = mc.options != null && mc.options.useKey.isPressed();
+    public void render(GuiGraphics context, int x, int y) {
+        boolean left = mc.options != null && mc.options.keyAttack.isDown();
+        boolean right = mc.options != null && mc.options.keyUse.isDown();
         boolean middle = false; // reserved: no vanilla binding maps to MMB by default
 
         int body = bodyColor.get();
@@ -127,8 +127,8 @@ public class MouseTrackerModule extends HudModule {
             String text = cps != null
                     ? cps.getLeftCps() + " | " + cps.getRightCps() + " CPS"
                     : "0 | 0 CPS";
-            int textX = x + (BODY_W - mc.textRenderer.getWidth(text)) / 2;
-            context.drawText(mc.textRenderer, text, textX, y + BODY_H + 3, 0xFFFFFFFF, true);
+            int textX = x + (BODY_W - mc.font.width(text)) / 2;
+            context.drawString(mc.font, text, textX, y + BODY_H + 3, 0xFFFFFFFF, true);
         }
     }
 }

@@ -5,12 +5,12 @@ import gg.spaceclient.module.Module;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.IntSetting;
 
-import net.minecraft.client.gui.screen.DisconnectedScreen;
-import net.minecraft.client.gui.screen.multiplayer.ConnectScreen;
-import net.minecraft.client.gui.screen.multiplayer.MultiplayerScreen;
-import net.minecraft.client.gui.screen.TitleScreen;
-import net.minecraft.client.network.ServerAddress;
-import net.minecraft.client.network.ServerInfo;
+import net.minecraft.client.gui.screens.DisconnectedScreen;
+import net.minecraft.client.gui.screens.ConnectScreen;
+import net.minecraft.client.gui.screens.multiplayer.JoinJoinMultiplayerScreen;
+import net.minecraft.client.gui.screens.TitleScreen;
+import net.minecraft.client.multiplayer.resolver.ServerAddress;
+import net.minecraft.client.multiplayer.ServerData;
 
 /**
  * Reconnects after being disconnected.
@@ -29,7 +29,7 @@ public class AutoReconnectModule extends Module {
     private final BooleanSetting backoff = new BooleanSetting(
             "backoff", "Back off", "Double the wait after each failed attempt", true);
 
-    private ServerInfo lastServer;
+    private ServerData lastServer;
     private int attempts = 0;
     private long nextAttemptAt = 0;
     private int currentDelay;
@@ -43,14 +43,14 @@ public class AutoReconnectModule extends Module {
     @Override
     public void onTick() {
         // Remember the server while we are still on it
-        if (mc.getCurrentServerEntry() != null) {
-            lastServer = mc.getCurrentServerEntry();
+        if (mc.getCurrentServer() != null) {
+            lastServer = mc.getCurrentServer();
             attempts = 0;
             currentDelay = firstDelay.get();
             nextAttemptAt = 0;
         }
 
-        if (!(mc.currentScreen instanceof DisconnectedScreen)) return;
+        if (!(mc.screen instanceof DisconnectedScreen)) return;
         if (lastServer == null || attempts >= maxAttempts.get()) return;
 
         long now = System.currentTimeMillis();
@@ -68,9 +68,9 @@ public class AutoReconnectModule extends Module {
         }
         nextAttemptAt = 0;
 
-        ServerInfo server = lastServer;
+        ServerData server = lastServer;
         ConnectScreen.connect(
-                new MultiplayerScreen(new TitleScreen()),
+                new JoinMultiplayerScreen(new TitleScreen()),
                 mc,
                 ServerAddress.parse(server.address),
                 server,

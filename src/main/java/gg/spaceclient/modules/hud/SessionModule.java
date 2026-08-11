@@ -3,7 +3,7 @@ package gg.spaceclient.modules.hud;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.GuiGraphics;
 
 /**
  * Session uptime and in-game day count in one element.
@@ -38,8 +38,8 @@ public class SessionModule extends HudModule {
         long elapsed = elapsedMs() / 1000;
         String base = String.format("%d:%02d:%02d", elapsed / 3600, (elapsed % 3600) / 60, elapsed % 60);
 
-        if (showDay.get() && mc.world != null) {
-            base += "  Day " + (mc.world.getTimeOfDay() / 24000L);
+        if (showDay.get() && mc.level != null) {
+            base += "  Day " + (mc.level.getDayTime() / 24000L);
         }
         return base;
     }
@@ -49,19 +49,19 @@ public class SessionModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return Math.max(90, mc.textRenderer.getWidth(text())); }
+    public int getWidth() { return Math.max(90, mc.font.width(text())); }
 
     @Override
-    public int getHeight() { return mc.textRenderer.fontHeight * (reminderDue() ? 2 : 1) + 2; }
+    public int getHeight() { return mc.font.lineHeight * (reminderDue() ? 2 : 1) + 2; }
 
     @Override
-    public void render(DrawContext context, int x, int y) {
-        context.drawText(mc.textRenderer, text(), x, y, textColor.get(), true);
+    public void render(GuiGraphics context, int x, int y) {
+        context.drawString(mc.font, text(), x, y, textColor.get(), true);
 
         if (reminderDue()) {
             long hours = elapsedMs() / (60 * 60 * 1000);
             String note = hours + "h - time for a break?";
-            context.drawText(mc.textRenderer, note, x, y + mc.textRenderer.fontHeight + 2, 0xFF38E0FF, true);
+            context.drawString(mc.font, note, x, y + mc.font.lineHeight + 2, 0xFF38E0FF, true);
         }
     }
 }

@@ -3,10 +3,10 @@ package gg.spaceclient.modules.hud;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.entity.Entity;
-import net.minecraft.util.hit.EntityHitResult;
-import net.minecraft.util.hit.HitResult;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.HitResult;
 
 /**
  * Distance to whatever you are aiming at.
@@ -34,16 +34,16 @@ public class ReachModule extends HudModule {
 
     @Override
     public void onTick() {
-        if (mc.player == null || mc.crosshairTarget == null) return;
+        if (mc.player == null || mc.hitResult == null) return;
 
-        if (mc.crosshairTarget.getType() == HitResult.Type.ENTITY) {
-            Entity target = ((EntityHitResult) mc.crosshairTarget).getEntity();
-            current = mc.player.getEyePos().distanceTo(target.getPos().add(0, target.getHeight() / 2, 0));
+        if (mc.hitResult.getType() == HitResult.Type.ENTITY) {
+            Entity target = ((EntityHitResult) mc.hitResult).getEntity();
+            current = mc.player.getEyePosition().distanceTo(target.getPos().add(0, target.getHeight() / 2, 0));
         } else {
             current = 0;
         }
 
-        boolean attacking = mc.options != null && mc.options.attackKey.isPressed();
+        boolean attacking = mc.options != null && mc.options.keyAttack.isDown();
         // Record on the click edge, while the target is still under the cursor
         if (attacking && !wasAttacking && current > 0) {
             sessionMax = Math.max(sessionMax, current);
@@ -60,13 +60,13 @@ public class ReachModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return mc.textRenderer.getWidth(text()); }
+    public int getWidth() { return mc.font.width(text()); }
 
     @Override
-    public int getHeight() { return mc.textRenderer.fontHeight; }
+    public int getHeight() { return mc.font.lineHeight; }
 
     @Override
-    public void render(DrawContext context, int x, int y) {
-        context.drawText(mc.textRenderer, text(), x, y, textColor.get(), true);
+    public void render(GuiGraphics context, int x, int y) {
+        context.drawString(mc.font, text(), x, y, textColor.get(), true);
     }
 }

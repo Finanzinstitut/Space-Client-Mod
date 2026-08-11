@@ -2,7 +2,7 @@ package gg.spaceclient.module;
 
 import com.google.gson.JsonObject;
 import gg.spaceclient.setting.Setting;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,7 +12,7 @@ import java.util.List;
  * and override the hooks they care about.
  */
 public abstract class Module {
-    protected static final MinecraftClient mc = MinecraftClient.getInstance();
+    protected static final Minecraft mc = Minecraft.getInstance();
 
     private final String id;
     private final String name;

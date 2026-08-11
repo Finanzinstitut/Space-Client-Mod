@@ -3,8 +3,8 @@ package gg.spaceclient.modules.hud;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.IntSetting;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.item.ItemStack;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.world.item.ItemStack;
 
 /**
  * Warns before a tool or piece of armour breaks.
@@ -28,9 +28,9 @@ public class DurabilityAlertModule extends HudModule {
     }
 
     private String describe(ItemStack stack, String slot) {
-        if (stack.isEmpty() || !stack.isDamageable()) return null;
+        if (stack.isEmpty() || !stack.isDamageableItem()) return null;
 
-        int remaining = stack.getMaxDamage() - stack.getDamage();
+        int remaining = stack.getMaxDamage() - stack.getDamageValue();
         float pct = (remaining / (float) stack.getMaxDamage()) * 100f;
         if (pct > threshold.get()) return null;
 
@@ -47,10 +47,10 @@ public class DurabilityAlertModule extends HudModule {
         java.util.List<String> out = new java.util.ArrayList<>();
 
         for (int i = 0; i < 4; i++) {
-            String line = describe(mc.player.getInventory().getArmorStack(i), slots[i]);
+            String line = describe(mc.player.getInventory().getArmor(i), slots[i]);
             if (line != null) out.add(line);
         }
-        String hand = describe(mc.player.getMainHandStack(), "Hand");
+        String hand = describe(mc.player.getMainHandItem(), "Hand");
         if (hand != null) out.add(hand);
 
         return out.toArray(new String[0]);
@@ -59,24 +59,24 @@ public class DurabilityAlertModule extends HudModule {
     @Override
     public int getWidth() {
         int max = 0;
-        for (String w : warnings()) max = Math.max(max, mc.textRenderer.getWidth(w));
+        for (String w : warnings()) max = Math.max(max, mc.font.width(w));
         return Math.max(40, max);
     }
 
     @Override
     public int getHeight() {
-        return Math.max(mc.textRenderer.fontHeight, warnings().length * (mc.textRenderer.fontHeight + 2));
+        return Math.max(mc.font.lineHeight, warnings().length * (mc.font.lineHeight + 2));
     }
 
     @Override
-    public void render(DrawContext context, int x, int y) {
+    public void render(GuiGraphics context, int x, int y) {
         int offset = 0;
         boolean pulse = flash.get() && (System.currentTimeMillis() / 350) % 2 == 0;
 
         for (String warning : warnings()) {
             int color = pulse ? 0xFFFF6B81 : 0xFFFFD9A0;
-            context.drawText(mc.textRenderer, warning, x, y + offset, color, true);
-            offset += mc.textRenderer.fontHeight + 2;
+            context.drawString(mc.font, warning, x, y + offset, color, true);
+            offset += mc.font.lineHeight + 2;
         }
     }
 }

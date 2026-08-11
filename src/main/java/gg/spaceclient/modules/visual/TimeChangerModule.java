@@ -28,7 +28,7 @@ public class TimeChangerModule extends Module {
 
     @Override
     public void onTick() {
-        if (mc.world == null) return;
+        if (mc.level == null) return;
 
         long target;
         if (followRealTime.get()) {
@@ -40,6 +40,6 @@ public class TimeChangerModule extends Module {
             target = fixedTime.get();
         }
 
-        mc.world.setTimeOfDay(target);
+        mc.level.setDayTime(target);
     }
 }

@@ -17,22 +17,22 @@ public class FullbrightModule extends Module {
     @Override
     protected void onEnable() {
         if (mc.options == null) return;
-        previousGamma = mc.options.getGamma().getValue();
+        previousGamma = mc.options.gamma().getValue();
     }
 
     @Override
     public void onTick() {
         if (mc.options == null) return;
         // Re-applied each tick because other code can reset it
-        if (mc.options.getGamma().getValue() < 10.0) {
-            mc.options.getGamma().setValue(10.0);
+        if (mc.options.gamma().getValue() < 10.0) {
+            mc.options.gamma().setValue(10.0);
         }
     }
 
     @Override
     protected void onDisable() {
         if (mc.options == null || previousGamma < 0) return;
-        mc.options.getGamma().setValue(previousGamma);
+        mc.options.gamma().setValue(previousGamma);
         previousGamma = -1;
     }
 }

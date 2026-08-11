@@ -2,9 +2,9 @@ package gg.spaceclient.ui;
 
 import gg.spaceclient.SpaceClient;
 import gg.spaceclient.module.HudModule;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 
 /** Drag enabled HUD elements to reposition them. */
 public class HudEditorScreen extends Screen {
@@ -14,12 +14,12 @@ public class HudEditorScreen extends Screen {
     private int dragOffsetY;
 
     public HudEditorScreen(Screen parent) {
-        super(Text.literal("HUD Editor"));
+        super(Component.literal("HUD Editor"));
         this.parent = parent;
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
         renderBackground(context, mouseX, mouseY, delta);
         context.fill(0, 0, width, height, 0x8002010A);
 
@@ -41,8 +41,8 @@ public class HudEditorScreen extends Screen {
             context.fill(x + w + 1, y - 2, x + w + 2, y + h + 2, color);
         }
 
-        context.drawText(textRenderer, "HUD EDITOR", 30, 26, Theme.ACCENT_LIGHT, true);
-        context.drawText(textRenderer, "Drag elements to move    Scroll over one to scale    Backspace to go back",
+        context.drawString(font, "HUD EDITOR", 30, 26, Theme.ACCENT_LIGHT, true);
+        context.drawString(font, "Drag elements to move    Scroll over one to scale    Backspace to go back",
                 30, 40, Theme.TEXT_DIM, false);
 
         super.render(context, mouseX, mouseY, delta);
@@ -117,7 +117,7 @@ public class HudEditorScreen extends Screen {
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 }

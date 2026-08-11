@@ -3,7 +3,7 @@ package gg.spaceclient.modules.hud;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.GuiGraphics;
 
 /**
  * Saturation, the hidden stat behind the hunger bar.
@@ -27,7 +27,7 @@ public class SaturationModule extends HudModule {
     private String text() {
         if (mc.player == null) return "-.- sat";
 
-        float saturation = mc.player.getHungerManager().getSaturationLevel();
+        float saturation = mc.player.getFoodData().getSaturationLevel();
         String base = String.format("%.1f sat", saturation);
 
         if (showEstimate.get()) {
@@ -41,13 +41,13 @@ public class SaturationModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return mc.textRenderer.getWidth(text()); }
+    public int getWidth() { return mc.font.width(text()); }
 
     @Override
-    public int getHeight() { return mc.textRenderer.fontHeight; }
+    public int getHeight() { return mc.font.lineHeight; }
 
     @Override
-    public void render(DrawContext context, int x, int y) {
-        context.drawText(mc.textRenderer, text(), x, y, textColor.get(), true);
+    public void render(GuiGraphics context, int x, int y) {
+        context.drawString(mc.font, text(), x, y, textColor.get(), true);
     }
 }

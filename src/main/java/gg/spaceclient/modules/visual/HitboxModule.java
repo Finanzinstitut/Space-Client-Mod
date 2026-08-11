@@ -7,11 +7,11 @@ import gg.spaceclient.setting.ColorSetting;
 import gg.spaceclient.setting.IntSetting;
 import gg.spaceclient.setting.ModeSetting;
 
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.mob.Monster;
-import net.minecraft.entity.passive.PassiveEntity;
-import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.monster.Monster;
+import net.minecraft.world.entity.AgeableMob;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.Arrays;
 
@@ -78,9 +78,9 @@ public class HitboxModule extends Module {
         if (entity == mc.player) return showSelf.get();
         if (entity.distanceTo(mc.player) > range.get()) return false;
 
-        if (entity instanceof PlayerEntity) return showPlayers.get();
+        if (entity instanceof Player) return showPlayers.get();
         if (entity instanceof Monster) return showHostile.get();
-        if (entity instanceof PassiveEntity) return showPassive.get();
+        if (entity instanceof AgeableMob) return showPassive.get();
         return showOther.get();
     }
 

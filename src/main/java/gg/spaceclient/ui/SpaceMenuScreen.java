@@ -3,9 +3,9 @@ package gg.spaceclient.ui;
 import gg.spaceclient.SpaceClient;
 import gg.spaceclient.module.Category;
 import gg.spaceclient.module.Module;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,7 +21,7 @@ public class SpaceMenuScreen extends Screen {
     private int scroll = 0;
 
     public SpaceMenuScreen() {
-        super(Text.literal("Space Client"));
+        super(Component.literal("Space Client"));
     }
 
     private List<Module> visibleModules() {
@@ -41,26 +41,26 @@ public class SpaceMenuScreen extends Screen {
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
         renderBackground(context, mouseX, mouseY, delta);
         context.fill(0, 0, width, height, Theme.BACKDROP);
 
         // Header
-        context.drawText(textRenderer, "SPACE CLIENT", 30, 26, Theme.ACCENT_LIGHT, true);
-        context.drawText(textRenderer, "Right Shift to close", 30, 40, Theme.TEXT_DIM, false);
+        context.drawString(font, "SPACE CLIENT", 30, 26, Theme.ACCENT_LIGHT, true);
+        context.drawString(font, "Right Shift to close", 30, 40, Theme.TEXT_DIM, false);
 
         // Category tabs
         int tabX = 30;
         for (Category cat : Category.values()) {
             String label = cat.getDisplayName();
-            int w = textRenderer.getWidth(label) + 22;
+            int w = font.width(label) + 22;
             boolean active = cat == selected;
 
             context.fill(tabX, 60, tabX + w, 84, active ? Theme.CARD_ON : Theme.PANEL_LIGHT);
             if (active) {
                 context.fill(tabX, 82, tabX + w, 84, Theme.ACCENT_LIGHT);
             }
-            context.drawText(textRenderer, label, tabX + 11, 68, active ? Theme.TEXT : Theme.TEXT_DIM, false);
+            context.drawString(font, label, tabX + 11, 68, active ? Theme.TEXT : Theme.TEXT_DIM, false);
             tabX += w + 6;
         }
 
@@ -88,21 +88,21 @@ public class SpaceMenuScreen extends Screen {
             context.fill(x, y, x + 1, y + CARD_H, border);
             context.fill(x + CARD_W - 1, y, x + CARD_W, y + CARD_H, border);
 
-            context.drawText(textRenderer, module.getName().toUpperCase(),
+            context.drawString(font, module.getName().toUpperCase(),
                     x + 12, y + 10, on ? Theme.TEXT : Theme.TEXT_DIM, true);
 
             String desc = module.getDescription();
-            if (textRenderer.getWidth(desc) > CARD_W - 44) {
-                desc = textRenderer.trimToWidth(desc, CARD_W - 52) + "...";
+            if (font.width(desc) > CARD_W - 44) {
+                desc = font.plainSubstrByWidth(desc, CARD_W - 52) + "...";
             }
-            context.drawText(textRenderer, desc, x + 12, y + 25, Theme.TEXT_DIM, false);
+            context.drawString(font, desc, x + 12, y + 25, Theme.TEXT_DIM, false);
 
             // Settings affordance, mirrors the "..." on the cards
-            context.drawText(textRenderer, "...", x + CARD_W - 22, y + 18, Theme.TEXT_DIM, false);
+            context.drawString(font, "...", x + CARD_W - 22, y + 18, Theme.TEXT_DIM, false);
         }
 
         // Footer hint
-        context.drawText(textRenderer, "Left click: toggle    Right click: settings    E: HUD editor",
+        context.drawString(font, "Left click: toggle    Right click: settings    E: HUD editor",
                 30, height - 22, Theme.TEXT_DIM, false);
 
         super.render(context, mouseX, mouseY, delta);
@@ -113,7 +113,7 @@ public class SpaceMenuScreen extends Screen {
         // Category tabs
         int tabX = 30;
         for (Category cat : Category.values()) {
-            int w = textRenderer.getWidth(cat.getDisplayName()) + 22;
+            int w = font.width(cat.getDisplayName()) + 22;
             if (mouseX >= tabX && mouseX <= tabX + w && mouseY >= 60 && mouseY <= 84) {
                 selected = cat;
                 scroll = 0;
@@ -172,7 +172,7 @@ public class SpaceMenuScreen extends Screen {
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 }

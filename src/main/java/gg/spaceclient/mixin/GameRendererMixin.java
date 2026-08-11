@@ -3,8 +3,8 @@ package gg.spaceclient.mixin;
 import gg.spaceclient.SpaceClient;
 import gg.spaceclient.modules.visual.ZoomModule;
 
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.GameRenderer;
+import net.minecraft.client.Camera;
+import net.minecraft.client.renderer.GameRenderer;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;

@@ -4,7 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import gg.spaceclient.SpaceClient;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -46,13 +46,13 @@ public class UserRegistry {
 
     private static void register() {
         try {
-            MinecraftClient mc = MinecraftClient.getInstance();
-            if (mc.getSession() == null) return;
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.getUser() == null) return;
 
-            String uuid = mc.getSession().getUuidOrNull() != null
-                    ? mc.getSession().getUuidOrNull().toString()
+            String uuid = mc.getUser().getProfileId() != null
+                    ? mc.getUser().getProfileId().toString()
                     : null;
-            String name = mc.getSession().getUsername();
+            String name = mc.getUser().getName();
             if (uuid == null || name == null) return;
 
             JsonObject body = new JsonObject();
@@ -123,8 +123,8 @@ public class UserRegistry {
         if (uuid == null) return false;
 
         // You are running the client, so your own badge never depends on the service
-        MinecraftClient mc = MinecraftClient.getInstance();
-        if (mc.player != null && uuid.equals(mc.player.getUuid())) return true;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player != null && uuid.equals(mc.player.getUUID())) return true;
 
         synchronized (knownUsers) {
             return loaded && knownUsers.contains(uuid);

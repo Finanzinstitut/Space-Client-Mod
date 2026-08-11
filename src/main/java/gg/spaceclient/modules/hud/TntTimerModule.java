@@ -3,9 +3,9 @@ package gg.spaceclient.modules.hud;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.IntSetting;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.TntEntity;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.item.PrimedTnt;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,10 +35,10 @@ public class TntTimerModule extends HudModule {
 
     private List<Primed> nearby() {
         List<Primed> out = new ArrayList<>();
-        if (mc.world == null || mc.player == null) return out;
+        if (mc.level == null || mc.player == null) return out;
 
-        for (Entity entity : mc.world.getEntities()) {
-            if (!(entity instanceof TntEntity tnt)) continue;
+        for (Entity entity : mc.level.entitiesForRendering()) {
+            if (!(entity instanceof PrimedTnt tnt)) continue;
 
             double distance = tnt.distanceTo(mc.player);
             if (distance > range.get()) continue;
@@ -55,19 +55,19 @@ public class TntTimerModule extends HudModule {
     @Override
     public int getHeight() {
         int count = nearby().size();
-        return Math.max(mc.textRenderer.fontHeight, count * (mc.textRenderer.fontHeight + 2));
+        return Math.max(mc.font.lineHeight, count * (mc.font.lineHeight + 2));
     }
 
     @Override
-    public void render(DrawContext context, int x, int y) {
+    public void render(GuiGraphics context, int x, int y) {
         int offset = 0;
         for (Primed tnt : nearby()) {
             boolean danger = warnInRange.get() && tnt.dangerous();
             String text = String.format("TNT %.1fs  %.0fm%s",
                     tnt.seconds(), tnt.distance(), danger ? "  IN RANGE" : "");
             int color = danger ? 0xFFFF6B81 : 0xFFFFD9A0;
-            context.drawText(mc.textRenderer, text, x, y + offset, color, true);
-            offset += mc.textRenderer.fontHeight + 2;
+            context.drawString(mc.font, text, x, y + offset, color, true);
+            offset += mc.font.lineHeight + 2;
         }
     }
 }

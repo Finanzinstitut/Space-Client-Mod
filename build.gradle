@@ -16,9 +16,9 @@ repositories {
 
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    // Yarn mappings: the whole codebase is written against Yarn names
-    // (MinecraftClient, DrawContext, ...), so the two have to match.
-    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    // Minecraft 26.2 ships unobfuscated and Fabric stopped publishing Yarn from
+    // 26.1 onwards, so official Mojang names are the only option here.
+    mappings loom.officialMojangMappings()
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 }

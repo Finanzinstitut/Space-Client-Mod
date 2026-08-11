@@ -4,12 +4,12 @@ import gg.spaceclient.SpaceClient;
 import gg.spaceclient.badge.UserRegistry;
 import gg.spaceclient.modules.visual.BadgeModule;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.entity.EntityRenderer;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Component;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -18,11 +18,11 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
 /**
  * Prefixes the floating name tag of Space Client users.
  *
- * A texture cannot be injected into a Text component, so above heads the badge
+ * A texture cannot be injected into a Component component, so above heads the badge
  * is the planet glyph rather than the image used in the tab list.
  */
 @Mixin(EntityRenderer.class)
-public abstract class PlayerEntityRendererMixin {
+public abstract class PlayerRendererMixin {
 
     @ModifyVariable(
             method = "renderLabelIfPresent",
@@ -31,25 +31,25 @@ public abstract class PlayerEntityRendererMixin {
             index = 2,
             require = 0
     )
-    private Text spaceclient$prefixBadge(Text original) {
+    private Component spaceclient$prefixBadge(Component original) {
         BadgeModule badge = (BadgeModule) SpaceClient.getModuleManager().get("badge");
         if (badge == null || !badge.isEnabled() || !badge.inNametags()) return original;
         return original;
     }
 
     /** Shared helper so the label logic lives in one place. */
-    private static Text spaceclient$decorate(Entity entity, Text original) {
-        if (!(entity instanceof PlayerEntity player)) return original;
+    private static Component spaceclient$decorate(Entity entity, Component original) {
+        if (!(entity instanceof Player player)) return original;
 
         BadgeModule badge = (BadgeModule) SpaceClient.getModuleManager().get("badge");
         if (badge == null || !badge.isEnabled() || !badge.inNametags()) return original;
-        if (!UserRegistry.hasBadge(player.getUuid())) return original;
+        if (!UserRegistry.hasBadge(player.getUUID())) return original;
 
-        MinecraftClient mc = MinecraftClient.getInstance();
-        boolean isSelf = mc.player != null && player.getUuid().equals(mc.player.getUuid());
+        Minecraft mc = Minecraft.getInstance();
+        boolean isSelf = mc.player != null && player.getUUID().equals(mc.player.getUUID());
         if (!badge.showFor(isSelf)) return original;
 
-        MutableText prefix = Text.literal("\u2648 ");
+        MutableComponent prefix = Component.literal("\u2648 ");
         return prefix.append(original);
     }
 }

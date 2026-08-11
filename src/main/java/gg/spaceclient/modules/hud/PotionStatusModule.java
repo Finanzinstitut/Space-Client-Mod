@@ -3,9 +3,9 @@ package gg.spaceclient.modules.hud;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.IntSetting;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.registry.Registries;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.core.registries.BuiltInRegistries;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,11 +35,11 @@ public class PotionStatusModule extends HudModule {
         addSettings(sortByTime, blinkWhenLow, blinkThreshold, hideAmbient);
     }
 
-    private List<StatusEffectInstance> effects() {
-        List<StatusEffectInstance> list = new ArrayList<>();
+    private List<MobEffectInstance> effects() {
+        List<MobEffectInstance> list = new ArrayList<>();
         if (mc.player == null) return list;
 
-        for (StatusEffectInstance effect : mc.player.getStatusEffects()) {
+        for (MobEffectInstance effect : mc.player.getActiveEffects()) {
             if (hideAmbient.get() && effect.isAmbient()) continue;
             list.add(effect);
         }
@@ -49,9 +49,9 @@ public class PotionStatusModule extends HudModule {
         return list;
     }
 
-    private String format(StatusEffectInstance effect) {
-        String name = Registries.STATUS_EFFECT.getId(effect.getEffectType().value()) != null
-                ? Registries.STATUS_EFFECT.getId(effect.getEffectType().value()).getPath().replace('_', ' ')
+    private String format(MobEffectInstance effect) {
+        String name = BuiltInRegistries.MOB_EFFECT.getId(effect.getEffect().value()) != null
+                ? BuiltInRegistries.MOB_EFFECT.getId(effect.getEffect().value()).getPath().replace('_', ' ')
                 : "effect";
 
         int seconds = effect.getDuration() / 20;
@@ -66,23 +66,23 @@ public class PotionStatusModule extends HudModule {
     @Override
     public int getWidth() {
         int max = 60;
-        for (StatusEffectInstance e : effects()) {
-            max = Math.max(max, mc.textRenderer.getWidth(format(e)));
+        for (MobEffectInstance e : effects()) {
+            max = Math.max(max, mc.font.width(format(e)));
         }
         return max;
     }
 
     @Override
     public int getHeight() {
-        return Math.max(mc.textRenderer.fontHeight, effects().size() * (mc.textRenderer.fontHeight + 2));
+        return Math.max(mc.font.lineHeight, effects().size() * (mc.font.lineHeight + 2));
     }
 
     @Override
-    public void render(DrawContext context, int x, int y) {
+    public void render(GuiGraphics context, int x, int y) {
         int offset = 0;
         long now = System.currentTimeMillis();
 
-        for (StatusEffectInstance effect : effects()) {
+        for (MobEffectInstance effect : effects()) {
             int color = 0xFFFFFFFF;
 
             if (blinkWhenLow.get() && !effect.isInfinite()) {
@@ -94,8 +94,8 @@ public class PotionStatusModule extends HudModule {
                 }
             }
 
-            context.drawText(mc.textRenderer, format(effect), x, y + offset, color, true);
-            offset += mc.textRenderer.fontHeight + 2;
+            context.drawString(mc.font, format(effect), x, y + offset, color, true);
+            offset += mc.font.lineHeight + 2;
         }
     }
 }

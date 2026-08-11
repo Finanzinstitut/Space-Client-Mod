@@ -3,7 +3,7 @@ package gg.spaceclient.modules.hud;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.GuiGraphics;
 
 /**
  * Estimates server ticks per second from how fast world time advances.
@@ -35,10 +35,10 @@ public class TpsModule extends HudModule {
 
     @Override
     public void onTick() {
-        if (mc.world == null) return;
+        if (mc.level == null) return;
 
         long now = System.currentTimeMillis();
-        long worldTime = mc.world.getTime();
+        long worldTime = mc.level.getGameTime();
 
         if (lastWorldTime < 0 || now - lastSampleTime < 1000) {
             if (lastWorldTime < 0) {
@@ -73,18 +73,18 @@ public class TpsModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return Math.max(60, mc.textRenderer.getWidth(text())); }
+    public int getWidth() { return Math.max(60, mc.font.width(text())); }
 
     @Override
-    public int getHeight() { return mc.textRenderer.fontHeight + (showGraph.get() ? 16 : 0); }
+    public int getHeight() { return mc.font.lineHeight + (showGraph.get() ? 16 : 0); }
 
     @Override
-    public void render(DrawContext context, int x, int y) {
-        context.drawText(mc.textRenderer, text(), x, y, colorForTps(tps), true);
+    public void render(GuiGraphics context, int x, int y) {
+        context.drawString(mc.font, text(), x, y, colorForTps(tps), true);
 
         if (!showGraph.get()) return;
 
-        int graphY = y + mc.textRenderer.fontHeight + 2;
+        int graphY = y + mc.font.lineHeight + 2;
         int graphH = 12;
         context.fill(x, graphY, x + HISTORY * 2, graphY + graphH, 0x40000000);
 

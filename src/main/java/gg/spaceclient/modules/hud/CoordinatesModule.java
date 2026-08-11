@@ -3,7 +3,7 @@ package gg.spaceclient.modules.hud;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.GuiGraphics;
 
 public class CoordinatesModule extends HudModule {
     private final BooleanSetting showDirection = new BooleanSetting(
@@ -22,19 +22,19 @@ public class CoordinatesModule extends HudModule {
         String base = String.format("%.0f, %.0f, %.0f",
                 mc.player.getX(), mc.player.getY(), mc.player.getZ());
         if (showDirection.get()) {
-            base += " " + mc.player.getHorizontalFacing().asString().toUpperCase();
+            base += " " + mc.player.getDirection().asString().toUpperCase();
         }
         return base;
     }
 
     @Override
-    public int getWidth() { return mc.textRenderer.getWidth(text()); }
+    public int getWidth() { return mc.font.width(text()); }
 
     @Override
-    public int getHeight() { return mc.textRenderer.fontHeight; }
+    public int getHeight() { return mc.font.lineHeight; }
 
     @Override
-    public void render(DrawContext context, int x, int y) {
-        context.drawText(mc.textRenderer, text(), x, y, textColor.get(), true);
+    public void render(GuiGraphics context, int x, int y) {
+        context.drawString(mc.font, text(), x, y, textColor.get(), true);
     }
 }

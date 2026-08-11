@@ -3,9 +3,9 @@ package gg.spaceclient.ui;
 import gg.spaceclient.SpaceClient;
 import gg.spaceclient.module.Module;
 import gg.spaceclient.setting.*;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 
 /** Per-module settings: toggles, sliders, mode pickers and colour channels. */
 public class ModuleSettingsScreen extends Screen {
@@ -17,7 +17,7 @@ public class ModuleSettingsScreen extends Screen {
     private int scroll = 0;
 
     public ModuleSettingsScreen(Screen parent, Module module) {
-        super(Text.literal(module.getName()));
+        super(Component.literal(module.getName()));
         this.parent = parent;
         this.module = module;
     }
@@ -26,12 +26,12 @@ public class ModuleSettingsScreen extends Screen {
     private int contentTop() { return 80; }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
         renderBackground(context, mouseX, mouseY, delta);
         context.fill(0, 0, width, height, Theme.BACKDROP);
 
-        context.drawText(textRenderer, module.getName().toUpperCase(), panelLeft(), 40, Theme.ACCENT_LIGHT, true);
-        context.drawText(textRenderer, module.getDescription(), panelLeft(), 54, Theme.TEXT_DIM, false);
+        context.drawString(font, module.getName().toUpperCase(), panelLeft(), 40, Theme.ACCENT_LIGHT, true);
+        context.drawString(font, module.getDescription(), panelLeft(), 54, Theme.TEXT_DIM, false);
 
         int x = panelLeft();
         int y = contentTop() - scroll;
@@ -43,13 +43,13 @@ public class ModuleSettingsScreen extends Screen {
             y += ROW_H;
         }
 
-        context.drawText(textRenderer, "Backspace to go back", panelLeft(), height - 22, Theme.TEXT_DIM, false);
+        context.drawString(font, "Backspace to go back", panelLeft(), height - 22, Theme.TEXT_DIM, false);
         super.render(context, mouseX, mouseY, delta);
     }
 
-    private void drawSetting(DrawContext context, Setting setting, int x, int y, int mouseX, int mouseY) {
+    private void drawSetting(GuiGraphics context, Setting setting, int x, int y, int mouseX, int mouseY) {
         context.fill(x, y, x + PANEL_W, y + ROW_H - 4, Theme.PANEL_LIGHT);
-        context.drawText(textRenderer, setting.getName(), x + 10, y + 6, Theme.TEXT, false);
+        context.drawString(font, setting.getName(), x + 10, y + 6, Theme.TEXT, false);
 
         if (setting instanceof BooleanSetting b) {
             int tx = x + PANEL_W - 46;
@@ -65,20 +65,20 @@ public class ModuleSettingsScreen extends Screen {
             context.fill(barX, barY, barX + barW, barY + 4, Theme.CARD_OFF);
             float pct = (i.get() - i.getMin()) / (float) Math.max(1, i.getMax() - i.getMin());
             context.fill(barX, barY, barX + (int) (barW * pct), barY + 4, Theme.ACCENT_LIGHT);
-            context.drawText(textRenderer, String.valueOf(i.get()),
+            context.drawString(font, String.valueOf(i.get()),
                     x + PANEL_W - 46, y + 18, Theme.TEXT_DIM, false);
 
         } else if (setting instanceof ModeSetting m) {
             String value = m.get();
-            int tw = textRenderer.getWidth(value);
-            context.drawText(textRenderer, value, x + PANEL_W - tw - 14, y + 6, Theme.ACCENT_LIGHT, false);
-            context.drawText(textRenderer, "click to cycle", x + 10, y + 20, Theme.TEXT_DIM, false);
+            int tw = font.width(value);
+            context.drawString(font, value, x + PANEL_W - tw - 14, y + 6, Theme.ACCENT_LIGHT, false);
+            context.drawString(font, "click to cycle", x + 10, y + 20, Theme.TEXT_DIM, false);
 
         } else if (setting instanceof ColorSetting c) {
             int sw = x + PANEL_W - 46;
             context.fill(sw, y + 6, sw + 36, y + 22, c.get());
             context.fill(sw, y + 6, sw + 36, y + 7, Theme.BORDER);
-            context.drawText(textRenderer, "R/G/B: scroll over swatch", x + 10, y + 20, Theme.TEXT_DIM, false);
+            context.drawString(font, "R/G/B: scroll over swatch", x + 10, y + 20, Theme.TEXT_DIM, false);
         }
     }
 
@@ -148,7 +148,7 @@ public class ModuleSettingsScreen extends Screen {
     }
 
     @Override
-    public boolean shouldPause() {
+    public boolean isPauseScreen() {
         return false;
     }
 }

@@ -3,7 +3,7 @@ package gg.spaceclient.modules.hud;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.GuiGraphics;
 
 /**
  * Movement speed in blocks per second.
@@ -56,7 +56,7 @@ public class SpeedometerModule extends HudModule {
         if (mc.player == null) return 5.6;
         if (mc.player.isFallFlying()) return 33.0;
         if (mc.player.getAbilities().flying) return 10.9;
-        if (mc.player.isSprinting()) return mc.player.isOnGround() ? 5.6 : 7.1;
+        if (mc.player.isSprinting()) return mc.player.onGround() ? 5.6 : 7.1;
         return 4.3;
     }
 
@@ -70,13 +70,13 @@ public class SpeedometerModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return mc.textRenderer.getWidth(text()); }
+    public int getWidth() { return mc.font.width(text()); }
 
     @Override
-    public int getHeight() { return mc.textRenderer.fontHeight; }
+    public int getHeight() { return mc.font.lineHeight; }
 
     @Override
-    public void render(DrawContext context, int x, int y) {
-        context.drawText(mc.textRenderer, text(), x, y, textColor.get(), true);
+    public void render(GuiGraphics context, int x, int y) {
+        context.drawString(mc.font, text(), x, y, textColor.get(), true);
     }
 }

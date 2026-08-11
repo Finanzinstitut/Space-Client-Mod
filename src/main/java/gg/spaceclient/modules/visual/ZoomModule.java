@@ -4,7 +4,7 @@ import gg.spaceclient.module.Category;
 import gg.spaceclient.module.Module;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.IntSetting;
-import net.minecraft.client.util.InputUtil;
+import com.mojang.blaze3d.platform.InputConstants;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -39,7 +39,7 @@ public class ZoomModule extends Module {
 
     public boolean isZooming() {
         if (mc.getWindow() == null) return false;
-        return InputUtil.isKeyPressed(mc.getWindow().getHandle(), GLFW.GLFW_KEY_C);
+        return InputConstants.isKeyDown(mc.getWindow().getWindow(), GLFW.GLFW_KEY_C);
     }
 
     public float getCurrentFactor() {
@@ -74,12 +74,12 @@ public class ZoomModule extends Module {
 
         if (currentFactor > 1.05f) {
             if (savedSensitivity < 0) {
-                savedSensitivity = mc.options.getMouseSensitivity().getValue();
+                savedSensitivity = mc.options.sensitivity().getValue();
             }
             // Scale sensitivity with the magnification so aiming stays usable
-            mc.options.getMouseSensitivity().setValue(savedSensitivity / currentFactor);
+            mc.options.sensitivity().setValue(savedSensitivity / currentFactor);
         } else if (savedSensitivity >= 0) {
-            mc.options.getMouseSensitivity().setValue(savedSensitivity);
+            mc.options.sensitivity().setValue(savedSensitivity);
             savedSensitivity = -1;
         }
     }
@@ -88,7 +88,7 @@ public class ZoomModule extends Module {
     protected void onDisable() {
         currentFactor = 1.0f;
         if (savedSensitivity >= 0 && mc.options != null) {
-            mc.options.getMouseSensitivity().setValue(savedSensitivity);
+            mc.options.sensitivity().setValue(savedSensitivity);
             savedSensitivity = -1;
         }
     }

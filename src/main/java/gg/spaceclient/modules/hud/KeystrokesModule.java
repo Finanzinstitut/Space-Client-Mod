@@ -4,9 +4,9 @@ import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
 import gg.spaceclient.setting.ModeSetting;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.KeyMapping;
+import com.mojang.blaze3d.platform.InputConstants;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -109,20 +109,20 @@ public class KeystrokesModule extends HudModule {
         if (mc.options == null) return false;
 
         switch (binding) {
-            case "LMB": return mc.options.attackKey.isPressed();
-            case "RMB": return mc.options.useKey.isPressed();
-            case "W": return mc.options.forwardKey.isPressed();
-            case "A": return mc.options.leftKey.isPressed();
-            case "S": return mc.options.backKey.isPressed();
-            case "D": return mc.options.rightKey.isPressed();
-            case "SPACE": return mc.options.jumpKey.isPressed();
-            case "SHIFT": return mc.options.sneakKey.isPressed();
-            case "CTRL": return mc.options.sprintKey.isPressed();
+            case "LMB": return mc.options.keyAttack.isDown();
+            case "RMB": return mc.options.keyUse.isDown();
+            case "W": return mc.options.keyUp.isDown();
+            case "A": return mc.options.keyLeft.isDown();
+            case "S": return mc.options.keyDown.isDown();
+            case "D": return mc.options.keyRight.isDown();
+            case "SPACE": return mc.options.keyJump.isDown();
+            case "SHIFT": return mc.options.keyShift.isDown();
+            case "CTRL": return mc.options.keySprint.isDown();
             default:
                 // Anything else is looked up as a raw keyboard key
                 if (binding.length() == 1) {
-                    InputUtil.Key key = InputUtil.fromTranslationKey("key.keyboard." + binding.toLowerCase());
-                    return InputUtil.isKeyPressed(mc.getWindow().getHandle(), key.getCode());
+                    InputConstants.Key key = InputConstants.getKey("key.keyboard." + binding.toLowerCase());
+                    return InputConstants.isKeyDown(mc.getWindow().getWindow(), key.getCode());
                 }
                 return false;
         }
@@ -152,7 +152,7 @@ public class KeystrokesModule extends HudModule {
     }
 
     @Override
-    public void render(DrawContext context, int x, int y) {
+    public void render(GuiGraphics context, int x, int y) {
         CpsModule cps = null;
         if (showCps.get()) {
             cps = CpsModule.getInstance();
@@ -181,10 +181,10 @@ public class KeystrokesModule extends HudModule {
             if (cps != null && cell.binding().equals("RMB")) label = cps.getRightCps() + " CPS";
             if (label.equals("SPACE") && cell.width() >= 3) label = "___";
 
-            int textWidth = mc.textRenderer.getWidth(label);
+            int textWidth = mc.font.width(label);
             int textX = cellX + (cellW - textWidth) / 2;
-            int textY = cellY + (KEY_SIZE - mc.textRenderer.fontHeight) / 2;
-            context.drawText(mc.textRenderer, label, textX, textY, textColor.get(), true);
+            int textY = cellY + (KEY_SIZE - mc.font.lineHeight) / 2;
+            context.drawString(mc.font, label, textX, textY, textColor.get(), true);
         }
     }
 }
