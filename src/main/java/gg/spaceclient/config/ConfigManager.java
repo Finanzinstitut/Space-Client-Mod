@@ -3,7 +3,7 @@ package gg.spaceclient.config;
 import com.google.gson.*;
 import gg.spaceclient.SpaceClient;
 import gg.spaceclient.module.Module;
-import gg.spaceclient.modules.hud.KeystrokesModule;
+import gg.spaceclient.modules.KeystrokesModule;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
@@ -26,14 +26,11 @@ public class ConfigManager {
         for (Module module : SpaceClient.getModuleManager().getAll()) {
             JsonObject moduleJson = new JsonObject();
             module.save(moduleJson);
-
-            // Keystrokes keeps a free-text key list that is not a Setting subclass
             if (module instanceof KeystrokesModule ks) {
                 moduleJson.addProperty("custom_keys", ks.getCustomKeys());
             }
             modules.add(module.getId(), moduleJson);
         }
-
         root.add("modules", modules);
 
         try {
@@ -49,7 +46,6 @@ public class ConfigManager {
             save();
             return;
         }
-
         try {
             JsonObject root = JsonParser.parseString(Files.readString(file)).getAsJsonObject();
             if (!root.has("modules")) return;
@@ -59,14 +55,13 @@ public class ConfigManager {
                 if (!modules.has(module.getId())) continue;
                 JsonObject moduleJson = modules.getAsJsonObject(module.getId());
                 module.load(moduleJson);
-
                 if (module instanceof KeystrokesModule ks && moduleJson.has("custom_keys")) {
                     ks.setCustomKeys(moduleJson.get("custom_keys").getAsString());
                 }
             }
         } catch (Exception e) {
-            // A corrupt config should not stop the game from starting
-            SpaceClient.LOGGER.error("Could not read config, starting with defaults", e);
+            // A corrupt config must not stop the game from starting
+            SpaceClient.LOGGER.error("Could not read config, using defaults", e);
         }
     }
 }

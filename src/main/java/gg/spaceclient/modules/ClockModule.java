@@ -1,9 +1,9 @@
-package gg.spaceclient.modules.hud;
+package gg.spaceclient.modules;
 
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -16,23 +16,13 @@ public class ClockModule extends HudModule {
             "text_color", "Text colour", "Colour of the clock", 0xFFFFFFFF);
 
     public ClockModule() {
-        super("clock", "Clock", "Displays the current real-world time", 0.90f, 0.05f);
+        super("clock", "Clock", "Displays the current real-world time", 0.90f, 0.05f, false);
         addSettings(showSeconds, textColor);
     }
 
-    private String text() {
+    @Override
+    public void render(GuiGraphicsExtractor graphics, int x, int y) {
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern(showSeconds.get() ? "HH:mm:ss" : "HH:mm");
-        return LocalTime.now().format(fmt);
-    }
-
-    @Override
-    public int getWidth() { return mc.font.width(text()); }
-
-    @Override
-    public int getHeight() { return mc.font.lineHeight; }
-
-    @Override
-    public void render(GuiGraphics context, int x, int y) {
-        context.drawString(mc.font, text(), x, y, textColor.get(), true);
+        graphics.text(mc.font, LocalTime.now().format(fmt), x, y, textColor.get(), true);
     }
 }

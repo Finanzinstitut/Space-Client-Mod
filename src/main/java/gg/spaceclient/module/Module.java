@@ -7,54 +7,34 @@ import net.minecraft.client.Minecraft;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * A single toggleable feature. Subclasses add their settings in the constructor
- * and override the hooks they care about.
- */
+/** A single toggleable feature. */
 public abstract class Module {
     protected static final Minecraft mc = Minecraft.getInstance();
 
     private final String id;
     private final String name;
     private final String description;
-    private final Category category;
     private final List<Setting> settings = new ArrayList<>();
-
     private boolean enabled;
 
-    protected Module(String id, String name, String description, Category category) {
+    protected Module(String id, String name, String description, boolean enabledByDefault) {
         this.id = id;
         this.name = name;
         this.description = description;
-        this.category = category;
+        this.enabled = enabledByDefault;
     }
 
     public String getId() { return id; }
     public String getName() { return name; }
     public String getDescription() { return description; }
-    public Category getCategory() { return category; }
     public List<Setting> getSettings() { return settings; }
     public boolean isEnabled() { return enabled; }
+    public void setEnabled(boolean enabled) { this.enabled = enabled; }
+    public void toggle() { this.enabled = !this.enabled; }
 
     protected void addSettings(Setting... toAdd) {
         for (Setting s : toAdd) settings.add(s);
     }
-
-    public void setEnabled(boolean enabled) {
-        if (this.enabled == enabled) return;
-        this.enabled = enabled;
-        if (enabled) onEnable(); else onDisable();
-    }
-
-    public void toggle() {
-        setEnabled(!enabled);
-    }
-
-    /** Called once when the module is switched on. */
-    protected void onEnable() {}
-
-    /** Called once when the module is switched off - undo anything global here. */
-    protected void onDisable() {}
 
     /** Called every client tick while enabled. */
     public void onTick() {}
@@ -67,14 +47,10 @@ public abstract class Module {
     }
 
     public void load(JsonObject json) {
-        if (json.has("enabled")) {
-            // Set the field directly so onEnable runs through setEnabled below
-            boolean shouldEnable = json.get("enabled").getAsBoolean();
-            if (json.has("settings")) {
-                JsonObject settingsJson = json.getAsJsonObject("settings");
-                for (Setting s : settings) s.load(settingsJson);
-            }
-            setEnabled(shouldEnable);
+        if (json.has("enabled")) enabled = json.get("enabled").getAsBoolean();
+        if (json.has("settings")) {
+            JsonObject settingsJson = json.getAsJsonObject("settings");
+            for (Setting s : settings) s.load(settingsJson);
         }
     }
 }
