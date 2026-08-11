@@ -115,7 +115,12 @@ Two areas are the likely sources of first-build failures:
   method it could not find, which is usually a one-line fix.
 
 The build uses **Yarn mappings**, matching the names used throughout the source
-(`MinecraftClient`, `DrawContext`, `mc.options.attackKey`).
+(`MinecraftClient`, `DrawContext`, `mc.options.attackKey`), and **Java 25**,
+which Loom requires for Minecraft 26.2.
+
+The `yarn_mappings` value in `gradle.properties` is a guess at the build number.
+If Gradle reports it cannot resolve `net.fabricmc:yarn:26.2+build.N`, check
+https://fabricmc.net/develop for the exact string and correct that one line.
 
 ## License
 

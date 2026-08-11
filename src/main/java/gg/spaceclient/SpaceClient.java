@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 
 public class SpaceClient implements ClientModInitializer {
     public static final String MOD_ID = "spaceclient";
+    public static final String VERSION = "0.1.0";
     public static final Logger LOGGER = LoggerFactory.getLogger("Space Client");
 
     private static ModuleManager moduleManager;
@@ -33,8 +34,8 @@ public class SpaceClient implements ClientModInitializer {
         configManager = new ConfigManager();
         configManager.load();
 
-        // Pulls the published list of Space Client users for the Jupiter badge
-        gg.spaceclient.badge.UserRegistry.refresh();
+        // Registers this account with the badge service and pulls the user list
+        gg.spaceclient.badge.UserRegistry.registerAndRefresh();
 
         // Right Shift opens the menu. Registered as a keybind so players can
         // rebind it in vanilla controls if they want.
