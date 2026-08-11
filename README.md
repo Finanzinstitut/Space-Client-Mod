@@ -11,7 +11,7 @@ batches without touching the core.
 
 **Working now — 20 modules**
 
-| Module | The bit other clients don't have |
+|  Module | The bit other clients don't have |
 |---|---|
 | FPS | — |
 | CPS | shared counter other modules read from |
