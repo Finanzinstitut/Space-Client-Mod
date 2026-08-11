@@ -114,16 +114,20 @@ Two areas are the likely sources of first-build failures:
   change signature often. If the mixin fails to apply, the message names the
   method it could not find, which is usually a one-line fix.
 
-The build uses **official Mojang mappings** and **Java 25**.
+Minecraft ships **unobfuscated** from 26.1 onwards, which changes the build
+setup in three ways that trip up anyone following an older tutorial:
 
-Yarn is not an option here: Minecraft ships unobfuscated from 26.1 onwards, and
-Fabric stopped publishing Yarn from that version on. The whole source therefore
-uses Mojang names — `Minecraft`, `GuiGraphics`, `Component`, `mc.options.keyAttack`
-— rather than the Yarn equivalents most older tutorials show.
+- The plugin id is **`net.fabricmc.fabric-loom`**, not `fabric-loom`. The new
+  one does not remap anything; the old one only works on obfuscated versions.
+- **There is no `mappings` line at all.** Not Yarn (no longer published), not
+  `officialMojangMappings()` (Loom cannot find mappings that do not exist).
+- Dependencies use plain **`implementation`**, not `modImplementation`, and the
+  output comes from **`jar`**, not `remapJar` — nothing gets remapped.
 
-That conversion was done mechanically across all 35 source files, so expect a
-handful of method names to still be off on the first build. Each one is a
-one-line fix that the compiler names precisely.
+The source uses Mojang names throughout — `Minecraft`, `GuiGraphics`,
+`Component`, `mc.options.keyAttack`. That conversion was done mechanically
+across all 35 files, so expect a handful of method names to still be off on the
+first successful configure. Each is a one-line fix the compiler names precisely.
 
 ## License
 

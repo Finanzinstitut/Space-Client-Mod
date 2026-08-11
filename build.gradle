@@ -1,5 +1,7 @@
 plugins {
-    id 'fabric-loom' version '1.17-SNAPSHOT'
+    // From 26.1 onwards Minecraft ships unobfuscated, so this is the plugin that
+    // does NOT remap. The old 'fabric-loom' id only works on obfuscated versions.
+    id 'net.fabricmc.fabric-loom' version '1.17-SNAPSHOT'
     id 'maven-publish'
 }
 
@@ -16,11 +18,11 @@ repositories {
 
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    // Minecraft 26.2 ships unobfuscated and Fabric stopped publishing Yarn from
-    // 26.1 onwards, so official Mojang names are the only option here.
-    mappings loom.officialMojangMappings()
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    // No mappings block: 26.2 is unobfuscated, so there is nothing to map.
+    // Likewise no modImplementation - nothing gets remapped either.
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 }
 
 processResources {
@@ -30,7 +32,6 @@ processResources {
     }
 }
 
-// Minecraft 26.2 requires Java 25; Loom refuses to configure otherwise.
 tasks.withType(JavaCompile).configureEach {
     it.options.release = 25
 }
