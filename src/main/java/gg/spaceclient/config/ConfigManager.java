@@ -1,0 +1,72 @@
+package gg.spaceclient.config;
+
+import com.google.gson.*;
+import gg.spaceclient.SpaceClient;
+import gg.spaceclient.module.Module;
+import gg.spaceclient.modules.hud.KeystrokesModule;
+import net.fabricmc.loader.api.FabricLoader;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+/** Reads and writes the single JSON config in the instance's config folder. */
+public class ConfigManager {
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private final Path file;
+
+    public ConfigManager() {
+        this.file = FabricLoader.getInstance().getConfigDir().resolve("spaceclient.json");
+    }
+
+    public void save() {
+        JsonObject root = new JsonObject();
+        JsonObject modules = new JsonObject();
+
+        for (Module module : SpaceClient.getModuleManager().getAll()) {
+            JsonObject moduleJson = new JsonObject();
+            module.save(moduleJson);
+
+            // Keystrokes keeps a free-text key list that is not a Setting subclass
+            if (module instanceof KeystrokesModule ks) {
+                moduleJson.addProperty("custom_keys", ks.getCustomKeys());
+            }
+            modules.add(module.getId(), moduleJson);
+        }
+
+        root.add("modules", modules);
+
+        try {
+            Files.createDirectories(file.getParent());
+            Files.writeString(file, GSON.toJson(root));
+        } catch (IOException e) {
+            SpaceClient.LOGGER.error("Could not save config", e);
+        }
+    }
+
+    public void load() {
+        if (!Files.exists(file)) {
+            save();
+            return;
+        }
+
+        try {
+            JsonObject root = JsonParser.parseString(Files.readString(file)).getAsJsonObject();
+            if (!root.has("modules")) return;
+            JsonObject modules = root.getAsJsonObject("modules");
+
+            for (Module module : SpaceClient.getModuleManager().getAll()) {
+                if (!modules.has(module.getId())) continue;
+                JsonObject moduleJson = modules.getAsJsonObject(module.getId());
+                module.load(moduleJson);
+
+                if (module instanceof KeystrokesModule ks && moduleJson.has("custom_keys")) {
+                    ks.setCustomKeys(moduleJson.get("custom_keys").getAsString());
+                }
+            }
+        } catch (Exception e) {
+            // A corrupt config should not stop the game from starting
+            SpaceClient.LOGGER.error("Could not read config, starting with defaults", e);
+        }
+    }
+}

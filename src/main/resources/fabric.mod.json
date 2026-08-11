@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "spaceclient",
+  "version": "${version}",
+  "name": "Space Client",
+  "description": "In-game HUD and utility modules for Space Client. Press Right Shift to open the menu.",
+  "authors": [
+    "Finanzinstitut"
+  ],
+  "license": "ARR",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "gg.spaceclient.SpaceClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "*",
+    "java": ">=21",
+    "fabric-api": "*"
+  },
+  "mixins": [
+    "spaceclient.mixins.json"
+  ]
+}

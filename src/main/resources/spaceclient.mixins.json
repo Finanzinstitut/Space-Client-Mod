@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "package": "gg.spaceclient.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "EntityRenderDispatcherMixin",
+    "GameRendererMixin",
+    "PlayerListHudMixin",
+    "PlayerEntityRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
