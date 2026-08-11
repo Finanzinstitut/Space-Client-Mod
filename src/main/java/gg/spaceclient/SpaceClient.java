@@ -55,7 +55,7 @@ public class SpaceClient implements ClientModInitializer {
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (menuKey.consumeClick()) {
-                client.setScreen(new SpaceMenuScreen());
+                client.gui.setScreen(new SpaceMenuScreen());
             }
             moduleManager.onTick();
         });

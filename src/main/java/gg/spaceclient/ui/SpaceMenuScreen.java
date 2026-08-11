@@ -94,7 +94,8 @@ public class SpaceMenuScreen extends Screen {
 
     @Override
     public void onClose() {
-        Minecraft.getInstance().setScreen(null);
+        // In 26.2 setScreen lives on Minecraft.gui, not on Minecraft itself.
+        Minecraft.getInstance().gui.setScreen(null);
     }
 
     @Override

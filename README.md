@@ -42,7 +42,10 @@ Worth writing down, because almost every tutorial online is wrong for this versi
 - Text is drawn with `graphics.text(font, str, x, y, argb, shadow)`.
 - `Screen#render` is now **`extractRenderState`**, same parameters.
 - Key mappings take a registered **`KeyMapping.Category`** object, not a
-  translation key string.
+  translation key string, and register through
+  `net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper`.
+- **`setScreen` moved onto `Minecraft.gui`** — `minecraft.gui.setScreen(...)`,
+  not `minecraft.setScreen(...)`.
 - Colours are **ARGB**, not RGB — an RGB value renders fully transparent.
 
 ## Deliberately not included yet
