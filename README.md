@@ -24,8 +24,8 @@ addition is confirmed building.
 | Session | off | uptime plus an optional break reminder |
 | Mouse Tracker | off | drawn from rectangles, every colour configurable |
 
-Settings live in `config/spaceclient.json`. Modules are toggled by editing
-`"enabled"` there for now.
+Press **Right Shift** to open the menu and toggle modules. Settings are written
+to `config/spaceclient.json` as soon as anything changes.
 
 ## What 26.2 changed
 
@@ -40,6 +40,9 @@ Worth writing down, because almost every tutorial online is wrong for this versi
   `HudElementRegistry.attachElementBefore(VanillaHudElements.CHAT, id, element)`,
   where an element takes `(GuiGraphicsExtractor, DeltaTracker)`.
 - Text is drawn with `graphics.text(font, str, x, y, argb, shadow)`.
+- `Screen#render` is now **`extractRenderState`**, same parameters.
+- Key mappings take a registered **`KeyMapping.Category`** object, not a
+  translation key string.
 - Colours are **ARGB**, not RGB — an RGB value renders fully transparent.
 
 ## Deliberately not included yet
@@ -47,9 +50,12 @@ Worth writing down, because almost every tutorial online is wrong for this versi
 Each of these needs API details this version changed and that are not yet
 confirmed, so they are left out rather than guessed at:
 
-- **The Right Shift menu and HUD editor.** `Screen#mouseClicked` now takes a
-  `MouseButtonEvent`, and the render signature changed. This is the first thing
-  to add back once those are known.
+- **The HUD editor** (dragging elements into place). Dragging needs the mouse
+  event API, which changed in this version: `Screen#mouseClicked` now takes a
+  `MouseButtonEvent`. The menu itself sidesteps this by being built from Button
+  widgets, which handle their own clicks.
+- **Per-module settings screens.** The menu toggles modules on and off; colours
+  and options are still edited in the config file.
 - **Mixins** (hitbox filtering, zoom, the Jupiter badge in the tab list).
 - Modules touching inventory, potion effects, options (`OptionInstance`),
   or entity positions — all of those method names moved.

@@ -6,10 +6,16 @@ import gg.spaceclient.module.ModuleManager;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 
+import com.mojang.blaze3d.platform.InputConstants;
+
+import gg.spaceclient.ui.SpaceMenuScreen;
+
 import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.resources.Identifier;
@@ -24,6 +30,7 @@ public class SpaceClient implements ClientModInitializer {
 
     private static ModuleManager moduleManager;
     private static ConfigManager configManager;
+    private static KeyMapping menuKey;
 
     public static ModuleManager getModuleManager() { return moduleManager; }
     public static ConfigManager getConfigManager() { return configManager; }
@@ -34,7 +41,24 @@ public class SpaceClient implements ClientModInitializer {
         configManager = new ConfigManager();
         configManager.load();
 
-        ClientTickEvents.END_CLIENT_TICK.register(client -> moduleManager.onTick());
+        // Key mappings now take a registered Category object rather than a
+        // translation key string.
+        KeyMapping.Category category = KeyMapping.Category.register(
+                Identifier.fromNamespaceAndPath(MOD_ID, "main"));
+
+        menuKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.spaceclient.menu",
+                InputConstants.Type.KEYSYM,
+                InputConstants.KEY_RSHIFT,
+                category
+        ));
+
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            while (menuKey.consumeClick()) {
+                client.setScreen(new SpaceMenuScreen());
+            }
+            moduleManager.onTick();
+        });
 
         // Our elements draw just before the chat, so the HUD API handles layering.
         HudElementRegistry.attachElementBefore(
