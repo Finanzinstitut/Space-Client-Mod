@@ -11,13 +11,13 @@ import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
-import net.fabricmc.fabric.api.client.screen.v1.Screens;
 
 import com.mojang.blaze3d.platform.InputConstants;
 
 import gg.spaceclient.session.SessionWatcher;
 import gg.spaceclient.ui.AccountsScreen;
 import gg.spaceclient.ui.FlatButton;
+import gg.spaceclient.ui.ScreenInjector;
 import gg.spaceclient.ui.SpaceMenuScreen;
 
 import net.minecraft.client.DeltaTracker;
@@ -95,7 +95,7 @@ public class SpaceClient implements ClientModInitializer {
         // needed - the in-game menu is out of reach from the main menu.
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             if (!(screen instanceof JoinMultiplayerScreen)) return;
-            Screens.getButtons(screen).add(new FlatButton(
+            ScreenInjector.addWidget(screen, new FlatButton(
                     10, 10, 116, 20,
                     () -> "Space Client",
                     () -> false,

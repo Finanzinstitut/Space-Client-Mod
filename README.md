@@ -98,6 +98,12 @@ The **server list** carries a *Space Client* button in the top left corner,
 because that is where switching accounts is actually needed — the in-game menu
 cannot be reached from the main menu. It opens the same Accounts screen.
 
+Fabric's usual helper for putting a widget on someone else's screen
+(`Screens.getButtons`) does not exist in this version, so the widget is handed
+to the screen's own protected `addRenderableWidget` through reflection, found by
+name and parameter count. If that ever stops matching, the button quietly does
+not appear and a line goes in the log — the rest of the mod is unaffected.
+
 **Accounts** in the menu lists whatever accounts the Space Client launcher has
 signed in, switches between them, and refreshes the current session — all
 without restarting the game.

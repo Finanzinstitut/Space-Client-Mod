@@ -29,8 +29,21 @@ public abstract class Module {
     public String getDescription() { return description; }
     public List<Setting> getSettings() { return settings; }
     public boolean isEnabled() { return enabled; }
-    public void setEnabled(boolean enabled) { this.enabled = enabled; }
-    public void toggle() { this.enabled = !this.enabled; }
+    public void setEnabled(boolean enabled) {
+        if (this.enabled == enabled) return;
+        this.enabled = enabled;
+        if (enabled) onEnable(); else onDisable();
+    }
+
+    public void toggle() {
+        setEnabled(!this.enabled);
+    }
+
+    /** Called once when the module is switched on. */
+    protected void onEnable() {}
+
+    /** Called once when switched off - undo anything global here. */
+    protected void onDisable() {}
 
     protected void addSettings(Setting... toAdd) {
         for (Setting s : toAdd) settings.add(s);
@@ -47,7 +60,15 @@ public abstract class Module {
     }
 
     public void load(JsonObject json) {
-        if (json.has("enabled")) enabled = json.get("enabled").getAsBoolean();
+        if (json.has("enabled")) {
+            boolean value = json.get("enabled").getAsBoolean();
+            // Set the field first so a hook that reads isEnabled() sees the
+            // final state, then fire the hook itself.
+            if (value != enabled) {
+                enabled = value;
+                if (value) onEnable(); else onDisable();
+            }
+        }
         if (json.has("settings")) {
             JsonObject settingsJson = json.getAsJsonObject("settings");
             for (Setting s : settings) s.load(settingsJson);
