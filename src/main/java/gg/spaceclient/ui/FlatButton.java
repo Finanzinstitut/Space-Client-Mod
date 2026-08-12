@@ -12,9 +12,9 @@ import java.util.function.Supplier;
  * A flat, modern button drawn entirely from rectangles - no Minecraft button
  * texture, no bevel.
  *
- * It extends Button rather than AbstractWidget so the press handling comes for
- * free; only the drawing is replaced. That keeps the menu independent of the
- * mouse event API, which changed in this version.
+ * It extends Button so press handling comes for free; only the drawing is
+ * replaced. That keeps the menu independent of the mouse event API, which
+ * changed in this version.
  */
 public class FlatButton extends Button {
     private final Supplier<String> label;
@@ -30,8 +30,14 @@ public class FlatButton extends Button {
         this.active = active;
     }
 
+    /**
+     * AbstractButton draws the vanilla sprite in extractWidgetRenderState, which
+     * is final, and then calls this. Filling the whole bounds here paints over
+     * that sprite completely, which is how the flat look is achieved without
+     * touching the mouse event API.
+     */
     @Override
-    public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+    protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         boolean on = active.getAsBoolean();
         boolean hovered = isHovered();
 
