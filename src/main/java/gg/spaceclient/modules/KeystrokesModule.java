@@ -16,17 +16,17 @@ import java.util.Map;
 /**
  * Shows which keys are being pressed.
  *
- * Three layouts, as originally intended:
  *  - KEYBINDS: the movement block plus mouse buttons and space
- *  - FULL:     every bound control the game has, laid out as a grid
- *  - CUSTOM:   only the controls listed in customKeys
+ *  - FULL:     a real keyboard, laid out the way it sits under your hands
+ *  - CUSTOM:   the keys you list, arranged in that same keyboard layout
  *
- * Everything reads Minecraft's own key bindings rather than raw keyboard state,
- * so the display follows whatever the player has rebound their controls to, and
- * a key shows as pressed whichever physical key it currently sits on.
+ * Pressed state comes from Minecraft's own key bindings rather than raw
+ * keyboard polling, so a key lights up wherever the player has rebound it to.
+ * Keys the game has no binding for are drawn but never light - see the note on
+ * unbound keys further down.
  */
 public class KeystrokesModule extends HudModule {
-    private static final int KEY_SIZE = 22;
+    private static final int UNIT = 20;
     private static final int GAP = 2;
 
     private final ModeSetting layout = new ModeSetting(
@@ -48,25 +48,62 @@ public class KeystrokesModule extends HudModule {
     private final ColorSetting textColor = new ColorSetting(
             "text_color", "Text colour", "Colour of the key labels", 0xFFFFFFFF);
 
-    /** Comma separated control names for CUSTOM mode. */
+    /** Comma separated key labels for CUSTOM mode. */
     private String customKeys = "W,A,S,D,SPACE,SHIFT";
 
     public KeystrokesModule() {
         super("keystrokes", "Keystrokes", "Visualise your inputs in real time", 0.02f, 0.55f, true);
         addSettings(layout, showMouse, showCps, pressedColor, idleColor, textColor);
-        // Each key already draws its own plate; a module-wide one behind them
-        // would just add a second grey box.
+        // Each key draws its own plate, so a module-wide one would double up.
         setBackgroundEnabled(false);
     }
 
     public String getCustomKeys() { return customKeys; }
     public void setCustomKeys(String keys) { this.customKeys = keys; }
 
-    public List<String> availableKeys() {
-        return new ArrayList<>(bindings().keySet());
+    /**
+     * A physical keyboard, row by row. Width is in tenths of a key so wide keys
+     * like TAB and SHIFT keep their real proportions.
+     */
+    private static final String[][] KEYBOARD_ROWS = {
+            {"1", "2", "3", "4", "5", "6", "7", "8", "9"},
+            {"TAB", "Q", "W", "E", "R", "T", "Z", "U", "I"},
+            {"CAPS", "A", "S", "D", "F", "G", "H", "J"},
+            {"SHIFT", "Y", "X", "C", "V", "B", "N"},
+            {"CTRL", "SPACE"},
+    };
+
+    /** Width in tenths of a unit for the keys that are not square. */
+    private static int widthOf(String label) {
+        return switch (label) {
+            case "TAB" -> 15;
+            case "CAPS" -> 18;
+            case "SHIFT" -> 22;
+            case "CTRL" -> 18;
+            case "SPACE" -> 50;
+            default -> 10;
+        };
     }
 
-    /** Every control this module can display, by short label. */
+    /** Left offset in tenths, so each row steps in like a real keyboard. */
+    private static int rowIndent(int row) {
+        return switch (row) {
+            case 0 -> 8;
+            case 1 -> 0;
+            case 2 -> 3;
+            case 3 -> 0;
+            case 4 -> 0;
+            default -> 0;
+        };
+    }
+
+    /**
+     * Which game control each key corresponds to.
+     *
+     * Only keys the game actually binds can report a pressed state. Letters with
+     * no default binding - Y, X, C, V, N and so on - are drawn as part of the
+     * keyboard but stay dark, because Minecraft never tells the mod about them.
+     */
     private Map<String, KeyMapping> bindings() {
         Map<String, KeyMapping> map = new LinkedHashMap<>();
         if (mc.options == null) return map;
@@ -80,12 +117,19 @@ public class KeystrokesModule extends HudModule {
         map.put("CTRL", mc.options.keySprint);
         map.put("LMB", mc.options.keyAttack);
         map.put("RMB", mc.options.keyUse);
-        map.put("DROP", mc.options.keyDrop);
-        map.put("INV", mc.options.keyInventory);
-        map.put("SWAP", mc.options.keySwapOffhand);
-        map.put("PICK", mc.options.keyPickItem);
-        map.put("CHAT", mc.options.keyChat);
+        map.put("Q", mc.options.keyDrop);
+        map.put("E", mc.options.keyInventory);
+        map.put("F", mc.options.keySwapOffhand);
+        map.put("T", mc.options.keyChat);
         map.put("TAB", mc.options.keyPlayerList);
+
+        // Number row maps onto the hotbar slots
+        KeyMapping[] hotbar = mc.options.keyHotbarSlots;
+        if (hotbar != null) {
+            for (int i = 0; i < hotbar.length && i < 9; i++) {
+                map.put(String.valueOf(i + 1), hotbar[i]);
+            }
+        }
         return map;
     }
 
@@ -94,108 +138,108 @@ public class KeystrokesModule extends HudModule {
         return mapping != null && mapping.isDown();
     }
 
-    /** label, grid row, grid column, width in cells. */
-    private record KeyCell(String label, int row, int col, int width) {}
+    /** label, row, left offset in tenths, width in tenths. */
+    private record KeyCell(String label, int row, int offset, int width) {}
 
     private List<KeyCell> buildCells() {
         List<KeyCell> cells = new ArrayList<>();
 
-        if (layout.is("CUSTOM")) {
-            Map<String, KeyMapping> known = bindings();
-            int col = 0;
-            int row = 0;
-            for (String raw : customKeys.split(",")) {
-                String label = raw.trim().toUpperCase();
-                if (label.isEmpty() || !known.containsKey(label)) continue;
+        if (layout.is("FULL") || layout.is("CUSTOM")) {
+            // CUSTOM keeps the keyboard shape and simply leaves out the keys
+            // that are not listed, so the layout stays recognisable.
+            List<String> wanted = null;
+            if (layout.is("CUSTOM")) {
+                wanted = new ArrayList<>();
+                for (String raw : customKeys.split(",")) {
+                    String label = raw.trim().toUpperCase();
+                    if (!label.isEmpty()) wanted.add(label);
+                }
+            }
 
-                int width = label.length() > 3 ? 2 : 1;
-                if (col + width > 4) { col = 0; row++; }
-                cells.add(new KeyCell(label, row, col, width));
-                col += width;
+            for (int row = 0; row < KEYBOARD_ROWS.length; row++) {
+                int offset = rowIndent(row);
+                for (String label : KEYBOARD_ROWS[row]) {
+                    int width = widthOf(label);
+                    if (wanted == null || wanted.contains(label)) {
+                        cells.add(new KeyCell(label, row, offset, width));
+                    }
+                    offset += width + 2;
+                }
+            }
+
+            // Mouse buttons sit under the keyboard when asked for
+            if (showMouse.get() && (wanted == null || wanted.contains("LMB") || wanted.contains("RMB"))) {
+                int row = KEYBOARD_ROWS.length;
+                if (wanted == null || wanted.contains("LMB")) {
+                    cells.add(new KeyCell("LMB", row, 0, 22));
+                }
+                if (wanted == null || wanted.contains("RMB")) {
+                    cells.add(new KeyCell("RMB", row, 24, 22));
+                }
             }
             return cells;
         }
 
-        if (layout.is("FULL")) {
-            // Movement block on top, then every other bound control in rows of four
-            cells.add(new KeyCell("W", 0, 1, 1));
-            cells.add(new KeyCell("A", 1, 0, 1));
-            cells.add(new KeyCell("S", 1, 1, 1));
-            cells.add(new KeyCell("D", 1, 2, 1));
-            cells.add(new KeyCell("LMB", 2, 0, 1));
-            cells.add(new KeyCell("RMB", 2, 2, 1));
-            cells.add(new KeyCell("SPACE", 3, 0, 3));
-
-            String[] extra = {"SHIFT", "CTRL", "DROP", "INV", "SWAP", "PICK", "CHAT", "TAB"};
-            int col = 0;
-            int row = 4;
-            for (String label : extra) {
-                if (col >= 3) { col = 0; row++; }
-                cells.add(new KeyCell(label, row, col, 1));
-                col++;
-            }
-            return cells;
-        }
-
-        // KEYBINDS
-        cells.add(new KeyCell("W", 0, 1, 1));
-        cells.add(new KeyCell("A", 1, 0, 1));
-        cells.add(new KeyCell("S", 1, 1, 1));
-        cells.add(new KeyCell("D", 1, 2, 1));
+        // KEYBINDS: the compact movement block
+        cells.add(new KeyCell("W", 0, 12, 10));
+        cells.add(new KeyCell("A", 1, 0, 10));
+        cells.add(new KeyCell("S", 1, 12, 10));
+        cells.add(new KeyCell("D", 1, 24, 10));
 
         int row = 2;
         if (showMouse.get()) {
-            cells.add(new KeyCell("LMB", row, 0, 1));
-            cells.add(new KeyCell("RMB", row, 2, 1));
+            cells.add(new KeyCell("LMB", row, 0, 16));
+            cells.add(new KeyCell("RMB", row, 18, 16));
             row++;
         }
-        cells.add(new KeyCell("SPACE", row, 0, 3));
+        cells.add(new KeyCell("SPACE", row, 0, 34));
         return cells;
     }
 
-    private int gridColumns() {
-        int max = 1;
+    /** Converts tenths of a unit into pixels. */
+    private int px(int tenths) {
+        return tenths * (UNIT + GAP) / 10;
+    }
+
+    @Override
+    public int getWidth() {
+        int max = 0;
         for (KeyCell cell : buildCells()) {
-            max = Math.max(max, cell.col() + cell.width());
+            max = Math.max(max, px(cell.offset() + cell.width()));
         }
         return max;
     }
 
-    private int gridRows() {
-        int max = 0;
-        for (KeyCell cell : buildCells()) max = Math.max(max, cell.row());
-        return max + 1;
+    @Override
+    public int getHeight() {
+        int rows = 0;
+        for (KeyCell cell : buildCells()) rows = Math.max(rows, cell.row());
+        return (rows + 1) * (UNIT + GAP) - GAP;
     }
-
-    @Override
-    public int getWidth() { return gridColumns() * (KEY_SIZE + GAP) - GAP; }
-
-    @Override
-    public int getHeight() { return gridRows() * (KEY_SIZE + GAP) - GAP; }
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
         CpsModule cps = showCps.get() ? CpsModule.getInstance() : null;
 
         for (KeyCell cell : buildCells()) {
-            int cellX = x + cell.col() * (KEY_SIZE + GAP);
-            int cellY = y + cell.row() * (KEY_SIZE + GAP);
-            int cellW = cell.width() * (KEY_SIZE + GAP) - GAP;
+            int cellX = x + px(cell.offset());
+            int cellY = y + cell.row() * (UNIT + GAP);
+            int cellW = px(cell.width()) - GAP;
 
             boolean pressed = isPressed(cell.label());
-            graphics.fill(cellX, cellY, cellX + cellW, cellY + KEY_SIZE,
+            graphics.fill(cellX, cellY, cellX + cellW, cellY + UNIT,
                     pressed ? pressedColor.get() : idleColor.get());
 
             String label = cell.label();
             if (cps != null && label.equals("LMB")) label = String.valueOf(cps.getLeftCps());
             if (cps != null && label.equals("RMB")) label = String.valueOf(cps.getRightCps());
-            if (label.equals("SPACE") && cell.width() >= 3) label = "___";
+            if (label.equals("SPACE") && cellW > 60) label = "______";
 
-            // Pressed keys invert so the label stays readable on the bright fill
+            // The label inverts on press so it stays readable on the bright fill
             int color = pressed ? 0xFF202020 : textColor.get();
 
             int textX = cellX + (cellW - mc.font.width(label)) / 2;
-            int textY = cellY + (KEY_SIZE - mc.font.lineHeight) / 2;
+            int textY = cellY + (UNIT - mc.font.lineHeight) / 2;
             graphics.text(mc.font, label, textX, textY, color, false);
         }
     }

@@ -17,7 +17,7 @@ addition is confirmed building.
 | FPS | on | |
 | CPS | on | shared counter other modules read from |
 | Coordinates | on | |
-| Keystrokes | on | KEYBINDS / FULL / CUSTOM, reads Minecraft's own key bindings |
+| Keystrokes | on | KEYBINDS / FULL / CUSTOM, laid out like a real keyboard |
 | Ping | off | |
 | Clock | off | |
 | Speedometer | off | also shows % of the theoretical max for your state |
@@ -63,6 +63,21 @@ Worth writing down, because almost every tutorial online is wrong for this versi
   not `minecraft.setScreen(...)`.
 - Colours are **ARGB**, not RGB — an RGB value renders fully transparent.
 
+## A note on the keyboard view
+
+`FULL` draws a proper keyboard — number row, TAB/QWERTZUI, CAPS/ASDFGHJ,
+SHIFT/YXCVBN, CTRL and space — with the real key proportions and row offsets.
+`CUSTOM` keeps that same shape and simply leaves out the keys you did not list,
+so the layout stays recognisable.
+
+Pressed state comes from Minecraft's key bindings. Keys the game binds by
+default light up: WASD, space, shift, ctrl, the number row (hotbar slots), Q
+(drop), E (inventory), F (offhand), T (chat), TAB (player list). Letters with no
+default binding — Y, X, C, V, B, N and the rest — are drawn as part of the
+keyboard but stay dark, because the game never reports them to a mod. Lighting
+those up would need raw keyboard polling, which needs the window handle whose
+accessor has not been confirmed for this version.
+
 ## Deliberately not included yet
 
 Each of these needs API details this version changed and that are not yet
@@ -72,9 +87,7 @@ confirmed, so they are left out rather than guessed at:
   event API, which changed in this version: `Screen#mouseClicked` now takes a
   `MouseButtonEvent`. The menu itself sidesteps this by being built from Button
   widgets, which handle their own clicks.
-- **The HUD editor** for dragging elements around. Positions are still set via
-  `x` and `y` (0 to 1) in the config file.
-- **Mixins** (hitbox filtering, zoom, the Jupiter badge in the tab list).
+- **Mixins** (hitbox filtering, zoom, the Jupiter badge next to player names).
 - Modules touching inventory, potion effects, options (`OptionInstance`),
   or entity positions — all of those method names moved.
 
