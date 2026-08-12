@@ -1,37 +1,37 @@
 package gg.spaceclient.ui;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.AbstractWidget;
-import net.minecraft.client.gui.narration.NarrationElementOutput;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
+
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 /**
  * A flat, modern button drawn entirely from rectangles - no Minecraft button
- * texture, no bevel. Clicks are handled by AbstractWidget itself, which is why
- * the menu never has to touch the mouse event API.
+ * texture, no bevel.
+ *
+ * It extends Button rather than AbstractWidget so the press handling comes for
+ * free; only the drawing is replaced. That keeps the menu independent of the
+ * mouse event API, which changed in this version.
  */
-public class FlatButton extends AbstractWidget {
-    private final Runnable onPress;
-    private final java.util.function.Supplier<String> label;
-    private final java.util.function.BooleanSupplier active;
+public class FlatButton extends Button {
+    private final Supplier<String> label;
+    private final BooleanSupplier active;
 
     public FlatButton(int x, int y, int width, int height,
-                      java.util.function.Supplier<String> label,
-                      java.util.function.BooleanSupplier active,
+                      Supplier<String> label,
+                      BooleanSupplier active,
                       Runnable onPress) {
-        super(x, y, width, height, Component.empty());
+        super(x, y, width, height, Component.empty(),
+                btn -> onPress.run(), DEFAULT_NARRATION);
         this.label = label;
         this.active = active;
-        this.onPress = onPress;
     }
 
     @Override
-    public void onPress() {
-        onPress.run();
-    }
-
-    @Override
-    protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+    public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         boolean on = active.getAsBoolean();
         boolean hovered = isHovered();
 
@@ -44,34 +44,26 @@ public class FlatButton extends AbstractWidget {
         graphics.fill(x1, y1, x2, y2, background);
 
         // A single accent bar on the left marks the active state, which reads
-        // faster than a full colour fill.
+        // faster than filling the whole row with colour.
         if (on) {
             graphics.fill(x1, y1, x1 + 3, y2, Theme.accent());
         } else if (hovered) {
             graphics.fill(x1, y1, x1 + 3, y2, Theme.OFF);
         }
 
-        // Hairline border
-        // Cyan on hover, violet when active - the launcher's two accents
+        // Cyan when active, violet on hover - the launcher's two accents
         int border = on ? Theme.CYAN : (hovered ? Theme.accent() : Theme.BORDER);
         graphics.fill(x1, y1, x2, y1 + 1, border);
         graphics.fill(x1, y2 - 1, x2, y2, border);
         graphics.fill(x1, y1, x1 + 1, y2, border);
         graphics.fill(x2 - 1, y1, x2, y2, border);
 
-        var font = net.minecraft.client.Minecraft.getInstance().font;
+        var font = Minecraft.getInstance().font;
         int textY = y1 + (this.height - font.lineHeight) / 2;
         graphics.text(font, label.get(), x1 + 12, textY, on ? Theme.TEXT : Theme.TEXT_DIM, false);
 
-        // State pill on the right
         String state = on ? "ON" : "OFF";
         int stateWidth = font.width(state);
-        graphics.text(font, state, x2 - stateWidth - 12, textY,
-                on ? Theme.CYAN : Theme.OFF, false);
-    }
-
-    @Override
-    protected void updateWidgetNarration(NarrationElementOutput builder) {
-        // Narration is not implemented for this widget.
+        graphics.text(font, state, x2 - stateWidth - 12, textY, on ? Theme.CYAN : Theme.OFF, false);
     }
 }

@@ -39,7 +39,7 @@ public class SliderRow extends AbstractSliderButton {
     }
 
     @Override
-    protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+    public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         int x1 = getX();
         int y1 = getY();
         int x2 = x1 + this.width;
@@ -67,7 +67,7 @@ public class SliderRow extends AbstractSliderButton {
     }
 
     @Override
-    protected void updateWidgetNarration(NarrationElementOutput builder) {
+    public void updateWidgetNarration(NarrationElementOutput builder) {
         // Narration is not implemented for this widget.
     }
 }
