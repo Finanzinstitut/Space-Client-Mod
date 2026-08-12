@@ -43,15 +43,29 @@ public class SpaceMenuScreen extends Screen {
             int x = left + col * (columnWidth() + GAP);
             int y = top + row * (ROW_H + GAP);
 
-            this.addRenderableWidget(new FlatButton(
+            // The button remembers where the mouse was, so a click on the right
+            // hand strip opens settings while the rest of the row toggles.
+            FlatButton[] holder = new FlatButton[1];
+            holder[0] = new FlatButton(
                     x, y, columnWidth(), ROW_H,
                     module::getName,
                     module::isEnabled,
                     () -> {
+                        FlatButton button = holder[0];
+                        boolean onGear = button.lastMouseX() >= x + columnWidth() - 34;
+
+                        if (onGear && !module.getSettings().isEmpty()) {
+                            Minecraft.getInstance().gui
+                                    .setScreen(new ModuleSettingsScreen(this, module));
+                            return;
+                        }
+                        button.flash();
                         module.toggle();
                         SpaceClient.getConfigManager().save();
                     }
-            ));
+            );
+            if (!module.getSettings().isEmpty()) holder[0].withGear();
+            this.addRenderableWidget(holder[0]);
         }
 
         int rows = (modules.size() + COLUMNS - 1) / COLUMNS;
@@ -88,7 +102,8 @@ public class SpaceMenuScreen extends Screen {
         // Header
         JupiterIcon.draw(graphics, left, 34, 24);
         graphics.text(this.font, "SPACE CLIENT", left + 34, 38, Theme.CYAN, false);
-        graphics.text(this.font, "v" + SpaceClient.VERSION + "  ·  Right Shift to close",
+        graphics.text(this.font,
+                "v" + SpaceClient.VERSION + "  ·  click to toggle, gear icon for settings",
                 left + 34, 50, Theme.TEXT_DIM, false);
 
         // Divider under the header

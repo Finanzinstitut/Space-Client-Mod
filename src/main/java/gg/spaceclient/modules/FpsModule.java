@@ -14,6 +14,12 @@ public class FpsModule extends HudModule {
     }
 
     @Override
+    public int getWidth() { return mc.font.width(mc.getFps() + " FPS"); }
+
+    @Override
+    public int getHeight() { return mc.font.lineHeight; }
+
+    @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
         graphics.text(mc.font, mc.getFps() + " FPS", x, y, textColor.get(), true);
     }

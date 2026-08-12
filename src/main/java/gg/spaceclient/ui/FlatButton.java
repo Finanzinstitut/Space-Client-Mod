@@ -20,6 +20,20 @@ public class FlatButton extends Button {
     private final Supplier<String> label;
     private final BooleanSupplier active;
 
+    /** When the last click happened, for the white flash. */
+    private long clickedAt = 0;
+    private static final long FLASH_MS = 220;
+
+    /**
+     * Where the mouse was on the last frame. Button's press callback gives no
+     * coordinates, so remembering them here is what lets a click on the right
+     * hand edge open settings instead of toggling.
+     */
+    private int lastMouseX = 0;
+
+    /** Whether to draw the settings dots on the right hand edge. */
+    private boolean showGear = false;
+
     public FlatButton(int x, int y, int width, int height,
                       Supplier<String> label,
                       BooleanSupplier active,
@@ -30,6 +44,18 @@ public class FlatButton extends Button {
         this.active = active;
     }
 
+    public int lastMouseX() { return lastMouseX; }
+
+    public FlatButton withGear() {
+        this.showGear = true;
+        return this;
+    }
+
+    /** Starts the flash. Call this from the press handler. */
+    public void flash() {
+        clickedAt = System.currentTimeMillis();
+    }
+
     /**
      * AbstractButton draws the vanilla sprite in extractWidgetRenderState, which
      * is final, and then calls this. Filling the whole bounds here paints over
@@ -38,6 +64,8 @@ public class FlatButton extends Button {
      */
     @Override
     protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+        lastMouseX = mouseX;
+
         boolean on = active.getAsBoolean();
         boolean hovered = isHovered();
 
@@ -70,6 +98,28 @@ public class FlatButton extends Button {
 
         String state = on ? "ON" : "OFF";
         int stateWidth = font.width(state);
-        graphics.text(font, state, x2 - stateWidth - 12, textY, on ? Theme.CYAN : Theme.OFF, false);
+        graphics.text(font, state, x2 - stateWidth - 34, textY, on ? Theme.CYAN : Theme.OFF, false);
+
+        if (showGear) {
+            // Three dots marking the strip that opens settings
+            int gearX = x2 - 22;
+            int dotY = y1 + this.height / 2 - 1;
+            int dotColor = hovered && mouseX >= x2 - 34 ? Theme.CYAN : Theme.OFF;
+            for (int i = 0; i < 3; i++) {
+                graphics.fill(gearX + i * 5, dotY, gearX + i * 5 + 2, dotY + 2, dotColor);
+            }
+        }
+
+        // A white wipe that sweeps across on click and fades out. Drawn last so
+        // it covers the whole row.
+        long since = System.currentTimeMillis() - clickedAt;
+        if (since < FLASH_MS) {
+            float progress = since / (float) FLASH_MS;
+            int alpha = (int) (110 * (1.0f - progress));
+            int sweep = (int) (this.width * Math.min(1.0f, progress * 1.6f));
+            if (alpha > 2) {
+                graphics.fill(x1, y1, x1 + sweep, y2, (alpha << 24) | 0xFFFFFF);
+            }
+        }
     }
 }

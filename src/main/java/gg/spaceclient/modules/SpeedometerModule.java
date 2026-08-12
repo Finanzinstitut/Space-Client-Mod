@@ -49,12 +49,22 @@ public class SpeedometerModule extends HudModule {
     }
 
     @Override
-    public void render(GuiGraphicsExtractor graphics, int x, int y) {
+    public int getWidth() { return mc.font.width(text()); }
+
+    @Override
+    public int getHeight() { return mc.font.lineHeight; }
+
+    private String text() {
         String text = String.format("%.1f m/s", speed);
         if (showEfficiency.get()) {
             double pct = Math.min(999, (speed / theoreticalMax()) * 100);
             text += String.format("  %.0f%%", pct);
         }
-        graphics.text(mc.font, text, x, y, textColor.get(), true);
+        return text;
+    }
+
+    @Override
+    public void render(GuiGraphicsExtractor graphics, int x, int y) {
+        graphics.text(mc.font, text(), x, y, textColor.get(), true);
     }
 }

@@ -17,7 +17,7 @@ addition is confirmed building.
 | FPS | on | |
 | CPS | on | shared counter other modules read from |
 | Coordinates | on | |
-| Keystrokes | on | three layouts, reads Minecraft's own key bindings |
+| Keystrokes | on | KEYBINDS / FULL / CUSTOM, reads Minecraft's own key bindings |
 | Ping | off | |
 | Clock | off | |
 | Speedometer | off | also shows % of the theoretical max for your state |
@@ -72,9 +72,8 @@ confirmed, so they are left out rather than guessed at:
   event API, which changed in this version: `Screen#mouseClicked` now takes a
   `MouseButtonEvent`. The menu itself sidesteps this by being built from Button
   widgets, which handle their own clicks.
-- **Per-module settings screens.** The menu toggles modules on and off, and
-  Appearance covers the interface colours; per-module options such as each HUD
-  element's own colour are still edited in the config file.
+- **The HUD editor** for dragging elements around. Positions are still set via
+  `x` and `y` (0 to 1) in the config file.
 - **Mixins** (hitbox filtering, zoom, the Jupiter badge in the tab list).
 - Modules touching inventory, potion effects, options (`OptionInstance`),
   or entity positions — all of those method names moved.

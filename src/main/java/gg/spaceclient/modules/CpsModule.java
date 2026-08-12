@@ -69,10 +69,19 @@ public class CpsModule extends HudModule {
     }
 
     @Override
-    public void render(GuiGraphicsExtractor graphics, int x, int y) {
-        String text = showRight.get()
+    public int getWidth() { return mc.font.width(text()); }
+
+    @Override
+    public int getHeight() { return mc.font.lineHeight; }
+
+    private String text() {
+        return showRight.get()
                 ? getLeftCps() + " | " + getRightCps() + " CPS"
                 : getLeftCps() + " CPS";
-        graphics.text(mc.font, text, x, y, textColor.get(), true);
+    }
+
+    @Override
+    public void render(GuiGraphicsExtractor graphics, int x, int y) {
+        graphics.text(mc.font, text(), x, y, textColor.get(), true);
     }
 }

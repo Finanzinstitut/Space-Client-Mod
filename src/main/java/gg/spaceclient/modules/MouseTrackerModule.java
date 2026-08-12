@@ -71,6 +71,12 @@ public class MouseTrackerModule extends HudModule {
         dotY = Math.max(-limit, Math.min(limit, dotY));
     }
 
+    @Override
+    public int getWidth() { return BODY_W; }
+
+    @Override
+    public int getHeight() { return showCps.get() ? BODY_H + 12 : BODY_H; }
+
     private void outlineRect(GuiGraphicsExtractor g, int x1, int y1, int x2, int y2, int color) {
         g.fill(x1, y1, x2, y1 + 1, color);
         g.fill(x1, y2 - 1, x2, y2, color);

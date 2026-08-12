@@ -15,10 +15,19 @@ public class PingModule extends HudModule {
     }
 
     @Override
-    public void render(GuiGraphicsExtractor graphics, int x, int y) {
-        if (mc.player == null || mc.getConnection() == null) return;
+    public int getWidth() { return mc.font.width(text()); }
+
+    @Override
+    public int getHeight() { return mc.font.lineHeight; }
+
+    private String text() {
+        if (mc.player == null || mc.getConnection() == null) return "-- ms";
         PlayerInfo entry = mc.getConnection().getPlayerInfo(mc.player.getUUID());
-        String text = entry != null ? entry.getLatency() + " ms" : "-- ms";
-        graphics.text(mc.font, text, x, y, textColor.get(), true);
+        return entry != null ? entry.getLatency() + " ms" : "-- ms";
+    }
+
+    @Override
+    public void render(GuiGraphicsExtractor graphics, int x, int y) {
+        graphics.text(mc.font, text(), x, y, textColor.get(), true);
     }
 }

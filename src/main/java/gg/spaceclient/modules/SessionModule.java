@@ -26,6 +26,12 @@ public class SessionModule extends HudModule {
     }
 
     @Override
+    public int getWidth() { return 70; }
+
+    @Override
+    public int getHeight() { return mc.font.lineHeight * 2 + 2; }
+
+    @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
         long elapsedMs = System.currentTimeMillis() - startedAt;
         long elapsed = elapsedMs / 1000;

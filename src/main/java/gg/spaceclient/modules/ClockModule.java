@@ -21,8 +21,18 @@ public class ClockModule extends HudModule {
     }
 
     @Override
-    public void render(GuiGraphicsExtractor graphics, int x, int y) {
+    public int getWidth() { return mc.font.width(text()); }
+
+    @Override
+    public int getHeight() { return mc.font.lineHeight; }
+
+    private String text() {
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern(showSeconds.get() ? "HH:mm:ss" : "HH:mm");
-        graphics.text(mc.font, LocalTime.now().format(fmt), x, y, textColor.get(), true);
+        return LocalTime.now().format(fmt);
+    }
+
+    @Override
+    public void render(GuiGraphicsExtractor graphics, int x, int y) {
+        graphics.text(mc.font, text(), x, y, textColor.get(), true);
     }
 }

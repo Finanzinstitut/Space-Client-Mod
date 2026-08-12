@@ -14,10 +14,19 @@ public class CoordinatesModule extends HudModule {
     }
 
     @Override
-    public void render(GuiGraphicsExtractor graphics, int x, int y) {
-        if (mc.player == null) return;
-        String text = String.format("%.0f, %.0f, %.0f",
+    public int getWidth() { return mc.font.width(text()); }
+
+    @Override
+    public int getHeight() { return mc.font.lineHeight; }
+
+    private String text() {
+        if (mc.player == null) return "-- -- --";
+        return String.format("%.0f, %.0f, %.0f",
                 mc.player.getX(), mc.player.getY(), mc.player.getZ());
-        graphics.text(mc.font, text, x, y, textColor.get(), true);
+    }
+
+    @Override
+    public void render(GuiGraphicsExtractor graphics, int x, int y) {
+        graphics.text(mc.font, text(), x, y, textColor.get(), true);
     }
 }

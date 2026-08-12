@@ -99,7 +99,7 @@ public class SpaceClient implements ClientModInitializer {
 
         for (HudModule module : moduleManager.getHudModules()) {
             if (!module.isEnabled()) continue;
-            module.render(graphics, module.getX(width), module.getY(height));
+            module.draw(graphics, module.getX(width), module.getY(height));
         }
     }
 }
