@@ -1,5 +1,6 @@
 package gg.spaceclient.modules;
 
+import gg.spaceclient.SpaceClient;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
@@ -81,6 +82,7 @@ public class MouseTrackerModule extends HudModule {
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
         boolean left = mc.options != null && mc.options.keyAttack.isDown();
         boolean right = mc.options != null && mc.options.keyUse.isDown();
+        boolean middle = SpaceClient.isMiddleClickDown();
 
         int body = bodyColor.get();
         int outline = outlineColor.get();
@@ -93,7 +95,7 @@ public class MouseTrackerModule extends HudModule {
         graphics.fill(x, y, x + BODY_W, y + BODY_H, body);
         graphics.fill(x + 1, y + 1, midX1, splitY, left ? lit : body);
         graphics.fill(midX2, y + 1, x + BODY_W - 1, splitY, right ? lit : body);
-        graphics.fill(midX1 + 1, y + 6, midX2 - 1, y + 22, outline);
+        graphics.fill(midX1 + 1, y + 6, midX2 - 1, y + 22, middle ? lit : outline);
 
         // Outlines last so they sit on top of the fills
         outlineRect(graphics, x, y, x + BODY_W, y + BODY_H, outline);

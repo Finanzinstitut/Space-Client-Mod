@@ -24,8 +24,18 @@ addition is confirmed building.
 | Session | off | uptime plus an optional break reminder |
 | Mouse Tracker | off | drawn from rectangles, every colour configurable |
 
-Press **Right Shift** to open the menu and toggle modules. Settings are written
-to `config/spaceclient.json` as soon as anything changes.
+Press **Right Shift** to open the menu. The interface deliberately matches the
+launcher rather than vanilla Minecraft: the same violet and cyan accents, the
+same deep-violet starfield with a glowing planet in the corner, flat panels and
+hairline borders instead of Minecraft's bevelled buttons.
+
+**Appearance** changes the background (space, dark, solid black, transparent)
+and the accent colour with RGB sliders, with a live preview. Everything is
+written to `config/spaceclient.json` as soon as it changes.
+
+The middle mouse button has no vanilla binding, so Space Client registers its
+own — it appears in the normal Controls screen under "Space Client" and can be
+rebound there.
 
 ## What 26.2 changed
 
@@ -41,6 +51,7 @@ Worth writing down, because almost every tutorial online is wrong for this versi
   where an element takes `(GuiGraphicsExtractor, DeltaTracker)`.
 - Text is drawn with `graphics.text(font, str, x, y, argb, shadow)`.
 - `Screen#render` is now **`extractRenderState`**, same parameters.
+- Custom widgets override **`extractWidgetRenderState`**, not `renderWidget`.
 - Key mappings take a registered **`KeyMapping.Category`** object, not a
   translation key string, and register through
   `net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper`.
@@ -57,8 +68,9 @@ confirmed, so they are left out rather than guessed at:
   event API, which changed in this version: `Screen#mouseClicked` now takes a
   `MouseButtonEvent`. The menu itself sidesteps this by being built from Button
   widgets, which handle their own clicks.
-- **Per-module settings screens.** The menu toggles modules on and off; colours
-  and options are still edited in the config file.
+- **Per-module settings screens.** The menu toggles modules on and off, and
+  Appearance covers the interface colours; per-module options such as each HUD
+  element's own colour are still edited in the config file.
 - **Mixins** (hitbox filtering, zoom, the Jupiter badge in the tab list).
 - Modules touching inventory, potion effects, options (`OptionInstance`),
   or entity positions — all of those method names moved.

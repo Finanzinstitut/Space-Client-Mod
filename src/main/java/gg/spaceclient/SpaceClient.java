@@ -1,5 +1,6 @@
 package gg.spaceclient;
 
+import gg.spaceclient.config.ClientSettings;
 import gg.spaceclient.config.ConfigManager;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.module.ModuleManager;
@@ -30,14 +31,28 @@ public class SpaceClient implements ClientModInitializer {
 
     private static ModuleManager moduleManager;
     private static ConfigManager configManager;
+    private static ClientSettings settings;
     private static KeyMapping menuKey;
+    /**
+     * Minecraft has no default binding for the middle mouse button, so the
+     * Mouse Tracker cannot read it without one. Registering it as a MOUSE-type
+     * mapping also lets the player rebind it in the vanilla controls screen.
+     */
+    private static KeyMapping middleClickKey;
 
     public static ModuleManager getModuleManager() { return moduleManager; }
     public static ConfigManager getConfigManager() { return configManager; }
+    public static ClientSettings getSettings() { return settings; }
+
+    /** True while the middle mouse button is held. */
+    public static boolean isMiddleClickDown() {
+        return middleClickKey != null && middleClickKey.isDown();
+    }
 
     @Override
     public void onInitializeClient() {
         moduleManager = new ModuleManager();
+        settings = new ClientSettings();
         configManager = new ConfigManager();
         configManager.load();
 
@@ -50,6 +65,13 @@ public class SpaceClient implements ClientModInitializer {
                 "key.spaceclient.menu",
                 InputConstants.Type.KEYSYM,
                 InputConstants.KEY_RSHIFT,
+                category
+        ));
+
+        middleClickKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.spaceclient.middleclick",
+                InputConstants.Type.MOUSE,
+                2, // GLFW middle mouse button
                 category
         ));
 

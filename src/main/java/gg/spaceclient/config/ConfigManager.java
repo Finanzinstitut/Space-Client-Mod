@@ -21,6 +21,11 @@ public class ConfigManager {
 
     public void save() {
         JsonObject root = new JsonObject();
+
+        JsonObject interfaceJson = new JsonObject();
+        SpaceClient.getSettings().save(interfaceJson);
+        root.add("interface", interfaceJson);
+
         JsonObject modules = new JsonObject();
 
         for (Module module : SpaceClient.getModuleManager().getAll()) {
@@ -48,6 +53,10 @@ public class ConfigManager {
         }
         try {
             JsonObject root = JsonParser.parseString(Files.readString(file)).getAsJsonObject();
+
+            if (root.has("interface")) {
+                SpaceClient.getSettings().load(root.getAsJsonObject("interface"));
+            }
             if (!root.has("modules")) return;
             JsonObject modules = root.getAsJsonObject("modules");
 
