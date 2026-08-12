@@ -2,43 +2,40 @@ package gg.spaceclient.session;
 
 import gg.spaceclient.SpaceClient;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.DisconnectedScreen;
 
 /**
- * Notices when a join fails because the session went stale, and mints a new one
- * on the spot.
+ * Notices when a server connection drops and mints a fresh session, so the next
+ * join attempt does not fail on an expired token.
  *
- * There is no reliable way to read the disconnect reason without reaching into
- * the screen's private state, so this reacts to the situation instead: a
- * disconnect that happens while the stored token is past its lifetime is almost
- * always the session, and refreshing when it is not costs nothing but one HTTP
- * round trip.
+ * The disconnect is spotted by watching the network connection rather than the
+ * screen: a connection that was there and now is not means the session is worth
+ * refreshing. Reading the disconnect reason would need the screen's private
+ * state, and a refresh costs one HTTP round trip whether it was needed or not.
  */
 public class SessionWatcher {
     /** Do not retry more often than this, so a failing refresh cannot loop. */
     private static final long COOLDOWN_MS = 30_000;
 
-    private static boolean wasDisconnected = false;
+    private static boolean wasConnected = false;
     private static long lastAttempt = 0;
 
     public static void tick(Minecraft client) {
-        boolean disconnected = client.screen instanceof DisconnectedScreen;
+        boolean connected = client.getConnection() != null;
 
-        // Only act on the transition into the screen, not every frame it is up
-        if (disconnected && !wasDisconnected) {
+        // Act on the transition from connected to not, not on every frame after
+        if (wasConnected && !connected) {
             onDisconnected();
         }
-        wasDisconnected = disconnected;
+        wasConnected = connected;
     }
 
     private static void onDisconnected() {
         long now = System.currentTimeMillis();
         if (now - lastAttempt < COOLDOWN_MS) return;
         if (SessionManager.isBusy()) return;
-
         if (!LauncherAccounts.isAvailable()) return;
 
-        // Offline profiles have nothing to refresh
+        // Offline profiles have no token to refresh
         String playing = Minecraft.getInstance().getUser().getName();
         boolean offline = LauncherAccounts.load().stream()
                 .filter(a -> a.username().equalsIgnoreCase(playing))
@@ -46,7 +43,7 @@ public class SessionWatcher {
         if (offline) return;
 
         lastAttempt = now;
-        SpaceClient.LOGGER.info("Disconnected - refreshing the session in case it expired");
+        SpaceClient.LOGGER.info("Left a server - refreshing the session in case it expired");
         SessionManager.refreshCurrent();
     }
 

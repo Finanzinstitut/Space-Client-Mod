@@ -75,9 +75,13 @@ normally means quitting and relaunching. The mod re-runs the token chain
 (refresh token → Microsoft → Xbox Live → XSTS → Minecraft) and swaps the result
 into the running client.
 
-It also reacts on its own: when a disconnect screen appears, the session is
+It also reacts on its own: when a server connection drops, the session is
 quietly refreshed in the background, with a 30 second cooldown so a failing
-refresh cannot loop. Go back to the server list and join again — no restart.
+refresh cannot loop. Join again from the server list — no restart.
+
+The disconnect is spotted by watching the network connection rather than the
+screen, because reading the disconnect reason would mean reaching into the
+screen's private state for a message whose wording differs per server.
 
 ### How the swap works, and what could break it
 
