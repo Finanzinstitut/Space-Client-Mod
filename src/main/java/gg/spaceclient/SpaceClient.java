@@ -13,6 +13,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 
 import com.mojang.blaze3d.platform.InputConstants;
 
+import gg.spaceclient.session.SessionWatcher;
 import gg.spaceclient.ui.SpaceMenuScreen;
 
 import net.minecraft.client.DeltaTracker;
@@ -80,6 +81,7 @@ public class SpaceClient implements ClientModInitializer {
                 client.gui.setScreen(new SpaceMenuScreen());
             }
             moduleManager.onTick();
+            SessionWatcher.tick(client);
         });
 
         // Our elements draw just before the chat, so the HUD API handles layering.

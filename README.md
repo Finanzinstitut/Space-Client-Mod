@@ -63,6 +63,36 @@ Worth writing down, because almost every tutorial online is wrong for this versi
   not `minecraft.setScreen(...)`.
 - Colours are **ARGB**, not RGB — an RGB value renders fully transparent.
 
+## Accounts and sessions
+
+**Accounts** in the menu lists whatever accounts the Space Client launcher has
+signed in, switches between them, and refreshes the current session — all
+without restarting the game.
+
+Why it needs to exist: a Minecraft session token lasts about a day. Leave the
+game running longer and joining a server fails with "invalid session", which
+normally means quitting and relaunching. The mod re-runs the token chain
+(refresh token → Microsoft → Xbox Live → XSTS → Minecraft) and swaps the result
+into the running client.
+
+It also reacts on its own: when a disconnect screen appears, the session is
+quietly refreshed in the background, with a 30 second cooldown so a failing
+refresh cannot loop. Go back to the server list and join again — no restart.
+
+### How the swap works, and what could break it
+
+Replacing the live session means replacing Minecraft's `User` instance, which is
+a private field. That is done with **reflection, matching the field by its type
+rather than its name**, and the `User` itself is built by filling whichever
+constructor is present positionally by parameter type. Both choices are
+deliberate: names and constructor shapes move between versions, types do not,
+and a mismatch here produces a logged warning instead of a broken build.
+
+The mod reads the launcher's `accounts.json` (`%APPDATA%/space-client` on
+Windows) but never writes to it — accounts are added and removed in the
+launcher. If the game was not started through Space Client, the Accounts screen
+says so and does nothing else.
+
 ## A note on the keyboard view
 
 `FULL` draws a proper keyboard — number row, TAB/QWERTZUI, CAPS/ASDFGHJ,
