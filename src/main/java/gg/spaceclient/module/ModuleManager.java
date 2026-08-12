@@ -21,6 +21,11 @@ public class ModuleManager {
         register(new SessionModule());
         register(new KeystrokesModule());
         register(new MouseTrackerModule());
+        register(new MemoryModule());
+        register(new CompassModule());
+        register(new TravelModule());
+        register(new ZoomModule());
+        register(new HitboxModule());
     }
 
     private void register(Module module) {

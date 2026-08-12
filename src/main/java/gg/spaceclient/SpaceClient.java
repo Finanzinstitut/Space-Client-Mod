@@ -10,16 +10,21 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
+import net.fabricmc.fabric.api.client.screen.v1.Screens;
 
 import com.mojang.blaze3d.platform.InputConstants;
 
 import gg.spaceclient.session.SessionWatcher;
+import gg.spaceclient.ui.AccountsScreen;
+import gg.spaceclient.ui.FlatButton;
 import gg.spaceclient.ui.SpaceMenuScreen;
 
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
 import net.minecraft.resources.Identifier;
 
 import org.slf4j.Logger;
@@ -40,10 +45,13 @@ public class SpaceClient implements ClientModInitializer {
      * mapping also lets the player rebind it in the vanilla controls screen.
      */
     private static KeyMapping middleClickKey;
+    private static KeyMapping zoomKey;
 
     public static ModuleManager getModuleManager() { return moduleManager; }
     public static ConfigManager getConfigManager() { return configManager; }
     public static ClientSettings getSettings() { return settings; }
+
+    public static KeyMapping getZoomKey() { return zoomKey; }
 
     /** True while the middle mouse button is held. */
     public static boolean isMiddleClickDown() {
@@ -75,6 +83,25 @@ public class SpaceClient implements ClientModInitializer {
                 2, // GLFW middle mouse button
                 category
         ));
+
+        zoomKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.spaceclient.zoom",
+                InputConstants.Type.KEYSYM,
+                InputConstants.KEY_C,
+                category
+        ));
+
+        // A button on the server list, where switching accounts is actually
+        // needed - the in-game menu is out of reach from the main menu.
+        ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
+            if (!(screen instanceof JoinMultiplayerScreen)) return;
+            Screens.getButtons(screen).add(new FlatButton(
+                    10, 10, 116, 20,
+                    () -> "Space Client",
+                    () -> false,
+                    () -> client.gui.setScreen(new AccountsScreen(screen))
+            ));
+        });
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (menuKey.consumeClick()) {

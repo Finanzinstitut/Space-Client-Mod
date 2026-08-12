@@ -1,6 +1,7 @@
 package gg.spaceclient.modules;
 
 import gg.spaceclient.SpaceClient;
+import gg.spaceclient.input.RawKeyboard;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
@@ -88,7 +89,11 @@ public class MouseTrackerModule extends HudModule {
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
         boolean left = mc.options != null && mc.options.keyAttack.isDown();
         boolean right = mc.options != null && mc.options.keyUse.isDown();
-        boolean middle = SpaceClient.isMiddleClickDown();
+        // Read straight from the device when possible; the registered binding
+        // is the fallback.
+        boolean middle = RawKeyboard.isAvailable()
+                ? RawKeyboard.isMouseDown(org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_MIDDLE)
+                : SpaceClient.isMiddleClickDown();
 
         int body = bodyColor.get();
         int outline = outlineColor.get();

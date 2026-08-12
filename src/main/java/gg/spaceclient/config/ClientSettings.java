@@ -1,6 +1,7 @@
 package gg.spaceclient.config;
 
 import com.google.gson.JsonObject;
+import gg.spaceclient.setting.ColorSetting;
 
 import java.util.Arrays;
 import java.util.List;
@@ -14,31 +15,34 @@ public class ClientSettings {
             Arrays.asList("SPACE", "DARK", "SOLID_BLACK", "TRANSPARENT");
 
     private String backgroundStyle = "SPACE";
-    // The launcher's violet, so the in-game menu matches it out of the box.
-    private int accentColor = 0xFF7C5CFF;
 
+    /**
+     * The accent lives in a ColorSetting so the same colour wheel widget the
+     * modules use can drive it too.
+     */
+    private final ColorSetting accent = new ColorSetting(
+            "accent", "Accent colour", "Colour used across the interface", 0xFF7C5CFF);
+    // The launcher's violet, so the in-game menu matches it out of the box.
     public String backgroundStyle() { return backgroundStyle; }
-    public int accentColor() { return accentColor; }
+    public int accentColor() { return accent.get(); }
+    public ColorSetting accentSetting() { return accent; }
 
     public void cycleBackground() {
         int index = BACKGROUND_STYLES.indexOf(backgroundStyle);
         backgroundStyle = BACKGROUND_STYLES.get((index + 1) % BACKGROUND_STYLES.size());
     }
 
-    public int red()   { return (accentColor >> 16) & 0xFF; }
-    public int green() { return (accentColor >> 8) & 0xFF; }
-    public int blue()  { return accentColor & 0xFF; }
+    public int red()   { return accent.getRed(); }
+    public int green() { return accent.getGreen(); }
+    public int blue()  { return accent.getBlue(); }
 
     public void setChannels(int r, int g, int b) {
-        accentColor = 0xFF000000
-                | ((r & 0xFF) << 16)
-                | ((g & 0xFF) << 8)
-                | (b & 0xFF);
+        accent.setComponents(255, r, g, b);
     }
 
     public void save(JsonObject json) {
         json.addProperty("background_style", backgroundStyle);
-        json.addProperty("accent_color", accentColor);
+        json.addProperty("accent_color", accent.get());
     }
 
     public void load(JsonObject json) {
@@ -47,7 +51,7 @@ public class ClientSettings {
             if (BACKGROUND_STYLES.contains(value)) backgroundStyle = value;
         }
         if (json.has("accent_color")) {
-            accentColor = json.get("accent_color").getAsInt();
+            accent.set(json.get("accent_color").getAsInt());
         }
     }
 }

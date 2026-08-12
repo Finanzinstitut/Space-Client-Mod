@@ -1,5 +1,6 @@
 package gg.spaceclient.modules;
 
+import gg.spaceclient.input.RawKeyboard;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
@@ -20,10 +21,11 @@ import java.util.Map;
  *  - FULL:     a real keyboard, laid out the way it sits under your hands
  *  - CUSTOM:   the keys you list, arranged in that same keyboard layout
  *
- * Pressed state comes from Minecraft's own key bindings rather than raw
- * keyboard polling, so a key lights up wherever the player has rebound it to.
- * Keys the game has no binding for are drawn but never light - see the note on
- * unbound keys further down.
+ * Pressed state is read from the physical keyboard, so pressing F lights up F
+ * regardless of what F happens to be bound to. Only the mouse buttons go
+ * through the game's bindings, since those follow whatever the player set them
+ * to. If the raw read is unavailable the module falls back to bindings, which
+ * still covers the movement keys.
  */
 public class KeystrokesModule extends HudModule {
     private static final int UNIT = 20;
@@ -97,13 +99,7 @@ public class KeystrokesModule extends HudModule {
         };
     }
 
-    /**
-     * Which game control each key corresponds to.
-     *
-     * Only keys the game actually binds can report a pressed state. Letters with
-     * no default binding - Y, X, C, V, N and so on - are drawn as part of the
-     * keyboard but stay dark, because Minecraft never tells the mod about them.
-     */
+    /** Fallback mapping, used only when the physical keyboard cannot be read. */
     private Map<String, KeyMapping> bindings() {
         Map<String, KeyMapping> map = new LinkedHashMap<>();
         if (mc.options == null) return map;
@@ -134,6 +130,21 @@ public class KeystrokesModule extends HudModule {
     }
 
     private boolean isPressed(String label) {
+        // Mouse buttons stay on the bindings: those really are controls, and
+        // the player may have swapped attack and use.
+        if (label.equals("LMB") || label.equals("RMB")) {
+            KeyMapping mapping = bindings().get(label);
+            return mapping != null && mapping.isDown();
+        }
+
+        if (RawKeyboard.isAvailable()) {
+            int code = RawKeyboard.codeFor(label);
+            if (code != org.lwjgl.glfw.GLFW.GLFW_KEY_UNKNOWN) {
+                return RawKeyboard.isDown(code);
+            }
+        }
+
+        // Fallback while the raw read is unavailable
         KeyMapping mapping = bindings().get(label);
         return mapping != null && mapping.isDown();
     }

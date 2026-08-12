@@ -23,6 +23,11 @@ addition is confirmed building.
 | Speedometer | off | also shows % of the theoretical max for your state |
 | Session | off | uptime plus an optional break reminder |
 | Mouse Tracker | off | drawn from rectangles, every colour configurable |
+| Memory | off | bar turns amber then red as the heap fills |
+| Compass | off | scrolling strip, so you can hold a heading between cardinals |
+| Travelled | off | also converts the distance to Nether equivalents |
+| Zoom | off | hold C; changes the game's own FOV option, no renderer hook |
+| Hitbox | off | switches on Minecraft's own hitbox view — see the caveat below |
 
 Press **Right Shift** to open the menu. The interface deliberately matches the
 launcher rather than vanilla Minecraft: the same violet and cyan accents, the
@@ -63,7 +68,35 @@ Worth writing down, because almost every tutorial online is wrong for this versi
   not `minecraft.setScreen(...)`.
 - Colours are **ARGB**, not RGB — an RGB value renders fully transparent.
 
+## Colours
+
+Every colour — the interface accent and each module's own colours — is picked on
+a **hue and saturation wheel** with a brightness bar beside it, not by typing a
+hex code. Opacity keeps a slider, since it has no place on a hue wheel.
+
+The wheel is drawn as small filled squares and does its own HSB conversion
+rather than pulling in `java.awt`, which lives in a module that is not
+guaranteed to be on the runtime image.
+
+## Hitboxes: what this does and does not do
+
+The module switches on **Minecraft's own hitbox rendering** — the same boxes and
+the same blue eye-direction arrow as F3+B. It does that by flipping the private
+boolean on the entity render dispatcher, found by type through reflection.
+
+What it does **not** do, and I would rather say so than let you find out: there
+are no per-category filters (players, hostile, passive, yourself), no custom box
+colour and no line width. Those need intercepting each entity as it is drawn,
+which means a mixin against `EntityRenderDispatcher#render`. The method that
+earlier attempt targeted does not exist under that name in this version, and
+guessing at it is what produced a hundred compile errors once already. It goes
+back in as soon as the signature is confirmed.
+
 ## Accounts and sessions
+
+The **server list** carries a *Space Client* button in the top left corner,
+because that is where switching accounts is actually needed — the in-game menu
+cannot be reached from the main menu. It opens the same Accounts screen.
 
 **Accounts** in the menu lists whatever accounts the Space Client launcher has
 signed in, switches between them, and refreshes the current session — all
@@ -104,13 +137,18 @@ SHIFT/YXCVBN, CTRL and space — with the real key proportions and row offsets.
 `CUSTOM` keeps that same shape and simply leaves out the keys you did not list,
 so the layout stays recognisable.
 
-Pressed state comes from Minecraft's key bindings. Keys the game binds by
-default light up: WASD, space, shift, ctrl, the number row (hotbar slots), Q
-(drop), E (inventory), F (offhand), T (chat), TAB (player list). Letters with no
-default binding — Y, X, C, V, B, N and the rest — are drawn as part of the
-keyboard but stay dark, because the game never reports them to a mod. Lighting
-those up would need raw keyboard polling, which needs the window handle whose
-accessor has not been confirmed for this version.
+Pressed state is read from the **physical keyboard**, not from key bindings.
+That distinction matters: with hotbar slot 5 bound to F, pressing F should light
+up F — a binding-based display would light up the "5" key instead, or nothing at
+all. Every key on the layout responds, including letters the game does not bind.
+
+This uses GLFW directly. It needs the window handle, whose accessor has moved
+between versions, so the handle is found by type through reflection — it is the
+only `long` on the window object. If that lookup ever fails the module falls
+back to key bindings and logs a warning, rather than going dark.
+
+The mouse buttons deliberately stay on the bindings, since those genuinely are
+controls and may be swapped.
 
 ## Deliberately not included yet
 

@@ -18,6 +18,10 @@ public class ModuleSettingsScreen extends Screen {
     private final Screen parent;
     private final Module module;
 
+    /** Row positions of colour settings, so their names can be drawn above. */
+    private final java.util.List<int[]> colourLabels = new java.util.ArrayList<>();
+    private int colourIndex = 0;
+
     public ModuleSettingsScreen(Screen parent, Module module) {
         super(Component.literal(module.getName()));
         this.parent = parent;
@@ -28,6 +32,9 @@ public class ModuleSettingsScreen extends Screen {
 
     @Override
     protected void init() {
+        colourLabels.clear();
+        colourIndex = 0;
+
         int left = panelLeft();
         int y = 92;
 
@@ -68,30 +75,18 @@ public class ModuleSettingsScreen extends Screen {
                 y += ROW_H + GAP;
 
             } else if (setting instanceof ColorSetting c) {
-                // One slider per channel, so any colour is reachable
-                this.addRenderableWidget(new SliderRow(left, y, PANEL_W, ROW_H,
-                        setting.getName() + " R", c.getRed(), 255, value -> {
-                    c.setComponents(c.getAlpha(), value, c.getGreen(), c.getBlue());
-                    SpaceClient.getConfigManager().save();
-                }));
-                y += ROW_H + GAP;
+                // A wheel is quicker to aim than four sliders, and shows what
+                // the colour will actually look like while choosing it.
+                this.addRenderableWidget(new ColorWheel(
+                        left, y + 14, 84, c,
+                        () -> SpaceClient.getConfigManager().save()
+                ));
+                colourLabels.add(new int[]{y, colourIndex++});
+                y += 84 + 22;
 
+                // Alpha still needs a slider: it has no place on a hue wheel
                 this.addRenderableWidget(new SliderRow(left, y, PANEL_W, ROW_H,
-                        setting.getName() + " G", c.getGreen(), 255, value -> {
-                    c.setComponents(c.getAlpha(), c.getRed(), value, c.getBlue());
-                    SpaceClient.getConfigManager().save();
-                }));
-                y += ROW_H + GAP;
-
-                this.addRenderableWidget(new SliderRow(left, y, PANEL_W, ROW_H,
-                        setting.getName() + " B", c.getBlue(), 255, value -> {
-                    c.setComponents(c.getAlpha(), c.getRed(), c.getGreen(), value);
-                    SpaceClient.getConfigManager().save();
-                }));
-                y += ROW_H + GAP;
-
-                this.addRenderableWidget(new SliderRow(left, y, PANEL_W, ROW_H,
-                        setting.getName() + " Alpha", c.getAlpha(), 255, value -> {
+                        setting.getName() + " opacity", c.getAlpha(), 255, value -> {
                     c.setComponents(value, c.getRed(), c.getGreen(), c.getBlue());
                     SpaceClient.getConfigManager().save();
                 }));
@@ -121,6 +116,16 @@ public class ModuleSettingsScreen extends Screen {
         graphics.fill(left, 74, left + PANEL_W, 75, Theme.BORDER);
 
         super.extractRenderState(graphics, mouseX, mouseY, delta);
+
+        // Names for the colour wheels, drawn over the widgets
+        int index = 0;
+        for (Setting setting : module.getSettings()) {
+            if (!(setting instanceof ColorSetting)) continue;
+            if (index >= colourLabels.size()) break;
+            int rowY = colourLabels.get(index)[0];
+            graphics.text(this.font, setting.getName(), left, rowY, Theme.TEXT, false);
+            index++;
+        }
     }
 
     @Override

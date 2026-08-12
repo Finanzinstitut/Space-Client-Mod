@@ -40,26 +40,13 @@ public class AppearanceScreen extends Screen {
         ));
         y += ROW_H + GAP * 2;
 
-        this.addRenderableWidget(new SliderRow(left, y, PANEL_W, ROW_H, "Red",
-                settings.red(), 255, value -> {
-            settings.setChannels(value, settings.green(), settings.blue());
-            SpaceClient.getConfigManager().save();
-        }));
-        y += ROW_H + GAP;
+        // The accent is picked on a wheel; a hex field would mean typing.
+        this.addRenderableWidget(new ColorWheel(
+                left, y, 96, settings.accentSetting(),
+                () -> SpaceClient.getConfigManager().save()
+        ));
+        y += 96 + GAP * 2;
 
-        this.addRenderableWidget(new SliderRow(left, y, PANEL_W, ROW_H, "Green",
-                settings.green(), 255, value -> {
-            settings.setChannels(settings.red(), value, settings.blue());
-            SpaceClient.getConfigManager().save();
-        }));
-        y += ROW_H + GAP;
-
-        this.addRenderableWidget(new SliderRow(left, y, PANEL_W, ROW_H, "Blue",
-                settings.blue(), 255, value -> {
-            settings.setChannels(settings.red(), settings.green(), value);
-            SpaceClient.getConfigManager().save();
-        }));
-        y += ROW_H + GAP * 3;
 
         this.addRenderableWidget(new FlatButton(
                 left, y, PANEL_W, ROW_H,
