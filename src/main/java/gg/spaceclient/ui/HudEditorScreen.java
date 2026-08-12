@@ -42,19 +42,10 @@ public class HudEditorScreen extends Screen {
         private int lastHoverX;
         private int lastHoverY;
 
-        GrabHandle(HudModule module, int width, int height) {
+        GrabHandle(HudModule module, int width, int height, Runnable onClick) {
             super(0, 0, width, height, Component.empty(),
-                    btn -> {}, DEFAULT_NARRATION);
+                    btn -> onClick.run(), DEFAULT_NARRATION);
             this.module = module;
-        }
-
-        @Override
-        public void onPress() {
-            if (grabbed == module) {
-                drop();
-            } else if (grabbed == null) {
-                grab(module, this);
-            }
         }
 
         /** Nothing is drawn: the element underneath is the visual. */
@@ -80,11 +71,21 @@ public class HudEditorScreen extends Screen {
         handles.clear();
         for (HudModule module : SpaceClient.getModuleManager().getHudModules()) {
             if (!module.isEnabled()) continue;
-            GrabHandle handle = new GrabHandle(module,
+            // The click action needs the handle itself, which does not exist
+            // yet at that point - a one element array bridges the gap.
+            GrabHandle[] holder = new GrabHandle[1];
+            holder[0] = new GrabHandle(module,
                     Math.max(20, module.getWidth()),
-                    Math.max(10, module.getHeight()));
-            handles.add(handle);
-            this.addRenderableWidget(handle);
+                    Math.max(10, module.getHeight()),
+                    () -> {
+                        if (grabbed == module) {
+                            drop();
+                        } else if (grabbed == null) {
+                            grab(module, holder[0]);
+                        }
+                    });
+            handles.add(holder[0]);
+            this.addRenderableWidget(holder[0]);
         }
     }
 
