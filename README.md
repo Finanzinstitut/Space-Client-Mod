@@ -154,6 +154,24 @@ to the screen's own protected `addRenderableWidget` through reflection, found by
 name and parameter count. If that ever stops matching, the button quietly does
 not appear and a line goes in the log — the rest of the mod is unaffected.
 
+### The bug that made switching accounts fail
+
+The account object is built by filling whichever constructor this version
+declares, positionally by parameter type. The values were assigned by counting
+String parameters: first the name, then the uuid, then the token.
+
+That is wrong whenever the uuid has a **`UUID`-typed parameter of its own** —
+because then the *second* String is the access token, and it was being handed
+the uuid instead. The result was an account with the right name and a nonsense
+token: the game showed the new username, and every server rejected the login as
+an invalid session.
+
+It passed the verification step because that only compared the name. Both halves
+are fixed: the token is placed correctly, and after the swap the token is read
+back out of the live account and compared, so a wrong slot cannot pass as
+success again. The Diagnostics page shows the live token's length and last six
+characters, which makes a real token distinguishable from a uuid at a glance.
+
 ### Why "invalid session" kept coming back
 
 Microsoft **rotates refresh tokens**: every use hands back a new one and retires

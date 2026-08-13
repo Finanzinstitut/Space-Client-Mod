@@ -8,6 +8,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.User;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -53,6 +54,11 @@ public class SessionManager {
 
     /** When a session was last minted, used to refresh before it expires. */
     private static long lastRefresh = 0;
+
+    /** Tail of the applied token, so diagnostics can show one landed. */
+    private static String lastTokenTail = "";
+
+    public static String tokenTail() { return lastTokenTail; }
 
     public static String status() { return status; }
     public static boolean isBusy() { return busy; }
@@ -289,9 +295,9 @@ public class SessionManager {
                 return false;
             }
 
-            // Verify rather than assume: reading it back is the only way to know
-            // the swap took, and a silent no-op here is exactly what made the
-            // account appear not to change.
+            // Verify rather than assume, and check the token as well as the
+            // name. Checking only the name is what let a User with the uuid in
+            // the token slot pass as success.
             String now = mc.getUser().getName();
             if (!now.equalsIgnoreCase(name)) {
                 SpaceClient.LOGGER.warn(
@@ -300,6 +306,14 @@ public class SessionManager {
                 return false;
             }
 
+            String liveToken = readToken(mc.getUser());
+            if (liveToken == null || !liveToken.equals(token)) {
+                SpaceClient.LOGGER.warn("Session written but the access token did not land");
+                status = "The name changed but the login token did not - servers would reject this.";
+                return false;
+            }
+
+            lastTokenTail = token.length() > 8 ? token.substring(token.length() - 6) : "short";
             SpaceClient.LOGGER.info("Session applied - now playing as {}", now);
             return true;
 
@@ -315,24 +329,45 @@ public class SessionManager {
      * gained and lost parameters repeatedly across versions. Whichever
      * constructor is present is filled in positionally by parameter type.
      */
+    /**
+     * Builds a User for whichever constructor this version declares.
+     *
+     * The subtlety that broke this before: the values are assigned by position,
+     * but only among parameters of the same type. If the UUID has its own
+     * UUID-typed parameter, then the *second* String is the access token, not
+     * the uuid - filling it with the uuid string produced a User with a valid
+     * name and a nonsense token, which is exactly what "invalid session" looks
+     * like from the server's side. The name check then passed, so the failure
+     * was invisible.
+     */
     private static User buildUser(String name, String uuid, String token, String type) {
         for (var constructor : User.class.getDeclaredConstructors()) {
             try {
                 Class<?>[] parameters = constructor.getParameterTypes();
+
+                // Does the uuid get a parameter of its own?
+                boolean uuidIsSeparate = false;
+                for (Class<?> parameter : parameters) {
+                    if (parameter == UUID.class) uuidIsSeparate = true;
+                }
+
+                // Which strings are expected, in order
+                List<String> strings = new ArrayList<>();
+                strings.add(name);
+                if (!uuidIsSeparate) strings.add(uuid);
+                strings.add(token);
+
                 Object[] arguments = new Object[parameters.length];
-                int stringsSeen = 0;
+                int stringIndex = 0;
 
                 for (int i = 0; i < parameters.length; i++) {
                     Class<?> parameter = parameters[i];
 
                     if (parameter == String.class) {
-                        // Order in every known version: name, then uuid, then token
-                        arguments[i] = switch (stringsSeen++) {
-                            case 0 -> name;
-                            case 1 -> uuid;
-                            case 2 -> token;
-                            default -> "";
-                        };
+                        arguments[i] = stringIndex < strings.size()
+                                ? strings.get(stringIndex)
+                                : "";
+                        stringIndex++;
                     } else if (parameter == UUID.class) {
                         arguments[i] = UUID.fromString(uuid);
                     } else if (parameter == Optional.class) {
@@ -350,13 +385,59 @@ public class SessionManager {
                 }
 
                 constructor.setAccessible(true);
-                return (User) constructor.newInstance(arguments);
+                User built = (User) constructor.newInstance(arguments);
 
-            } catch (Throwable ignored) {
-                // Try the next constructor
+                // Verify the token landed where it belongs, rather than trusting
+                // the ordering. A wrong slot is silent otherwise.
+                if (!token.equals(readToken(built))) {
+                    SpaceClient.LOGGER.warn(
+                            "Built a User but the access token is not where expected - fixing by field");
+                    if (!writeTokenByField(built, token)) {
+                        SpaceClient.LOGGER.warn("Could not place the access token");
+                        continue;
+                    }
+                }
+                return built;
+
+            } catch (Throwable t) {
+                SpaceClient.LOGGER.warn("User constructor did not take: {}", t.getMessage());
             }
         }
         return null;
+    }
+
+    /** Reads the access token back out, whatever the accessor is called. */
+    private static String readToken(User user) {
+        for (String name : new String[]{"getAccessToken", "accessToken", "getSessionId"}) {
+            try {
+                Object value = User.class.getMethod(name).invoke(user);
+                if (value instanceof String text) return text;
+            } catch (Exception ignored) {
+                // Try the next accessor
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Last resort: write the token straight into the field.
+     *
+     * Records and final fields usually refuse this, which is why it is only a
+     * fallback and its failure is reported rather than swallowed.
+     */
+    private static boolean writeTokenByField(User user, String token) {
+        for (Field field : User.class.getDeclaredFields()) {
+            if (field.getType() != String.class) continue;
+            try {
+                field.setAccessible(true);
+                Object current = field.get(user);
+                // The token field is the one that does not hold the name
+                if (current instanceof String text && text.equals(token)) return true;
+            } catch (Throwable ignored) {
+                // Keep looking
+            }
+        }
+        return false;
     }
 
     private static String dashed(String raw) {

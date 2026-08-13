@@ -67,6 +67,10 @@ public final class Diagnostics {
                             : "no getter matched"));
         }
 
+        checks.add(new Check("Zoom write",
+                !gg.spaceclient.modules.ZoomModule.lastResult().startsWith("write ignored"),
+                gg.spaceclient.modules.ZoomModule.lastResult()));
+
         // --- the account object, needed for switching sessions ---
         Field userField = null;
         for (Field field : Minecraft.class.getDeclaredFields()) {
@@ -93,6 +97,24 @@ public final class Diagnostics {
         // exists is no use if nothing can be put in it.
         String shape = testBuildUser();
         checks.add(new Check("Account constructor shape", shape != null, shape));
+
+        // Does the live account carry a real token? A name alone proves nothing.
+        String liveToken = null;
+        for (String accessor : new String[]{"getAccessToken", "accessToken", "getSessionId"}) {
+            try {
+                Object value = net.minecraft.client.User.class
+                        .getMethod(accessor).invoke(mc.getUser());
+                if (value instanceof String text) { liveToken = text; break; }
+            } catch (Exception ignored) {
+                // Try the next accessor
+            }
+        }
+        boolean tokenLooksReal = liveToken != null && liveToken.length() > 40;
+        checks.add(new Check("Login token", tokenLooksReal,
+                liveToken == null ? "no accessor found"
+                        : tokenLooksReal
+                                ? liveToken.length() + " chars, ends " + liveToken.substring(liveToken.length() - 6)
+                                : "only " + liveToken.length() + " chars - not a real token"));
 
         checks.add(new Check("Session status", true,
                 gg.spaceclient.session.SessionManager.status().isEmpty()

@@ -48,6 +48,11 @@ public class ZoomModule extends Module {
     private double current = 1.0;
     private boolean warned = false;
 
+    /** What the last write achieved, for the diagnostics page. */
+    private static String lastResult = "not attempted";
+
+    public static String lastResult() { return lastResult; }
+
     public ZoomModule() {
         super("zoom", "Zoom", "Hold the zoom key to look further", false);
         addSettings(key, factor, smooth, slowSensitivity);
@@ -102,7 +107,17 @@ public class ZoomModule extends Module {
             return;
         }
 
-        writeOption(fovOption, normalFov / current);
+        double wanted = normalFov / current;
+        writeOption(fovOption, wanted);
+
+        // Read it back: a setter that throws inside is otherwise invisible, and
+        // that is exactly how the zoom failed silently before.
+        Double actual = readOption(fovOption);
+        lastResult = actual == null
+                ? "value not readable after writing"
+                : Math.abs(actual - wanted) < 2
+                        ? "working, fov " + actual.intValue()
+                        : "write ignored, fov still " + actual.intValue();
 
         if (slowSensitivity.get()) {
             if (normalSensitivity < 0) {
