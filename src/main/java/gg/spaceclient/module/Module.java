@@ -2,6 +2,7 @@ package gg.spaceclient.module;
 
 import com.google.gson.JsonObject;
 import gg.spaceclient.setting.Setting;
+import gg.spaceclient.setting.SettingGroup;
 import net.minecraft.client.Minecraft;
 
 import java.util.ArrayList;
@@ -15,6 +16,7 @@ public abstract class Module {
     private final String name;
     private final String description;
     private final List<Setting> settings = new ArrayList<>();
+    private final List<SettingGroup> groups = new ArrayList<>();
     private boolean enabled;
 
     protected Module(String id, String name, String description, boolean enabledByDefault) {
@@ -28,6 +30,14 @@ public abstract class Module {
     public String getName() { return name; }
     public String getDescription() { return description; }
     public List<Setting> getSettings() { return settings; }
+
+    /** Settings split into sub-screens, for modules with too many to list flat. */
+    public List<SettingGroup> getGroups() { return groups; }
+
+    /** True when there is anything at all to configure. */
+    public boolean hasSettings() {
+        return !settings.isEmpty() || !groups.isEmpty();
+    }
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) {
         if (this.enabled == enabled) return;
@@ -47,6 +57,14 @@ public abstract class Module {
 
     protected void addSettings(Setting... toAdd) {
         for (Setting s : toAdd) settings.add(s);
+    }
+
+    protected void addGroups(SettingGroup... toAdd) {
+        for (SettingGroup g : toAdd) {
+            groups.add(g);
+            // Grouped settings still take part in saving and loading
+            settings.addAll(g.settings());
+        }
     }
 
     /** Called every client tick while enabled. */

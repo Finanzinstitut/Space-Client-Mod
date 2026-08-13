@@ -94,10 +94,22 @@ public class FlatButton extends Button {
 
         var font = Minecraft.getInstance().font;
         int textY = y1 + (this.height - font.lineHeight) / 2;
-        graphics.text(font, label.get(), x1 + 12, textY, on ? Theme.TEXT : Theme.TEXT_DIM, false);
 
         String state = on ? "ON" : "OFF";
         int stateWidth = font.width(state);
+
+        // The label has to stop before the state text and the settings dots,
+        // otherwise long module names run straight through them.
+        int reserved = stateWidth + (showGear ? 46 : 24);
+        int available = this.width - 12 - reserved;
+        String text = label.get();
+        if (available > 8 && font.width(text) > available) {
+            while (text.length() > 1 && font.width(text + "..") > available) {
+                text = text.substring(0, text.length() - 1);
+            }
+            text = text + "..";
+        }
+        graphics.text(font, text, x1 + 12, textY, on ? Theme.TEXT : Theme.TEXT_DIM, false);
         graphics.text(font, state, x2 - stateWidth - 34, textY, on ? Theme.CYAN : Theme.OFF, false);
 
         if (showGear) {

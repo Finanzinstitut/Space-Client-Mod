@@ -8,12 +8,14 @@ import gg.spaceclient.module.ModuleManager;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 
 import com.mojang.blaze3d.platform.InputConstants;
 
+import gg.spaceclient.render.HitboxRenderer;
 import gg.spaceclient.session.SessionWatcher;
 import gg.spaceclient.ui.AccountsScreen;
 import gg.spaceclient.ui.FlatButton;
@@ -110,6 +112,9 @@ public class SpaceClient implements ClientModInitializer {
             moduleManager.onTick();
             SessionWatcher.tick(client);
         });
+
+        // Hitboxes draw in the world, after the entities themselves
+        WorldRenderEvents.AFTER_ENTITIES.register(HitboxRenderer::render);
 
         // Our elements draw just before the chat, so the HUD API handles layering.
         HudElementRegistry.attachElementBefore(

@@ -1,88 +1,131 @@
 package gg.spaceclient.modules;
 
-import gg.spaceclient.SpaceClient;
 import gg.spaceclient.module.Module;
 import gg.spaceclient.setting.BooleanSetting;
-import net.minecraft.client.Minecraft;
+import gg.spaceclient.setting.ColorSetting;
+import gg.spaceclient.setting.IntSetting;
+import gg.spaceclient.setting.SettingGroup;
 
-import java.lang.reflect.Field;
+import net.minecraft.world.entity.Entity;
 
 /**
- * Turns on Minecraft's own hitbox rendering - the same boxes and the same blue
- * eye-direction arrow you get from F3+B.
+ * Hitboxes with per-category control.
  *
- * The flag lives on the entity render dispatcher as a private boolean, so it is
- * flipped by reflection. That has a consequence worth stating plainly: this is
- * the game's own global switch, so it applies to every entity at once.
- * Per-category filters and custom colours would mean intercepting each entity
- * as it is drawn, which needs a mixin against a method whose signature has not
- * been confirmed for this version - see the README.
+ * Four categories, each with its own on/off switch, colour and line width:
+ * yourself, other players, mobs and items. On top of that the look-direction
+ * arrows can be turned off separately, since they are useful on players and
+ * mostly clutter on dropped items.
+ *
+ * The drawing itself lives in HitboxRenderer; this class is only the settings
+ * and the decision of which category an entity falls into.
  */
 public class HitboxModule extends Module {
-    private final BooleanSetting keepOnDisable = new BooleanSetting(
-            "keep_on_disable", "Leave on when disabled",
-            "Do not switch the game's own hitbox view back off", false);
 
-    private Field flagField;
-    private boolean lookedUp = false;
-    private boolean warned = false;
+    public enum Category { SELF, PLAYERS, MOBS, ITEMS }
+
+    // --- yourself ---
+    private final BooleanSetting selfOn = new BooleanSetting(
+            "self_on", "Show", "Draw your own hitbox in third person", false);
+    private final ColorSetting selfColor = new ColorSetting(
+            "self_color", "Colour", "Colour of your own box", 0xFF38E0FF);
+    private final IntSetting selfWidth = new IntSetting(
+            "self_width", "Line width", "Thickness in pixels", 2, 1, 8);
+
+    // --- other players ---
+    private final BooleanSetting playersOn = new BooleanSetting(
+            "players_on", "Show", "Draw hitboxes for other players", true);
+    private final ColorSetting playersColor = new ColorSetting(
+            "players_color", "Colour", "Colour of player boxes", 0xFFFFFFFF);
+    private final IntSetting playersWidth = new IntSetting(
+            "players_width", "Line width", "Thickness in pixels", 2, 1, 8);
+
+    // --- mobs ---
+    private final BooleanSetting mobsOn = new BooleanSetting(
+            "mobs_on", "Show", "Draw hitboxes for mobs", true);
+    private final ColorSetting mobsColor = new ColorSetting(
+            "mobs_color", "Colour", "Colour of mob boxes", 0xFFFFD9A0);
+    private final IntSetting mobsWidth = new IntSetting(
+            "mobs_width", "Line width", "Thickness in pixels", 2, 1, 8);
+
+    // --- items and everything else ---
+    private final BooleanSetting itemsOn = new BooleanSetting(
+            "items_on", "Show", "Draw hitboxes for items, arrows and the rest", false);
+    private final ColorSetting itemsColor = new ColorSetting(
+            "items_color", "Colour", "Colour of item boxes", 0xFF9A95C9);
+    private final IntSetting itemsWidth = new IntSetting(
+            "items_width", "Line width", "Thickness in pixels", 1, 1, 8);
+
+    // --- shared ---
+    private final BooleanSetting showArrows = new BooleanSetting(
+            "arrows", "Look direction arrows", "Draw the arrow showing where an entity looks", true);
+    private final BooleanSetting arrowsPlayersOnly = new BooleanSetting(
+            "arrows_players_only", "Arrows on players only",
+            "Skip the arrows on mobs and items, where they mostly add clutter", true);
+    private final IntSetting range = new IntSetting(
+            "range", "Range", "Only draw within this many blocks", 48, 8, 128);
 
     public HitboxModule() {
-        super("hitbox", "Hitbox", "Shows entity hitboxes and look directions", false);
-        addSettings(keepOnDisable);
+        super("hitbox", "Hitbox", "Draws entity hitboxes with per-category control", false);
+
+        addSettings(showArrows, arrowsPlayersOnly, range);
+        addGroups(
+                SettingGroup.of("Yourself", "Your own hitbox in third person",
+                        selfOn, selfColor, selfWidth),
+                SettingGroup.of("Other players", "Hitboxes of other players",
+                        playersOn, playersColor, playersWidth),
+                SettingGroup.of("Mobs", "Hostile and passive mobs",
+                        mobsOn, mobsColor, mobsWidth),
+                SettingGroup.of("Items", "Dropped items, arrows, boats and the rest",
+                        itemsOn, itemsColor, itemsWidth)
+        );
     }
 
-    private Field flagField() {
-        if (lookedUp) return flagField;
-        lookedUp = true;
-
-        Object dispatcher = Minecraft.getInstance().getEntityRenderDispatcher();
-        if (dispatcher == null) return null;
-
-        // There is exactly one plain boolean on the dispatcher, and it is this
-        // one, so matching by type avoids depending on the field's name.
-        for (Field field : dispatcher.getClass().getDeclaredFields()) {
-            if (field.getType() == boolean.class) {
-                field.setAccessible(true);
-                flagField = field;
-                return field;
-            }
-        }
-        return null;
+    /** Which bucket an entity falls into. */
+    public Category categoryOf(Entity entity) {
+        if (mc.player != null && entity == mc.player) return Category.SELF;
+        // A living entity that is not the player is either another player or a mob
+        if (entity instanceof net.minecraft.world.entity.player.Player) return Category.PLAYERS;
+        if (entity instanceof net.minecraft.world.entity.LivingEntity) return Category.MOBS;
+        return Category.ITEMS;
     }
 
-    private void setFlag(boolean value) {
-        try {
-            Field field = flagField();
-            if (field == null) {
-                if (!warned) {
-                    warned = true;
-                    SpaceClient.LOGGER.warn("Hitbox: no toggle found on the entity renderer");
-                }
-                return;
-            }
-            field.set(Minecraft.getInstance().getEntityRenderDispatcher(), value);
-        } catch (Throwable t) {
-            if (!warned) {
-                warned = true;
-                SpaceClient.LOGGER.warn("Hitbox: could not set the toggle", t);
-            }
-        }
+    public boolean isEnabledFor(Category category) {
+        return switch (category) {
+            case SELF -> selfOn.get();
+            case PLAYERS -> playersOn.get();
+            case MOBS -> mobsOn.get();
+            case ITEMS -> itemsOn.get();
+        };
     }
 
-    @Override
-    protected void onEnable() {
-        setFlag(true);
+    public int colorFor(Category category) {
+        return switch (category) {
+            case SELF -> selfColor.get();
+            case PLAYERS -> playersColor.get();
+            case MOBS -> mobsColor.get();
+            case ITEMS -> itemsColor.get();
+        };
     }
 
-    @Override
-    public void onTick() {
-        // Re-applied because F3+B and other code can reset it
-        setFlag(true);
+    public int widthFor(Category category) {
+        return switch (category) {
+            case SELF -> selfWidth.get();
+            case PLAYERS -> playersWidth.get();
+            case MOBS -> mobsWidth.get();
+            case ITEMS -> itemsWidth.get();
+        };
     }
 
-    @Override
-    protected void onDisable() {
-        if (!keepOnDisable.get()) setFlag(false);
+    public boolean arrowFor(Category category) {
+        if (!showArrows.get()) return false;
+        if (!arrowsPlayersOnly.get()) return true;
+        return category == Category.SELF || category == Category.PLAYERS;
+    }
+
+    public int getRange() { return range.get(); }
+
+    /** True when at least one category is switched on. */
+    public boolean anyCategoryOn() {
+        return selfOn.get() || playersOn.get() || mobsOn.get() || itemsOn.get();
     }
 }

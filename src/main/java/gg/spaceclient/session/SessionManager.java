@@ -13,6 +13,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -43,8 +44,24 @@ public class SessionManager {
     private static String status = "";
     private static boolean busy = false;
 
+    /**
+     * The account chosen in game, which is not necessarily the one the launcher
+     * has active. Without this, a refresh after switching would silently put
+     * the account the game started with back on.
+     */
+    private static String chosenUuid = "";
+
+    /** When a session was last minted, used to refresh before it expires. */
+    private static long lastRefresh = 0;
+
     public static String status() { return status; }
     public static boolean isBusy() { return busy; }
+    public static long lastRefresh() { return lastRefresh; }
+
+    /** Which account the game is currently meant to be using. */
+    public static String chosenUuid() {
+        return chosenUuid.isEmpty() ? LauncherAccounts.activeUuid() : chosenUuid;
+    }
 
     private static HttpClient http() {
         return HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8)).build();
@@ -57,12 +74,14 @@ public class SessionManager {
     public static CompletableFuture<Boolean> applyAccount(LauncherAccount account) {
         if (busy) return CompletableFuture.completedFuture(false);
         busy = true;
+        chosenUuid = account.uuid();
         status = "Signing in as " + account.username() + "...";
 
         return CompletableFuture.supplyAsync(() -> {
             try {
                 if (account.offline()) {
                     boolean ok = swapUser(account.username(), account.uuid(), "0", "legacy");
+                    if (ok) lastRefresh = System.currentTimeMillis();
                     status = ok
                             ? "Switched to " + account.username() + " (offline)"
                             : "Could not apply the offline profile.";
@@ -87,6 +106,7 @@ public class SessionManager {
                 String uuid = dashed(profile.get("id").getAsString());
 
                 boolean ok = swapUser(name, uuid, token, "msa");
+                if (ok) lastRefresh = System.currentTimeMillis();
                 status = ok
                         ? "Session refreshed - you are now " + name
                         : "Got a session but could not apply it to the running game.";
@@ -102,17 +122,25 @@ public class SessionManager {
         });
     }
 
-    /** Refreshes whichever account the launcher currently has active. */
+    /**
+     * Refreshes the account the game is currently using.
+     *
+     * That is the one picked in game if there was one, otherwise whatever the
+     * launcher had active - looking only at the launcher is what made a refresh
+     * after switching jump back to the starting account.
+     */
     public static CompletableFuture<Boolean> refreshCurrent() {
-        String active = LauncherAccounts.activeUuid();
-        Optional<LauncherAccount> account = LauncherAccounts.load().stream()
-                .filter(a -> a.uuid().equalsIgnoreCase(active))
+        String wanted = chosenUuid();
+        List<LauncherAccount> all = LauncherAccounts.load();
+
+        Optional<LauncherAccount> account = all.stream()
+                .filter(a -> a.uuid().equalsIgnoreCase(wanted))
                 .findFirst();
 
         if (account.isEmpty()) {
-            // Fall back to whichever account matches the name we are playing as
+            // Last resort: match on the name we are actually playing as
             String current = Minecraft.getInstance().getUser().getName();
-            account = LauncherAccounts.load().stream()
+            account = all.stream()
                     .filter(a -> a.username().equalsIgnoreCase(current))
                     .findFirst();
         }

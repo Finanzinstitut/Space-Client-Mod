@@ -27,6 +27,15 @@ public class SpaceMenuScreen extends Screen {
     }
 
     private int panelLeft() { return (this.width - PANEL_W) / 2; }
+
+    /** Settings that are not inside a group, so they are not listed twice. */
+    private static java.util.List<gg.spaceclient.setting.Setting> ungrouped(Module module) {
+        java.util.Set<gg.spaceclient.setting.Setting> inGroups = new java.util.HashSet<>();
+        module.getGroups().forEach(g -> inGroups.addAll(g.settings()));
+        return module.getSettings().stream()
+                .filter(s -> !inGroups.contains(s))
+                .toList();
+    }
     private int contentTop() { return 92; }
     private int columnWidth() { return (PANEL_W - GAP) / COLUMNS; }
 
@@ -54,9 +63,10 @@ public class SpaceMenuScreen extends Screen {
                         FlatButton button = holder[0];
                         boolean onGear = button.lastMouseX() >= x + columnWidth() - 34;
 
-                        if (onGear && !module.getSettings().isEmpty()) {
-                            Minecraft.getInstance().gui
-                                    .setScreen(new ModuleSettingsScreen(this, module));
+                        if (onGear && module.hasSettings()) {
+                            Minecraft.getInstance().gui.setScreen(new SettingsScreen(
+                                    this, module.getName(), module.getDescription(),
+                                    ungrouped(module), module.getGroups()));
                             return;
                         }
                         button.flash();
@@ -64,7 +74,7 @@ public class SpaceMenuScreen extends Screen {
                         SpaceClient.getConfigManager().save();
                     }
             );
-            if (!module.getSettings().isEmpty()) holder[0].withGear();
+            if (module.hasSettings()) holder[0].withGear();
             this.addRenderableWidget(holder[0]);
         }
 

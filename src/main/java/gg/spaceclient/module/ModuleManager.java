@@ -26,6 +26,12 @@ public class ModuleManager {
         register(new TravelModule());
         register(new ZoomModule());
         register(new HitboxModule());
+        register(new ChunkModule());
+        register(new ServerInfoModule());
+        register(new CrosshairInfoModule());
+        register(new YawLockModule());
+        register(new InputRateModule());
+        register(new CoordsCopyModule());
     }
 
     private void register(Module module) {

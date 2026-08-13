@@ -6,6 +6,8 @@ import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.IntSetting;
 import net.minecraft.client.KeyMapping;
 
+import gg.spaceclient.util.Reflect;
+
 import java.lang.reflect.Method;
 
 /**
@@ -32,7 +34,8 @@ public class ZoomModule extends Module {
     private boolean warned = false;
 
     public ZoomModule() {
-        super("zoom", "Zoom", "Hold the zoom key to look further", false);
+        super("zoom", "Zoom",
+                "Hold the zoom key - rebind it in Options, Controls, Space Client", false);
         addSettings(factor, smooth, slowSensitivity);
     }
 
@@ -53,7 +56,8 @@ public class ZoomModule extends Module {
             current = target;
         }
 
-        Object fovOption = mc.options.fov();
+        // fov() has not been confirmed for this version, so it is looked up
+        Object fovOption = Reflect.call(mc.options, "fov", "getFov");
         Object sensitivityOption = mc.options.sensitivity();
 
         if (normalFov < 0) {
@@ -93,7 +97,7 @@ public class ZoomModule extends Module {
     protected void onDisable() {
         if (mc.options == null) return;
         if (normalFov >= 0) {
-            writeOption(mc.options.fov(), normalFov);
+            writeOption(Reflect.call(mc.options, "fov", "getFov"), normalFov);
             normalFov = -1;
         }
         if (normalSensitivity >= 0) {

@@ -26,8 +26,14 @@ addition is confirmed building.
 | Memory | off | bar turns amber then red as the heap fills |
 | Compass | off | scrolling strip, so you can hold a heading between cardinals |
 | Travelled | off | also converts the distance to Nether equivalents |
-| Zoom | off | hold C; changes the game's own FOV option, no renderer hook |
-| Hitbox | off | switches on Minecraft's own hitbox view — see the caveat below |
+| Zoom | off | hold C; rebind under Options → Controls → Space Client |
+| Hitbox | off | per-category boxes with own colour and width — see below |
+| Chunk | off | chunk coordinates plus position inside the chunk |
+| Players Online | off | flags briefly when the count changes |
+| Aim | off | yaw and pitch, plus the nearest 45° snap |
+| Align | off | only the deviation from the nearest axis; turns green when exact |
+| Click Graph | off | rolling graph, so bursts and steady clicking look different |
+| Marker | off | sneak + drop stores a spot; shows bearing and distance back |
 
 Press **Right Shift** to open the menu. The interface deliberately matches the
 launcher rather than vanilla Minecraft: the same violet and cyan accents, the
@@ -68,6 +74,24 @@ Worth writing down, because almost every tutorial online is wrong for this versi
   not `minecraft.setScreen(...)`.
 - Colours are **ARGB**, not RGB — an RGB value renders fully transparent.
 
+## How risky calls are handled
+
+Every Minecraft API call in this mod falls into one of two groups.
+
+**Proven** — confirmed by a successful compile — is called directly:
+`getX/getY/getZ`, `getYRot/getXRot`, `getFps`, `isSprinting`, `getUUID`,
+`getConnection().getPlayerInfo()`, `mc.level`, `mc.options.key*`,
+`mc.options.sensitivity()`, `mc.font`, `getWindow().getGuiScaled*`.
+
+**Unverified** goes through `util/Reflect` instead: `mc.options.fov()`, the
+player list accessor, the whole world render context, entity bounding boxes and
+view vectors, the window handle, and adding a widget to someone else's screen.
+A wrong guess there costs a null and one log line rather than a failed build.
+
+That split exists because each failed build means another upload from a phone,
+so the cost of guessing wrong is much higher than the cost of a little
+reflection.
+
 ## Colours
 
 Every colour — the interface accent and each module's own colours — is picked on
@@ -78,19 +102,21 @@ The wheel is drawn as small filled squares and does its own HSB conversion
 rather than pulling in `java.awt`, which lives in a module that is not
 guaranteed to be on the runtime image.
 
-## Hitboxes: what this does and does not do
+## Hitboxes
 
-The module switches on **Minecraft's own hitbox rendering** — the same boxes and
-the same blue eye-direction arrow as F3+B. It does that by flipping the private
-boolean on the entity render dispatcher, found by type through reflection.
+Four categories — **yourself, other players, mobs, items** — each in its own
+sub-menu with a switch, a colour and a line width. On top of that the
+look-direction arrows can be turned off, or limited to players only, since on
+dropped items they are mostly clutter.
 
-What it does **not** do, and I would rather say so than let you find out: there
-are no per-category filters (players, hostile, passive, yourself), no custom box
-colour and no line width. Those need intercepting each entity as it is drawn,
-which means a mixin against `EntityRenderDispatcher#render`. The method that
-earlier attempt targeted does not exist under that name in this version, and
-guessing at it is what produced a hundred compile errors once already. It goes
-back in as soon as the signature is confirmed.
+Line width is faked by drawing the box several times, each slightly larger than
+the last: the render pipeline does not expose line thickness directly.
+
+The drawing goes through `LevelRenderer.renderLineBox`, located by name and
+parameter count through reflection rather than called directly, because the
+render rewrite in this version moved a great deal around. If it cannot be found,
+the module draws nothing and logs one line — the settings and the rest of the
+mod are unaffected.
 
 ## Accounts and sessions
 
@@ -103,6 +129,19 @@ Fabric's usual helper for putting a widget on someone else's screen
 to the screen's own protected `addRenderableWidget` through reflection, found by
 name and parameter count. If that ever stops matching, the button quietly does
 not appear and a line goes in the log — the rest of the mod is unaffected.
+
+### Keeping the session alive
+
+Reacting to a failed join was not enough: an "invalid session" failure happens
+*during* the connect attempt, so no connection is ever established and there is
+no drop to react to. The token is therefore renewed **before** it can go stale —
+once shortly after launch, since the launcher may have been open for hours
+before the game started, and then hourly, well inside the roughly one day a
+session lasts. The drop trigger is kept as a second chance.
+
+A refresh follows **the account picked in game**, not the one the launcher has
+active. Reading only the launcher is what made a refresh after switching jump
+back to the account the game started with.
 
 **Accounts** in the menu lists whatever accounts the Space Client launcher has
 signed in, switches between them, and refreshes the current session — all
