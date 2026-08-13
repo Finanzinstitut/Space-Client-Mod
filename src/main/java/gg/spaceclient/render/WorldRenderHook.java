@@ -19,15 +19,21 @@ import java.util.function.Consumer;
  */
 public final class WorldRenderHook {
 
-    /** Where the event class has lived across versions. */
+    /**
+     * Where the event class has lived across versions. Fabric API 26.1 renamed
+     * WorldRenderEvents to LevelRenderEvents and moved it into a level
+     * subpackage, which is why the older names alone found nothing.
+     */
     private static final String[] CANDIDATES = {
-            "net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents",
+            "net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents",
             "net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents",
-            "net.fabricmc.fabric.api.client.render.v1.WorldRenderEvents",
+            "net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents",
     };
 
     /** Event fields worth trying, in the order we would prefer them. */
-    private static final String[] EVENTS = {"AFTER_ENTITIES", "LAST", "END", "AFTER_TRANSLUCENT"};
+    private static final String[] EVENTS = {
+            "AFTER_ENTITIES", "END_MAIN", "LAST", "END", "AFTER_TRANSLUCENT"
+    };
 
     /**
      * @param callback receives the render context as an Object

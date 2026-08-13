@@ -140,6 +140,18 @@ public class SettingsScreen extends Screen {
 
         super.extractRenderState(graphics, mouseX, mouseY, delta);
 
+        // Hitboxes silently lose their per-category options when the world
+        // render event is missing, so say that here rather than let the
+        // settings look broken.
+        if (heading.equalsIgnoreCase("Hitbox") && !gg.spaceclient.render.HitboxRenderer.isAvailable()) {
+            graphics.text(this.font,
+                    "Custom drawing unavailable - using the game's own hitbox view.",
+                    left, this.height - 46, 0xFFFF9AAE, false);
+            graphics.text(this.font,
+                    "Colours, widths and arrows have no effect in that mode.",
+                    left, this.height - 34, 0xFF9A95C9, false);
+        }
+
         // Names above the colour wheels, which draw no label of their own
         int index = 0;
         for (Setting setting : settings) {

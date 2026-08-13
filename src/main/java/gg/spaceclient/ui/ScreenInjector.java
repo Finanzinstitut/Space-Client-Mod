@@ -33,21 +33,34 @@ public final class ScreenInjector {
         }
     }
 
+    /**
+     * Candidates, most wanted first.
+     *
+     * Order matters and cannot be left to chance: getDeclaredMethods returns
+     * methods in no defined order, so an earlier version of this sometimes hit
+     * addWidget first - which registers the widget as a listener but never
+     * draws it. The button was then clickable and invisible, or missing
+     * entirely, depending on the run.
+     */
     private static java.util.List<Method> findAddMethods(Class<?> type) {
-        java.util.List<Method> found = new java.util.ArrayList<>();
+        java.util.List<Method> renderable = new java.util.ArrayList<>();
+        java.util.List<Method> plain = new java.util.ArrayList<>();
         Class<?> current = type;
 
         while (current != null && current != Object.class) {
             for (Method method : current.getDeclaredMethods()) {
                 if (method.getParameterCount() != 1) continue;
-                String name = method.getName();
-                if (name.equals("addRenderableWidget") || name.equals("addWidget")) {
-                    found.add(method);
+                switch (method.getName()) {
+                    case "addRenderableWidget" -> renderable.add(method);
+                    case "addWidget" -> plain.add(method);
+                    default -> { }
                 }
             }
             current = current.getSuperclass();
         }
-        return found;
+
+        renderable.addAll(plain);
+        return renderable;
     }
 
     private static void warnOnce() {

@@ -26,7 +26,7 @@ addition is confirmed building.
 | Memory | off | bar turns amber then red as the heap fills |
 | Compass | off | scrolling strip, so you can hold a heading between cardinals |
 | Travelled | off | also converts the distance to Nether equivalents |
-| Zoom | off | hold C; rebind under Options → Controls → Space Client |
+| Zoom | off | key chosen in the module's own settings, read from the device |
 | Hitbox | off | per-category boxes with own colour and width — see below |
 | Chunk | off | chunk coordinates plus position inside the chunk |
 | Players Online | off | flags briefly when the count changes |
@@ -89,10 +89,11 @@ vectors, the window handle, and adding a widget to someone else's screen. A
 wrong guess there costs a null and one log line rather than a failed build.
 
 That includes **subscribing to Fabric's world render event**. Naming
-`WorldRenderEvents` in an import was itself enough to fail the build, because it
-moved out of `rendering.v1` in this version. `render/WorldRenderHook` looks the
-class up by name at runtime, builds a dynamic proxy against whichever callback
-interface it declares, and reports failure to the caller instead of exploding.
+`WorldRenderEvents` in an import was itself enough to fail the build, because
+Fabric API 26.1 renamed it to `LevelRenderEvents` and moved it into a `level`
+subpackage. `render/WorldRenderHook` looks the class up by name at runtime,
+builds a dynamic proxy against whichever callback interface it declares, and
+reports failure to the caller instead of exploding.
 
 Every Fabric and Minecraft import left in the source has now compiled at least
 once, which is checked mechanically rather than assumed.

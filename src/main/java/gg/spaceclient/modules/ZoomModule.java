@@ -4,6 +4,10 @@ import gg.spaceclient.SpaceClient;
 import gg.spaceclient.module.Module;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.IntSetting;
+import gg.spaceclient.setting.ModeSetting;
+import gg.spaceclient.input.RawKeyboard;
+
+import java.util.Arrays;
 import net.minecraft.client.KeyMapping;
 
 import gg.spaceclient.util.Reflect;
@@ -28,20 +32,38 @@ public class ZoomModule extends Module {
     private final BooleanSetting slowSensitivity = new BooleanSetting(
             "slow_sensitivity", "Reduce sensitivity", "Aim slower while zoomed", true);
 
+    /**
+     * The key is chosen here rather than only in the vanilla controls screen.
+     * The registered binding still works and can be rebound there, but that
+     * screen is easy to miss, and this reads the physical key directly so it
+     * cannot collide with another control.
+     */
+    private final ModeSetting key = new ModeSetting(
+            "key", "Zoom key", "Which key to hold",
+            Arrays.asList("C", "X", "V", "B", "N", "Z", "G", "R", "F", "CTRL", "ALT", "BINDING"),
+            "C");
+
     private double normalFov = -1;
     private double normalSensitivity = -1;
     private double current = 1.0;
     private boolean warned = false;
 
     public ZoomModule() {
-        super("zoom", "Zoom",
-                "Hold the zoom key - rebind it in Options, Controls, Space Client", false);
-        addSettings(factor, smooth, slowSensitivity);
+        super("zoom", "Zoom", "Hold the zoom key to look further", false);
+        addSettings(key, factor, smooth, slowSensitivity);
     }
 
     private boolean keyDown() {
-        KeyMapping key = SpaceClient.getZoomKey();
-        return key != null && key.isDown();
+        // BINDING defers to whatever is set in the vanilla controls screen
+        if (!key.is("BINDING") && RawKeyboard.isAvailable()) {
+            int code = RawKeyboard.codeFor(key.get());
+            if (code != org.lwjgl.glfw.GLFW.GLFW_KEY_UNKNOWN) {
+                return RawKeyboard.isDown(code);
+            }
+        }
+
+        KeyMapping binding = SpaceClient.getZoomKey();
+        return binding != null && binding.isDown();
     }
 
     @Override
