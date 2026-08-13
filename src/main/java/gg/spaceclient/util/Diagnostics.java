@@ -116,6 +116,17 @@ public final class Diagnostics {
                                 ? liveToken.length() + " chars, ends " + liveToken.substring(liveToken.length() - 6)
                                 : "only " + liveToken.length() + " chars - not a real token"));
 
+        // Chat signing: a key from the previous account is what produces
+        // "invalid_public_key_signature" on servers with secure profiles on
+        String signing = "no manager on this version";
+        for (var field : Minecraft.class.getDeclaredFields()) {
+            if (field.getType().getSimpleName().contains("ProfileKeyPairManager")) {
+                signing = field.getType().getSimpleName() + " present";
+                break;
+            }
+        }
+        checks.add(new Check("Chat signing", !signing.startsWith("no"), signing));
+
         checks.add(new Check("Session status", true,
                 gg.spaceclient.session.SessionManager.status().isEmpty()
                         ? "nothing attempted yet"

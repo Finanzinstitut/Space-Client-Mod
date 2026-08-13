@@ -199,11 +199,54 @@ public class ZoomModule extends Module {
                 if (method.getParameterCount() != 1) continue;
                 try {
                     method.invoke(option, argument);
+
+                    // The field of view option is clamped to the slider's range,
+                    // roughly 30 to 110. A zoom wants to go well below that, and
+                    // the setter silently clamps instead of refusing - which is
+                    // why the sensitivity changed but the view barely did.
+                    Double check = readOption(option);
+                    if (check != null && Math.abs(check - value) > 0.5) {
+                        writeFieldDirectly(option, argument);
+                    }
                     return;
                 } catch (Exception ignored) {
                     // Try the next overload
                 }
             }
+        }
+
+        // No setter at all: go straight for the field
+        writeFieldDirectly(option, argument);
+    }
+
+    /**
+     * Writes the value into the option's own field, past whatever the setter
+     * would clamp or validate. The renderer reads the same field, so this is
+     * what makes a real zoom possible rather than a nudge to the slider's edge.
+     */
+    private void writeFieldDirectly(Object option, Object argument) {
+        Class<?> current = option.getClass();
+        while (current != null && current != Object.class) {
+            for (java.lang.reflect.Field field : current.getDeclaredFields()) {
+                if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) continue;
+                // The value field holds exactly the kind of box we just built
+                if (!field.getType().isAssignableFrom(argument.getClass())
+                        && field.getType() != Object.class) {
+                    continue;
+                }
+                try {
+                    field.setAccessible(true);
+                    Object existing = field.get(option);
+                    // Only overwrite something that already looks like the value
+                    if (existing != null && existing.getClass() == argument.getClass()) {
+                        field.set(option, argument);
+                        return;
+                    }
+                } catch (Throwable ignored) {
+                    // Try the next field
+                }
+            }
+            current = current.getSuperclass();
         }
     }
 }

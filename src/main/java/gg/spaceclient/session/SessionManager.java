@@ -8,6 +8,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.User;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -314,6 +315,13 @@ public class SessionManager {
             }
 
             lastTokenTail = token.length() > 8 ? token.substring(token.length() - 6) : "short";
+
+            // The chat signing key still belongs to the previous account, and a
+            // server with secure profiles enforced rejects the mismatch with
+            // "invalid_public_key_signature". Rebuilding it is what makes the
+            // switched account usable on those servers.
+            refreshProfileKeys();
+
             SpaceClient.LOGGER.info("Session applied - now playing as {}", now);
             return true;
 
@@ -404,6 +412,88 @@ public class SessionManager {
             }
         }
         return null;
+    }
+
+    /**
+     * Replaces the chat signing key manager so it belongs to the new account.
+     *
+     * Minecraft fetches a keypair tied to the signed-in profile and signs chat
+     * with it. After a session swap the old keypair is still loaded, and servers
+     * running with enforce-secure-profile refuse the join because the signature
+     * does not match the profile presenting it.
+     *
+     * The manager is rebuilt through whichever static factory its class exposes,
+     * with arguments matched by type from the running game. Failure here only
+     * costs chat signing, so it is logged rather than treated as fatal.
+     */
+    private static void refreshProfileKeys() {
+        try {
+            Minecraft mc = Minecraft.getInstance();
+
+            Field managerField = null;
+            for (Field field : Minecraft.class.getDeclaredFields()) {
+                if (field.getType().getSimpleName().contains("ProfileKeyPairManager")) {
+                    managerField = field;
+                    break;
+                }
+            }
+            if (managerField == null) {
+                SpaceClient.LOGGER.info("No chat signing manager on this version - nothing to refresh");
+                return;
+            }
+
+            Class<?> managerType = managerField.getType();
+
+            // Collect what the game can hand a factory: the api service, the
+            // new account, and the game directory.
+            List<Object> available = new ArrayList<>();
+            for (Field field : Minecraft.class.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers())) continue;
+                try {
+                    field.setAccessible(true);
+                    Object value = field.get(mc);
+                    if (value != null) available.add(value);
+                } catch (Throwable ignored) {
+                    // Skip anything unreadable
+                }
+            }
+
+            for (Method factory : managerType.getMethods()) {
+                if (!Modifier.isStatic(factory.getModifiers())) continue;
+                if (!managerType.isAssignableFrom(factory.getReturnType())) continue;
+
+                Class<?>[] parameters = factory.getParameterTypes();
+                Object[] arguments = new Object[parameters.length];
+                boolean complete = true;
+
+                for (int i = 0; i < parameters.length; i++) {
+                    Object match = null;
+                    for (Object candidate : available) {
+                        if (parameters[i].isInstance(candidate)) {
+                            match = candidate;
+                            break;
+                        }
+                    }
+                    if (match == null) { complete = false; break; }
+                    arguments[i] = match;
+                }
+                if (!complete) continue;
+
+                Object rebuilt = factory.invoke(null, arguments);
+                if (rebuilt == null) continue;
+
+                managerField.setAccessible(true);
+                managerField.set(mc, rebuilt);
+                SpaceClient.LOGGER.info("Rebuilt the chat signing key for the new account");
+                return;
+            }
+
+            SpaceClient.LOGGER.warn(
+                    "Could not rebuild the chat signing key - servers enforcing secure profiles may refuse the join");
+
+        } catch (Throwable t) {
+            SpaceClient.LOGGER.warn("Chat signing key refresh failed: {}", t.getMessage());
+        }
     }
 
     /** Reads the access token back out, whatever the accessor is called. */

@@ -172,6 +172,29 @@ back out of the live account and compared, so a wrong slot cannot pass as
 success again. The Diagnostics page shows the live token's length and last six
 characters, which makes a real token distinguishable from a uuid at a glance.
 
+### Zoom, and why changing the option was not enough
+
+The field of view option is clamped to the slider's range, roughly 30 to 110.
+A zoom wants to go well below that: at four times magnification from a base of
+110, the target is 27. The setter does not refuse that — it silently clamps to
+30, so the mouse sensitivity dropped as configured while the view barely moved.
+
+The value is therefore written into the option's own field when the setter's
+result comes back clamped, past the validation. The renderer reads the same
+field, so the zoom is real rather than a nudge to the slider's edge.
+
+### "invalid_public_key_signature" after switching accounts
+
+Minecraft signs chat with a keypair tied to the signed-in profile. After a
+session swap the keypair still belongs to the previous account, and any server
+running with `enforce-secure-profile` refuses the join because the signature does
+not match the profile presenting it.
+
+The key manager is now rebuilt after a swap, through whichever static factory
+its class exposes, with arguments matched by type from the running game. If that
+fails it costs chat signing only, so it is logged rather than treated as fatal —
+and the Diagnostics page shows whether the manager was found at all.
+
 ### Why "invalid session" kept coming back
 
 Microsoft **rotates refresh tokens**: every use hands back a new one and retires

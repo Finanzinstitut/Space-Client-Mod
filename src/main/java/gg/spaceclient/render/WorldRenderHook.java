@@ -5,7 +5,9 @@ import gg.spaceclient.SpaceClient;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Proxy;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -83,9 +85,13 @@ public final class WorldRenderHook {
                     continue;
                 }
 
-                Class<?> listenerType = register.getParameterTypes()[0];
-                if (!listenerType.isInterface()) {
-                    tried.append(field.getName()).append(": listener is not an interface; ");
+                // The callback interface comes from the field's generic type,
+                // not from the register parameter: Event<T>.register(T) erases
+                // to register(Object), so asking the method yields Object and
+                // every event looked unusable.
+                Class<?> listenerType = listenerFromField(field);
+                if (listenerType == null) {
+                    tried.append(field.getName()).append(": callback type not readable; ");
                     continue;
                 }
 
@@ -136,6 +142,26 @@ public final class WorldRenderHook {
             } catch (Throwable ignored) {
                 // Try the next package
             }
+        }
+        return null;
+    }
+
+    /**
+     * Reads the callback interface out of a field declared as Event&lt;Something&gt;.
+     * Generic information survives on fields even though it is erased from the
+     * method signature, which is what makes this work at all.
+     */
+    private static Class<?> listenerFromField(Field field) {
+        try {
+            Type generic = field.getGenericType();
+            if (generic instanceof ParameterizedType parameterized) {
+                Type[] arguments = parameterized.getActualTypeArguments();
+                if (arguments.length > 0 && arguments[0] instanceof Class<?> type) {
+                    return type.isInterface() ? type : null;
+                }
+            }
+        } catch (Throwable ignored) {
+            // Falls through to null
         }
         return null;
     }
