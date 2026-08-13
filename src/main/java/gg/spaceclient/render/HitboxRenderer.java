@@ -4,7 +4,6 @@ import gg.spaceclient.SpaceClient;
 import gg.spaceclient.modules.HitboxModule;
 import gg.spaceclient.util.Reflect;
 
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.client.Minecraft;
 
 import java.lang.reflect.Method;
@@ -19,14 +18,30 @@ import java.util.Collection;
  * writes one line to the log, instead of failing the build and costing another
  * upload-and-wait cycle.
  *
- * The two type names in the signature are the only hard dependencies.
+ * Even the context type is taken as Object: the Fabric render event classes
+ * moved in this version, and naming them in a signature was enough to fail the
+ * build. Nothing here is a compile-time dependency any more.
  */
 public final class HitboxRenderer {
     private static Method renderLineBox;
     private static boolean lookedUp = false;
     private static boolean warned = false;
 
-    public static void render(WorldRenderContext context) {
+    /** False when the render event could not be subscribed to at all. */
+    private static boolean available = true;
+
+    public static void setAvailable(boolean value) {
+        available = value;
+    }
+
+    /** Whether custom boxes can be drawn, which decides if the module needs a fallback. */
+    public static boolean isAvailable() {
+        return available;
+    }
+
+    /** @param context a Fabric WorldRenderContext, taken as Object so the class
+     *                need not exist at compile time */
+    public static void render(Object context) {
         HitboxModule module = (HitboxModule) SpaceClient.getModuleManager().get("hitbox");
         if (module == null || !module.isEnabled() || !module.anyCategoryOn()) return;
 

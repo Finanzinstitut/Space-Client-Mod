@@ -1,6 +1,8 @@
 package gg.spaceclient.modules;
 
+import gg.spaceclient.SpaceClient;
 import gg.spaceclient.module.Module;
+import gg.spaceclient.render.HitboxRenderer;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
 import gg.spaceclient.setting.IntSetting;
@@ -123,6 +125,64 @@ public class HitboxModule extends Module {
     }
 
     public int getRange() { return range.get(); }
+
+    // --- fallback ---------------------------------------------------------
+    // When the world render event is unavailable, custom boxes cannot be drawn.
+    // Rather than the module doing nothing at all, the game's own hitbox view is
+    // switched on: no per-category colours, but the boxes and arrows are there.
+
+    private java.lang.reflect.Field vanillaFlag;
+    private boolean flagLookedUp = false;
+    private boolean flagWarned = false;
+
+    private java.lang.reflect.Field vanillaFlag() {
+        if (flagLookedUp) return vanillaFlag;
+        flagLookedUp = true;
+
+        Object dispatcher = gg.spaceclient.util.Reflect.call(
+                mc, "getEntityRenderDispatcher");
+        if (dispatcher == null) return null;
+
+        // The dispatcher carries exactly one plain boolean, and it is this one
+        for (java.lang.reflect.Field field : dispatcher.getClass().getDeclaredFields()) {
+            if (field.getType() == boolean.class) {
+                field.setAccessible(true);
+                vanillaFlag = field;
+                return field;
+            }
+        }
+        return null;
+    }
+
+    private void setVanillaHitboxes(boolean value) {
+        try {
+            java.lang.reflect.Field field = vanillaFlag();
+            Object dispatcher = gg.spaceclient.util.Reflect.call(
+                    mc, "getEntityRenderDispatcher");
+            if (field == null || dispatcher == null) {
+                if (!flagWarned) {
+                    flagWarned = true;
+                    SpaceClient.LOGGER.warn("Hitbox fallback unavailable on this version");
+                }
+                return;
+            }
+            field.set(dispatcher, value);
+        } catch (Throwable ignored) {
+            // Nothing more to try; the module simply shows nothing
+        }
+    }
+
+    @Override
+    public void onTick() {
+        if (HitboxRenderer.isAvailable()) return;
+        // Re-applied because the debug key and other code can reset it
+        setVanillaHitboxes(true);
+    }
+
+    @Override
+    protected void onDisable() {
+        if (!HitboxRenderer.isAvailable()) setVanillaHitboxes(false);
+    }
 
     /** True when at least one category is switched on. */
     public boolean anyCategoryOn() {

@@ -83,10 +83,19 @@ Every Minecraft API call in this mod falls into one of two groups.
 `getConnection().getPlayerInfo()`, `mc.level`, `mc.options.key*`,
 `mc.options.sensitivity()`, `mc.font`, `getWindow().getGuiScaled*`.
 
-**Unverified** goes through `util/Reflect` instead: `mc.options.fov()`, the
-player list accessor, the whole world render context, entity bounding boxes and
-view vectors, the window handle, and adding a widget to someone else's screen.
-A wrong guess there costs a null and one log line rather than a failed build.
+**Unverified** goes through reflection instead: `mc.options.fov()`, the player
+list accessor, the whole world render context, entity bounding boxes and view
+vectors, the window handle, and adding a widget to someone else's screen. A
+wrong guess there costs a null and one log line rather than a failed build.
+
+That includes **subscribing to Fabric's world render event**. Naming
+`WorldRenderEvents` in an import was itself enough to fail the build, because it
+moved out of `rendering.v1` in this version. `render/WorldRenderHook` looks the
+class up by name at runtime, builds a dynamic proxy against whichever callback
+interface it declares, and reports failure to the caller instead of exploding.
+
+Every Fabric and Minecraft import left in the source has now compiled at least
+once, which is checked mechanically rather than assumed.
 
 That split exists because each failed build means another upload from a phone,
 so the cost of guessing wrong is much higher than the cost of a little
@@ -114,9 +123,12 @@ the last: the render pipeline does not expose line thickness directly.
 
 The drawing goes through `LevelRenderer.renderLineBox`, located by name and
 parameter count through reflection rather than called directly, because the
-render rewrite in this version moved a great deal around. If it cannot be found,
-the module draws nothing and logs one line — the settings and the rest of the
-mod are unaffected.
+render rewrite in this version moved a great deal around.
+
+If the world render event cannot be subscribed to at all, the module **falls
+back to Minecraft's own hitbox view** — the same boxes and arrows as F3+B, for
+every entity at once. Per-category colours and widths are lost in that mode, but
+the module still does something rather than silently nothing.
 
 ## Accounts and sessions
 
