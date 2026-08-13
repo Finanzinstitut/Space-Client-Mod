@@ -56,8 +56,22 @@ public class DiagnosticsScreen extends Screen {
 
             graphics.text(this.font, mark, left, y, color, false);
             graphics.text(this.font, check.name(), left + 24, y, Theme.TEXT, false);
-            graphics.text(this.font, check.detail(), left + 200, y, Theme.TEXT_DIM, false);
-            y += this.font.lineHeight + 4;
+
+            // Details can get long; wrap rather than run off the panel
+            String detail = check.detail();
+            int detailX = left + 190;
+            int room = PANEL_W - 190;
+
+            while (!detail.isEmpty()) {
+                String line = detail;
+                while (this.font.width(line) > room && line.length() > 1) {
+                    line = line.substring(0, line.length() - 1);
+                }
+                graphics.text(this.font, line, detailX, y, Theme.TEXT_DIM, false);
+                detail = detail.substring(line.length());
+                y += this.font.lineHeight + 2;
+            }
+            y += 2;
         }
 
         super.extractRenderState(graphics, mouseX, mouseY, delta);

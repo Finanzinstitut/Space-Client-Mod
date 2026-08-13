@@ -192,21 +192,36 @@ public final class HitboxRenderer {
         }
     }
 
-    private static Method lineBoxMethod() {
+    /**
+     * Where the box drawing helper lives.
+     *
+     * Mojang moved these out of LevelRenderer into ShapeRenderer during the
+     * render rework, which is why looking only at LevelRenderer found nothing.
+     */
+    public static final String[] SHAPE_CLASSES = {
+            "net.minecraft.client.renderer.ShapeRenderer",
+            "net.minecraft.client.renderer.debug.DebugRenderer",
+            "net.minecraft.client.renderer.LevelRenderer",
+    };
+
+    public static Method lineBoxMethod() {
         if (lookedUp) return renderLineBox;
         lookedUp = true;
 
-        try {
-            Class<?> levelRenderer = Class.forName("net.minecraft.client.renderer.LevelRenderer");
-            for (Method method : levelRenderer.getMethods()) {
-                // The overload taking a whole box plus four colour floats
-                if (method.getName().equals("renderLineBox") && method.getParameterCount() == 7) {
-                    renderLineBox = method;
-                    return renderLineBox;
+        for (String className : SHAPE_CLASSES) {
+            try {
+                Class<?> type = Class.forName(className);
+                for (Method method : type.getMethods()) {
+                    if (!method.getName().equals("renderLineBox")) continue;
+                    // The overload taking a whole box plus four colour floats
+                    if (method.getParameterCount() == 7) {
+                        renderLineBox = method;
+                        return renderLineBox;
+                    }
                 }
+            } catch (Throwable ignored) {
+                // Try the next class
             }
-        } catch (Throwable ignored) {
-            // Leaves it null, handled by the caller
         }
         return renderLineBox;
     }

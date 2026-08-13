@@ -34,16 +34,20 @@ public final class Diagnostics {
         checks.add(new Check("World render event", events != null,
                 events != null ? events.getSimpleName() : "no known class found"));
 
-        Method lineBox = findMethod("net.minecraft.client.renderer.LevelRenderer",
-                "renderLineBox", 7);
+        Method lineBox = gg.spaceclient.render.HitboxRenderer.lineBoxMethod();
         checks.add(new Check("Line box renderer", lineBox != null,
-                lineBox != null ? "renderLineBox found" : "not found - boxes cannot be drawn"));
+                lineBox != null
+                        ? lineBox.getDeclaringClass().getSimpleName() + ".renderLineBox"
+                        : "not found in " + String.join(", ",
+                                gg.spaceclient.render.HitboxRenderer.SHAPE_CLASSES)));
 
-        checks.add(new Check("Hitbox drawing active",
-                gg.spaceclient.render.HitboxRenderer.isAvailable(),
-                gg.spaceclient.render.HitboxRenderer.isAvailable()
-                        ? "custom boxes in use"
-                        : "falling back to the game's own view"));
+        boolean drawing = gg.spaceclient.render.HitboxRenderer.isAvailable();
+        checks.add(new Check("Hitbox drawing active", drawing,
+                drawing ? "custom boxes in use" : "falling back to the game's own view"));
+
+        // Why the subscription failed, which the previous page did not show
+        checks.add(new Check("Render subscription", drawing,
+                gg.spaceclient.render.WorldRenderHook.failure()));
 
         // --- raw keyboard, needed for keystrokes and the zoom key ---
         boolean keyboard = gg.spaceclient.input.RawKeyboard.isAvailable();
@@ -85,9 +89,45 @@ public final class Diagnostics {
                         ? LauncherAccounts.load().size() + " account(s) readable"
                         : "not found at " + LauncherAccounts.accountsFile()));
 
+        // Can an account object actually be built on this version? A field that
+        // exists is no use if nothing can be put in it.
+        String shape = testBuildUser();
+        checks.add(new Check("Account constructor shape", shape != null, shape));
+
+        checks.add(new Check("Session status", true,
+                gg.spaceclient.session.SessionManager.status().isEmpty()
+                        ? "nothing attempted yet"
+                        : gg.spaceclient.session.SessionManager.status()));
+
         checks.add(new Check("Playing as", true, mc.getUser().getName()));
 
+        // Which modules are on, since a module that is off simply does nothing
+        StringBuilder enabled = new StringBuilder();
+        for (var module : gg.spaceclient.SpaceClient.getModuleManager().getAll()) {
+            if (module.isEnabled()) {
+                if (enabled.length() > 0) enabled.append(", ");
+                enabled.append(module.getName());
+            }
+        }
+        checks.add(new Check("Enabled modules", enabled.length() > 0,
+                enabled.length() > 0 ? enabled.toString() : "none are switched on"));
+
         return checks;
+    }
+
+    /** The shape of the User constructor, which is what the builder must fill. */
+    private static String testBuildUser() {
+        for (var constructor : net.minecraft.client.User.class.getDeclaredConstructors()) {
+            StringBuilder shape = new StringBuilder();
+            for (Class<?> parameter : constructor.getParameterTypes()) {
+                if (shape.length() > 0) shape.append(", ");
+                shape.append(parameter.getSimpleName());
+            }
+            // Reporting the shape is more useful than a yes or no, since it
+            // shows exactly what the builder has to fill in.
+            return "takes (" + shape + ")";
+        }
+        return "no constructors at all";
     }
 
     private static Class<?> findClass(String... names) {

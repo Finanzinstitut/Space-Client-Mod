@@ -4,7 +4,10 @@ import gg.spaceclient.SpaceClient;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -30,10 +33,15 @@ public final class WorldRenderHook {
             "net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents",
     };
 
-    /** Event fields worth trying, in the order we would prefer them. */
-    private static final String[] EVENTS = {
+    /** Event field names worth preferring, if any of them exist. */
+    private static final String[] PREFERRED = {
             "AFTER_ENTITIES", "END_MAIN", "LAST", "END", "AFTER_TRANSLUCENT"
     };
+
+    /** Why the last subscription attempt failed, for the diagnostics page. */
+    private static String failure = "not attempted";
+
+    public static String failure() { return failure; }
 
     /**
      * @param callback receives the render context as an Object
@@ -42,51 +50,82 @@ public final class WorldRenderHook {
     public static boolean subscribe(Consumer<Object> callback) {
         Class<?> eventsClass = findEventsClass();
         if (eventsClass == null) {
-            SpaceClient.LOGGER.warn(
-                    "Fabric's world render event was not found - world drawing is unavailable");
+            failure = "no known event class on the classpath";
+            SpaceClient.LOGGER.warn("World render event class not found");
             return false;
         }
 
-        for (String name : EVENTS) {
+        // Rather than trusting a fixed list of field names, every static field
+        // that looks like an event is considered, preferred ones first. Field
+        // names move as often as class names do.
+        List<Field> candidates = new ArrayList<>();
+        for (String wanted : PREFERRED) {
+            for (Field field : eventsClass.getFields()) {
+                if (field.getName().equals(wanted)) candidates.add(field);
+            }
+        }
+        for (Field field : eventsClass.getFields()) {
+            if (!candidates.contains(field) && Modifier.isStatic(field.getModifiers())) {
+                candidates.add(field);
+            }
+        }
+
+        StringBuilder tried = new StringBuilder();
+
+        for (Field field : candidates) {
             try {
-                Field field = eventsClass.getField(name);
                 Object event = field.get(null);
                 if (event == null) continue;
 
-                // The event's register method tells us which interface to fake
                 Method register = findRegister(event.getClass());
-                if (register == null) continue;
+                if (register == null) {
+                    tried.append(field.getName()).append(": no register method; ");
+                    continue;
+                }
 
                 Class<?> listenerType = register.getParameterTypes()[0];
-                if (!listenerType.isInterface()) continue;
+                if (!listenerType.isInterface()) {
+                    tried.append(field.getName()).append(": listener is not an interface; ");
+                    continue;
+                }
 
                 Object proxy = Proxy.newProxyInstance(
                         listenerType.getClassLoader(),
                         new Class<?>[]{listenerType},
                         (self, method, args) -> {
-                            // The callback takes the single context argument
-                            if (args != null && args.length == 1) {
+                            // Object methods must behave, or the proxy misbehaves
+                            switch (method.getName()) {
+                                case "toString" -> { return "SpaceClientWorldRenderHook"; }
+                                case "hashCode" -> { return System.identityHashCode(self); }
+                                case "equals" -> { return self == (args == null ? null : args[0]); }
+                                default -> { }
+                            }
+                            if (args != null && args.length >= 1) {
                                 try {
                                     callback.accept(args[0]);
                                 } catch (Throwable t) {
                                     SpaceClient.LOGGER.warn("World render callback failed", t);
                                 }
                             }
+                            // Some callbacks return boolean; false would cancel
+                            Class<?> returns = method.getReturnType();
+                            if (returns == boolean.class) return true;
                             return null;
                         });
 
                 register.invoke(event, proxy);
-                SpaceClient.LOGGER.info("Subscribed to world rendering via {}", name);
+                failure = "subscribed via " + field.getName();
+                SpaceClient.LOGGER.info("Subscribed to world rendering via {}", field.getName());
                 return true;
 
-            } catch (NoSuchFieldException ignored) {
-                // Try the next event name
             } catch (Throwable t) {
-                SpaceClient.LOGGER.warn("Could not subscribe to {}: {}", name, t.getMessage());
+                tried.append(field.getName()).append(": ").append(t.getClass().getSimpleName())
+                        .append("; ");
             }
         }
 
-        SpaceClient.LOGGER.warn("No usable world render event found");
+        failure = tried.length() == 0 ? "no usable event field" : tried.toString();
+        SpaceClient.LOGGER.warn("Could not subscribe to world rendering: {}", failure);
         return false;
     }
 
