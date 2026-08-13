@@ -102,7 +102,7 @@ public class SpaceClient implements ClientModInitializer {
                     () -> "Space Client",
                     () -> false,
                     () -> client.gui.setScreen(new AccountsScreen(screen))
-            ));
+            ).asAction());
         });
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {

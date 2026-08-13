@@ -159,18 +159,33 @@ public class SessionManager {
         if (!account.isExpired() && !account.accessToken().isEmpty()) {
             return account.accessToken();
         }
-        if (account.refreshToken().isEmpty()) return null;
+
+        // Prefer a rotated token this mod was handed over the launcher's copy,
+        // which Microsoft may already have retired.
+        String refresh = TokenStore.refreshToken(account.uuid(), account.refreshToken());
+        if (refresh.isEmpty()) return null;
 
         String body = "client_id=" + AZURE_CLIENT_ID
                 + "&grant_type=refresh_token"
                 + "&refresh_token=" + java.net.URLEncoder.encode(
-                        account.refreshToken(), java.nio.charset.StandardCharsets.UTF_8)
+                        refresh, java.nio.charset.StandardCharsets.UTF_8)
                 + "&scope=" + java.net.URLEncoder.encode(
                         "XboxLive.signin offline_access", java.nio.charset.StandardCharsets.UTF_8);
 
         JsonObject microsoft = postForm(TOKEN_URL, body);
-        if (microsoft == null || !microsoft.has("access_token")) return null;
+        if (microsoft == null || !microsoft.has("access_token")) {
+            // A rejected token is worth forgetting, so the launcher's copy gets
+            // a turn on the next attempt.
+            TokenStore.forget(account.uuid());
+            return null;
+        }
         String msToken = microsoft.get("access_token").getAsString();
+
+        // Microsoft hands back a new refresh token and retires the one just
+        // used; keeping it is what makes a second refresh work.
+        if (microsoft.has("refresh_token")) {
+            TokenStore.put(account.uuid(), microsoft.get("refresh_token").getAsString());
+        }
 
         JsonObject xbl = postJson(XBL_URL, String.format("""
                 {"Properties":{"AuthMethod":"RPS","SiteName":"user.auth.xboxlive.com",
@@ -253,20 +268,44 @@ public class SessionManager {
         try {
             Minecraft mc = Minecraft.getInstance();
             User replacement = buildUser(name, uuid, token, type);
-            if (replacement == null) return false;
+            if (replacement == null) {
+                SpaceClient.LOGGER.warn("Could not build a User - no constructor matched");
+                status = "This version's account object could not be built.";
+                return false;
+            }
 
+            boolean written = false;
             for (Field field : Minecraft.class.getDeclaredFields()) {
                 if (!User.class.equals(field.getType())) continue;
                 field.setAccessible(true);
                 field.set(mc, replacement);
-                SpaceClient.LOGGER.info("Applied a new session for {}", name);
-                return true;
+                written = true;
+                SpaceClient.LOGGER.info("Wrote the new session into Minecraft.{}", field.getName());
             }
-            SpaceClient.LOGGER.warn("No User field found on Minecraft - cannot apply the session");
-            return false;
+
+            if (!written) {
+                SpaceClient.LOGGER.warn("No User field on Minecraft - cannot apply the session");
+                status = "This version keeps the account somewhere this mod cannot reach.";
+                return false;
+            }
+
+            // Verify rather than assume: reading it back is the only way to know
+            // the swap took, and a silent no-op here is exactly what made the
+            // account appear not to change.
+            String now = mc.getUser().getName();
+            if (!now.equalsIgnoreCase(name)) {
+                SpaceClient.LOGGER.warn(
+                        "Session written but the game still reports {} instead of {}", now, name);
+                status = "The session was written but the game still reports " + now + ".";
+                return false;
+            }
+
+            SpaceClient.LOGGER.info("Session applied - now playing as {}", now);
+            return true;
 
         } catch (Throwable t) {
             SpaceClient.LOGGER.warn("Could not swap the session", t);
+            status = "Could not apply the session: " + t.getMessage();
             return false;
         }
     }

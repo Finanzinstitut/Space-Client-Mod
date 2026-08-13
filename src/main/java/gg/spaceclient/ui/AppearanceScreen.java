@@ -53,7 +53,7 @@ public class AppearanceScreen extends Screen {
                 () -> "Back",
                 () -> false,
                 this::onClose
-        ));
+        ).asAction());
     }
 
     @Override

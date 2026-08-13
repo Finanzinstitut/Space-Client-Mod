@@ -88,28 +88,28 @@ public class SpaceMenuScreen extends Screen {
                 () -> "Move HUD",
                 () -> false,
                 () -> Minecraft.getInstance().gui.setScreen(new HudEditorScreen(this))
-        ));
+        ).asAction());
 
         this.addRenderableWidget(new FlatButton(
                 left + quarter + GAP, bottom, quarter, ROW_H,
                 () -> "Accounts",
                 () -> false,
                 () -> Minecraft.getInstance().gui.setScreen(new AccountsScreen(this))
-        ));
+        ).asAction());
 
         this.addRenderableWidget(new FlatButton(
                 left + (quarter + GAP) * 2, bottom, quarter, ROW_H,
                 () -> "Appearance",
                 () -> false,
                 () -> Minecraft.getInstance().gui.setScreen(new AppearanceScreen(this))
-        ));
+        ).asAction());
 
         this.addRenderableWidget(new FlatButton(
                 left + (quarter + GAP) * 3, bottom, quarter, ROW_H,
                 () -> "Close",
                 () -> false,
                 this::onClose
-        ));
+        ).asAction());
     }
 
     @Override

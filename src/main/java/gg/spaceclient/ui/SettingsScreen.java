@@ -59,7 +59,7 @@ public class SettingsScreen extends Screen {
                     () -> Minecraft.getInstance().gui.setScreen(new SettingsScreen(
                             this, group.name(), group.description(),
                             group.settings(), List.of()))
-            ));
+            ).asAction());
             y += ROW_H + GAP;
         }
         if (!groups.isEmpty()) y += GAP;
@@ -122,7 +122,7 @@ public class SettingsScreen extends Screen {
                 () -> "Back",
                 () -> false,
                 this::onClose
-        ));
+        ).asAction());
     }
 
     @Override

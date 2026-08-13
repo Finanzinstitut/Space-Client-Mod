@@ -142,6 +142,22 @@ to the screen's own protected `addRenderableWidget` through reflection, found by
 name and parameter count. If that ever stops matching, the button quietly does
 not appear and a line goes in the log — the rest of the mod is unaffected.
 
+### Why "invalid session" kept coming back
+
+Microsoft **rotates refresh tokens**: every use hands back a new one and retires
+the one just used. The mod read the launcher's copy but never kept the new one,
+so the second refresh in a session replayed a token Microsoft had already
+invalidated and failed — while still reporting that a refresh had run.
+
+Rotated tokens now live in `config/spaceclient-tokens.json`, preferred over the
+launcher's copy and dropped again when Microsoft rejects one, so the launcher's
+version gets a turn. The launcher's own file is never written to.
+
+The swap is also **verified instead of assumed**: after writing the new session,
+the game is asked who it thinks it is, and a mismatch is reported rather than
+passing as success. The Accounts screen shows that live value under the heading,
+so a swap that did not take is visible immediately.
+
 ### Keeping the session alive
 
 Reacting to a failed join was not enough: an "invalid session" failure happens

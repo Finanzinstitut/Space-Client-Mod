@@ -34,6 +34,12 @@ public class FlatButton extends Button {
     /** Whether to draw the settings dots on the right hand edge. */
     private boolean showGear = false;
 
+    /**
+     * Action buttons have no on/off state, and drawing one on top of the label
+     * is what made "Space Client" read as "Space ClieOFF".
+     */
+    private boolean showState = true;
+
     public FlatButton(int x, int y, int width, int height,
                       Supplier<String> label,
                       BooleanSupplier active,
@@ -48,6 +54,12 @@ public class FlatButton extends Button {
 
     public FlatButton withGear() {
         this.showGear = true;
+        return this;
+    }
+
+    /** For buttons that do something rather than toggle something. */
+    public FlatButton asAction() {
+        this.showState = false;
         return this;
     }
 
@@ -96,11 +108,11 @@ public class FlatButton extends Button {
         int textY = y1 + (this.height - font.lineHeight) / 2;
 
         String state = on ? "ON" : "OFF";
-        int stateWidth = font.width(state);
+        int stateWidth = showState ? font.width(state) : 0;
 
         // The label has to stop before the state text and the settings dots,
-        // otherwise long module names run straight through them.
-        int reserved = stateWidth + (showGear ? 46 : 24);
+        // otherwise long names run straight through them.
+        int reserved = stateWidth + (showGear ? 46 : (showState ? 24 : 12));
         int available = this.width - 12 - reserved;
         String text = label.get();
         if (available > 8 && font.width(text) > available) {
@@ -110,7 +122,10 @@ public class FlatButton extends Button {
             text = text + "..";
         }
         graphics.text(font, text, x1 + 12, textY, on ? Theme.TEXT : Theme.TEXT_DIM, false);
-        graphics.text(font, state, x2 - stateWidth - 34, textY, on ? Theme.CYAN : Theme.OFF, false);
+        if (showState) {
+            graphics.text(font, state, x2 - stateWidth - 34, textY,
+                    on ? Theme.CYAN : Theme.OFF, false);
+        }
 
         if (showGear) {
             // Three dots marking the strip that opens settings

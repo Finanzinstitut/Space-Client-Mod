@@ -60,7 +60,7 @@ public class AccountsScreen extends Screen {
                 () -> false,
                 () -> SessionManager.refreshCurrent()
                         .thenRun(() -> Minecraft.getInstance().execute(this::rebuildWidgets))
-        ));
+        ).asAction());
         y += ROW_H + GAP * 2;
 
         this.addRenderableWidget(new FlatButton(
@@ -68,7 +68,7 @@ public class AccountsScreen extends Screen {
                 () -> "Back",
                 () -> false,
                 this::onClose
-        ));
+        ).asAction());
     }
 
     @Override
@@ -81,7 +81,8 @@ public class AccountsScreen extends Screen {
 
         JupiterIcon.draw(graphics, left, 34, 24);
         graphics.text(this.font, "ACCOUNTS", left + 34, 38, Theme.CYAN, false);
-        graphics.text(this.font, "Playing as " + Minecraft.getInstance().getUser().getName(),
+        // Read live from the game, so a failed swap is visible rather than hidden
+        graphics.text(this.font, "Game reports: " + Minecraft.getInstance().getUser().getName(),
                 left + 34, 50, Theme.TEXT_DIM, false);
         graphics.fill(left, 74, left + PANEL_W, 75, Theme.BORDER);
 
