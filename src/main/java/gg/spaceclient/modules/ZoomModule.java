@@ -150,19 +150,43 @@ public class ZoomModule extends Module {
         return null;
     }
 
+    /**
+     * Writes a value back into an option.
+     *
+     * The type matters: field of view is an Integer option, and the generic
+     * setter erases to set(Object). Handing it a Double therefore compiles and
+     * invokes fine, then throws a ClassCastException inside - which the old
+     * version swallowed, so the zoom silently did nothing. The current value is
+     * read first and the new one is boxed to match it.
+     */
     private void writeOption(Object option, double value) {
         if (option == null) return;
+
+        Object current = null;
+        for (String getter : new String[]{"get", "getValue", "value"}) {
+            try {
+                current = option.getClass().getMethod(getter).invoke(option);
+                if (current != null) break;
+            } catch (Exception ignored) {
+                // Try the next getter
+            }
+        }
+
+        Object argument = current instanceof Integer
+                ? Integer.valueOf((int) Math.round(value))
+                : current instanceof Float
+                        ? Float.valueOf((float) value)
+                        : Double.valueOf(value);
+
         for (String name : new String[]{"set", "setValue"}) {
-            for (Class<?> type : new Class<?>[]{Object.class, Double.class, Integer.class}) {
+            for (Method method : option.getClass().getMethods()) {
+                if (!method.getName().equals(name)) continue;
+                if (method.getParameterCount() != 1) continue;
                 try {
-                    Method method = option.getClass().getMethod(name, type);
-                    Object argument = type == Integer.class
-                            ? Integer.valueOf((int) Math.round(value))
-                            : Double.valueOf(value);
                     method.invoke(option, argument);
                     return;
                 } catch (Exception ignored) {
-                    // Try the next shape
+                    // Try the next overload
                 }
             }
         }

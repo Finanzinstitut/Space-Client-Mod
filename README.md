@@ -102,6 +102,17 @@ That split exists because each failed build means another upload from a phone,
 so the cost of guessing wrong is much higher than the cost of a little
 reflection.
 
+## Diagnostics
+
+The last button in the menu opens a page listing every reflective lookup the mod
+makes, with OK or a reason it failed: the world render event, the line box
+renderer, the raw keyboard handle, the field of view option, the account field
+on `Minecraft`, and whether the launcher's accounts can be read.
+
+This exists because a failed lookup otherwise only writes to a log file, and the
+symptom in game is simply that a feature does nothing. One screenshot of this
+page says which lookup is at fault, instead of another round of guessing.
+
 ## Colours
 
 Every colour — the interface accent and each module's own colours — is picked on

@@ -106,9 +106,9 @@ public class SpaceMenuScreen extends Screen {
 
         this.addRenderableWidget(new FlatButton(
                 left + (quarter + GAP) * 3, bottom, quarter, ROW_H,
-                () -> "Close",
+                () -> "Diagnostics",
                 () -> false,
-                this::onClose
+                () -> Minecraft.getInstance().gui.setScreen(new DiagnosticsScreen(this))
         ).asAction());
     }
 
