@@ -35,6 +35,12 @@ public final class Diagnostics {
         checks.add(new Check("Render types", renderTypes != null,
                 renderTypes != null ? "RenderTypes present" : "not found"));
 
+        // A failure is remembered, so the reason survives the module switching off
+        if (gg.spaceclient.render.HitboxRenderer.hasFailed()) {
+            checks.add(new Check("Hitbox drawing", false,
+                    gg.spaceclient.render.HitboxRenderer.failure()));
+        }
+
         boolean drawing = gg.spaceclient.render.HitboxRenderer.isAvailable();
         checks.add(new Check("Hitbox mixin", drawing,
                 drawing ? "attached and drawing" : "not reached yet - enable the module and look around"));

@@ -34,11 +34,20 @@ public final class HitboxRenderer {
     private static boolean warned = false;
     private static boolean available = false;
 
+    /** Set once drawing has thrown, so it is not retried every frame. */
+    private static boolean failed = false;
+    private static String failure = "";
+
+    public static boolean hasFailed() { return failed; }
+    public static String failure() { return failure; }
+
     public static void setAvailable(boolean value) { available = value; }
     public static boolean isAvailable() { return available; }
 
     /** Called from the mixin once per frame, after the world's own features. */
     public static void submit(SubmitNodeCollector collector) {
+        if (failed) return;
+
         HitboxModule module = (HitboxModule) SpaceClient.getModuleManager().get("hitbox");
         if (module == null || !module.isEnabled() || !module.anyCategoryOn()) return;
 
@@ -98,18 +107,31 @@ public final class HitboxRenderer {
                 {x2, y1, z2, x2, y2, z2}, {x1, y1, z2, x1, y2, z2},
         };
 
+        // The callback runs later, while the frame is being built, so a failure
+        // inside it lands in the render thread rather than here. Guarding the
+        // submit alone was not enough: that is how a bad vertex took the whole
+        // game down instead of just switching the module off.
         collector.submitCustomGeometry(IDENTITY, type, (pose, buffer) -> {
-            for (double[] edge : edges) {
-                writeEdge(buffer, edge[0], edge[1], edge[2], edge[3], edge[4], edge[5],
-                        thickness, argb);
+            try {
+                for (double[] edge : edges) {
+                    writeEdge(buffer, edge[0], edge[1], edge[2], edge[3], edge[4], edge[5],
+                            thickness, argb);
+                }
+            } catch (Throwable t) {
+                disableAfterFailure(t);
             }
         });
     }
 
     private static void submitLine(SubmitNodeCollector collector, RenderType type,
                                    Vec3 from, Vec3 to, int argb, double thickness) {
-        collector.submitCustomGeometry(IDENTITY, type, (pose, buffer) ->
-                writeEdge(buffer, from.x, from.y, from.z, to.x, to.y, to.z, thickness, argb));
+        collector.submitCustomGeometry(IDENTITY, type, (pose, buffer) -> {
+            try {
+                writeEdge(buffer, from.x, from.y, from.z, to.x, to.y, to.z, thickness, argb);
+            } catch (Throwable t) {
+                disableAfterFailure(t);
+            }
+        });
     }
 
     /**
@@ -199,6 +221,24 @@ public final class HitboxRenderer {
         Object camera = Reflect.call(mc.gameRenderer, "getMainCamera", "mainCamera");
         Object position = Reflect.call(camera, "getPosition", "position");
         return position instanceof Vec3 vec ? vec : null;
+    }
+
+    /**
+     * Switches the module off after a drawing failure.
+     *
+     * A vertex the pipeline rejects throws on the render thread, which ends the
+     * frame and takes the game with it. Rather than repeating that every frame,
+     * the module stops itself and says why - a hitbox is not worth a crash.
+     */
+    private static void disableAfterFailure(Throwable cause) {
+        if (!failed) {
+            failed = true;
+            failure = cause.getClass().getSimpleName() + ": " + cause.getMessage();
+            SpaceClient.LOGGER.error("Hitbox drawing failed - switching the module off", cause);
+
+            HitboxModule module = (HitboxModule) SpaceClient.getModuleManager().get("hitbox");
+            if (module != null) module.setEnabled(false);
+        }
     }
 
     private static void warnOnce(String reason) {

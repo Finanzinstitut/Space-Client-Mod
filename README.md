@@ -204,6 +204,19 @@ on. The vertices carry a colour and nothing else: no pose, no normal.
 If the mixin does not attach on some future version, the module falls back to
 switching on Minecraft's own hitbox view, and the Diagnostics page says so.
 
+### A crash worth explaining
+
+An early version wrote vertices with a normal, which the debug quad format does
+not carry, and the pipeline answered with `Missing elements in vertex` — on the
+render thread, which ends the frame and takes the game down with it.
+
+Two things came out of that. The vertex format is now the right one, and more
+importantly the drawing callback guards itself: it runs *later* than the code
+that submits it, while the frame is being built, so guarding the submit was
+never going to catch anything. A failure there now switches the module off and
+records why, instead of repeating the crash every frame. A hitbox is not worth
+losing the game over.
+
 ## Accounts and sessions
 
 The **server list** carries a *Space Client* button in the top left corner,
