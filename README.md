@@ -122,6 +122,14 @@ under the element: previous, play/pause, next. They press the system media keys,
 which Windows routes to whichever app is currently playing, so no direct
 connection to either player is needed.
 
+**Playback controls run through a script file**, not an inline PowerShell
+command. That was the original mistake: the key press helper needs double quotes
+around the DLL name, and those did not survive being passed as a single argument
+— PowerShell saw a broken statement, exited without doing anything, and the
+button clicked to no effect. Writing the script to the temp folder once and
+calling it with `-File` removes the quoting problem entirely, and a non-zero
+exit is now reported instead of ignored.
+
 Two honest limitations:
 
 - **Windows only.** The lookup runs through PowerShell so that nothing has to be
@@ -129,6 +137,16 @@ Two honest limitations:
 - **No cover art.** Window titles carry the track name and artist, nothing else.
   A drawn record stands in for the artwork; real covers would need a signed-in
   web API, which is a separate project of the size the Azure login was.
+
+## Long settings lists
+
+Settings screens split into **pages** when there is more than fits the window,
+with `< Page` and `Page >` beside the back button and a counter in the corner.
+
+Paging rather than scrolling is deliberate: a scroll wheel handler needs the
+mouse event signature, which changed in this version, while buttons are already
+known to work. A colour wheel takes about as much room as four ordinary rows, so
+a module with several colours fills a page quickly.
 
 ## Diagnostics
 

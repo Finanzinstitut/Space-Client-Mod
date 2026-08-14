@@ -167,26 +167,84 @@ public final class MusicWatcher {
 
         CompletableFuture.runAsync(() -> {
             try {
-                String script =
-                        "$signature='[DllImport(\"user32.dll\")] public static extern void " +
-                        "keybd_event(byte bVk, byte bScan, uint dwFlags, int dwExtraInfo);'; " +
-                        "$type=Add-Type -MemberDefinition $signature -Name Keys -Namespace Media " +
-                        "-PassThru; " +
-                        "$type::keybd_event(" + virtualKey + ",0,0,0); " +
-                        "$type::keybd_event(" + virtualKey + ",0,2,0)";
+                java.nio.file.Path script = mediaKeyScript();
+                if (script == null) {
+                    SpaceClient.LOGGER.warn("Media key script could not be written");
+                    return;
+                }
 
-                new ProcessBuilder("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
-                        .start()
-                        .waitFor();
+                Process process = new ProcessBuilder(
+                        "powershell", "-NoProfile", "-NonInteractive",
+                        "-ExecutionPolicy", "Bypass",
+                        "-File", script.toString(),
+                        String.valueOf(virtualKey))
+                        .redirectErrorStream(true)
+                        .start();
 
-                // Give the player a moment, then read the new track
-                Thread.sleep(600);
-                lastPoll = 0;
+                // Read the output, or a full pipe would leave the process hanging
+                StringBuilder result = new StringBuilder();
+                try (BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) result.append(line).append(' ');
+                }
+                int exit = process.waitFor();
+
+                if (exit != 0) {
+                    status = "media key failed: " + result.toString().trim();
+                    SpaceClient.LOGGER.warn("Media key exit {}: {}", exit, result.toString().trim());
+                } else {
+                    // Give the player a moment, then read the new track
+                    Thread.sleep(600);
+                    lastPoll = 0;
+                }
 
             } catch (Throwable t) {
-                SpaceClient.LOGGER.warn("Media key failed: {}", t.getMessage());
+                status = "media key failed: " + t.getMessage();
+                SpaceClient.LOGGER.warn("Media key failed", t);
             }
         });
+    }
+
+    /**
+     * Writes the key press helper to a file once and reuses it.
+     *
+     * Passing this as an inline -Command was the mistake: the script needs
+     * double quotes around the DLL name, and those do not survive being handed
+     * through as a single argument - PowerShell then saw a broken statement,
+     * exited without doing anything, and the button clicked to no effect.
+     */
+    private static java.nio.file.Path mediaKeyScript() {
+        try {
+            java.nio.file.Path path = java.nio.file.Path.of(
+                    System.getProperty("java.io.tmpdir"), "spaceclient-mediakey.ps1");
+
+            if (!java.nio.file.Files.exists(path)) {
+                String script = String.join("\n",
+                        "param([int]$Key)",
+                        "$definition = @'",
+                        "using System;",
+                        "using System.Runtime.InteropServices;",
+                        "public static class SpaceClientMedia {",
+                        "  [DllImport(\"user32.dll\")]",
+                        "  public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, IntPtr dwExtraInfo);",
+                        "  public static void Press(byte key) {",
+                        "    keybd_event(key, 0, 0, IntPtr.Zero);",
+                        "    keybd_event(key, 0, 2, IntPtr.Zero);",
+                        "  }",
+                        "}",
+                        "'@",
+                        "Add-Type -TypeDefinition $definition -Language CSharp | Out-Null",
+                        "[SpaceClientMedia]::Press([byte]$Key)");
+
+                java.nio.file.Files.writeString(path, script, StandardCharsets.UTF_8);
+            }
+            return path;
+
+        } catch (Throwable t) {
+            SpaceClient.LOGGER.warn("Could not write the media key script: {}", t.getMessage());
+            return null;
+        }
     }
 
     private MusicWatcher() {}

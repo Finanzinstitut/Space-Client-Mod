@@ -29,6 +29,19 @@ public class SettingsScreen extends Screen {
     private final List<Setting> settings;
     private final List<SettingGroup> groups;
 
+    /**
+     * Which page of settings is shown.
+     *
+     * Paging rather than scrolling on purpose: a scroll wheel handler would
+     * need the mouse event signature, which changed in this version, while
+     * buttons are already known to work.
+     */
+    private int page = 0;
+    private int pageCount = 1;
+
+    /** The settings laid out on the current page. */
+    private List<Setting> visibleSettings = List.of();
+
     /** Y positions of colour wheels, so their names can be drawn above them. */
     private final List<int[]> colourRows = new ArrayList<>();
 
@@ -44,14 +57,46 @@ public class SettingsScreen extends Screen {
 
     private int panelLeft() { return (this.width - PANEL_W) / 2; }
 
+    /** How much vertical room a setting takes, so a page can be filled exactly. */
+    private static int heightOf(Setting setting) {
+        if (setting instanceof ColorSetting) return 84 + 22 + ROW_H + GAP;
+        return ROW_H + GAP;
+    }
+
     @Override
     protected void init() {
         colourRows.clear();
         int left = panelLeft();
         int y = 92;
 
-        // Sub-groups first, so the categories are the first thing you see
-        for (SettingGroup group : groups) {
+        // Everything that has to fit: the group buttons, then the settings
+        int room = this.height - 92 - 70;
+
+        // Split the settings into pages that fit the window
+        List<List<Setting>> pages = new ArrayList<>();
+        List<Setting> currentPage = new ArrayList<>();
+        int used = 0;
+
+        for (Setting setting : settings) {
+            int needed = heightOf(setting);
+            if (used + needed > room && !currentPage.isEmpty()) {
+                pages.add(currentPage);
+                currentPage = new ArrayList<>();
+                used = 0;
+            }
+            currentPage.add(setting);
+            used += needed;
+        }
+        if (!currentPage.isEmpty()) pages.add(currentPage);
+        if (pages.isEmpty()) pages.add(List.of());
+
+        pageCount = pages.size();
+        page = Math.max(0, Math.min(page, pageCount - 1));
+        List<Setting> visible = pages.get(page);
+        visibleSettings = visible;
+
+        // Sub-groups first, and only on the first page
+        for (SettingGroup group : page == 0 ? groups : List.<SettingGroup>of()) {
             this.addRenderableWidget(new FlatButton(
                     left, y, PANEL_W, ROW_H,
                     () -> group.name() + "  >",
@@ -64,7 +109,7 @@ public class SettingsScreen extends Screen {
         }
         if (!groups.isEmpty()) y += GAP;
 
-        for (Setting setting : settings) {
+        for (Setting setting : visible) {
             if (setting instanceof BooleanSetting b) {
                 this.addRenderableWidget(new FlatButton(
                         left, y, PANEL_W, ROW_H,
@@ -117,12 +162,43 @@ public class SettingsScreen extends Screen {
             }
         }
 
-        this.addRenderableWidget(new FlatButton(
-                left, y + 8, PANEL_W, ROW_H,
-                () -> "Back",
-                () -> false,
-                this::onClose
-        ).asAction());
+        int bottom = this.height - 34;
+
+        if (pageCount > 1) {
+            int third = (PANEL_W - GAP * 2) / 3;
+
+            this.addRenderableWidget(new FlatButton(
+                    left, bottom, third, ROW_H,
+                    () -> "< Page",
+                    () -> false,
+                    () -> {
+                        if (page > 0) { page--; this.rebuildWidgets(); }
+                    }
+            ).asAction());
+
+            this.addRenderableWidget(new FlatButton(
+                    left + third + GAP, bottom, third, ROW_H,
+                    () -> "Back",
+                    () -> false,
+                    this::onClose
+            ).asAction());
+
+            this.addRenderableWidget(new FlatButton(
+                    left + (third + GAP) * 2, bottom, third, ROW_H,
+                    () -> "Page >",
+                    () -> false,
+                    () -> {
+                        if (page < pageCount - 1) { page++; this.rebuildWidgets(); }
+                    }
+            ).asAction());
+        } else {
+            this.addRenderableWidget(new FlatButton(
+                    left, bottom, PANEL_W, ROW_H,
+                    () -> "Back",
+                    () -> false,
+                    this::onClose
+            ).asAction());
+        }
     }
 
     @Override
@@ -152,14 +228,21 @@ public class SettingsScreen extends Screen {
                     left, this.height - 34, 0xFF9A95C9, false);
         }
 
-        // Names above the colour wheels, which draw no label of their own
+        // Names above the colour wheels, which draw no label of their own.
+        // Only the ones on this page were laid out, so the labels follow that.
         int index = 0;
-        for (Setting setting : settings) {
+        for (Setting setting : visibleSettings) {
             if (!(setting instanceof ColorSetting)) continue;
             if (index >= colourRows.size()) break;
             graphics.text(this.font, setting.getName(),
                     left, colourRows.get(index)[0], Theme.TEXT, false);
             index++;
+        }
+
+        if (pageCount > 1) {
+            String label = "Page " + (page + 1) + " of " + pageCount;
+            graphics.text(this.font, label,
+                    left + PANEL_W - this.font.width(label), 60, Theme.TEXT_DIM, false);
         }
     }
 
