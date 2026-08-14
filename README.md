@@ -134,6 +134,11 @@ Two honest limitations:
 
 - **Windows only.** The lookup runs through PowerShell so that nothing has to be
   shipped alongside the mod. On other systems the module says so and stays quiet.
+- Every process with a window is listed and matched on this side, rather than
+  asked for by name. Amazon Music has shipped under more than one process name,
+  and asking PowerShell for a name that does not exist returns nothing at all —
+  which looked exactly like "nothing playing". The Diagnostics page lists which
+  player processes were actually seen.
 - **No cover art.** Window titles carry the track name and artist, nothing else.
   A drawn record stands in for the artwork; real covers would need a signed-in
   web API, which is a separate project of the size the Azure login was.
@@ -250,10 +255,26 @@ instead of stopping the game from starting.
 The first time the hook runs it marks itself active and the option-based
 fallback stands down, so the two can never both apply and zoom twice.
 
-The transition between normal view and full zoom runs over a configurable
-duration with a choice of curves — instant, linear, ease out, ease in and out,
-or exponential — applied to the progress rather than the factor, so the timing
-stays the same whatever magnification is set.
+### Why the zoom stuttered, and scrolling to go further
+
+Two changes make it feel right rather than merely work.
+
+The magnification is advanced by **real elapsed time, not per tick**. Ticking
+runs twenty times a second, so a tick driven zoom moves in twenty visible steps
+regardless of frame rate — which is precisely what a stuttering zoom looks like.
+The value is now recomputed each frame from the wall clock, with separate zoom
+in and zoom out durations and a choice of curves.
+
+**Scrolling while zoomed** goes further in or out, in geometric steps: each
+notch multiplies the magnification rather than adding to it. Adding makes the
+first notch enormous and the last one imperceptible; multiplying makes every
+notch feel the same size. How much a notch is worth and how many are allowed are
+both configurable, and the steps can optionally be remembered between zooms.
+
+The wheel is taken over only while the zoom key is held. GLFW hands back the
+previous callback when a new one is installed, so ours records the movement and
+passes it straight on to the game the rest of the time — the hotbar keeps
+working exactly as before.
 
 ### "invalid_public_key_signature" after switching accounts
 

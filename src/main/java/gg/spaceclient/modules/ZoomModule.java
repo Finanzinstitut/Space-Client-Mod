@@ -1,68 +1,79 @@
 package gg.spaceclient.modules;
 
 import gg.spaceclient.SpaceClient;
+import gg.spaceclient.input.RawKeyboard;
+import gg.spaceclient.input.RawMouse;
 import gg.spaceclient.module.Module;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.IntSetting;
 import gg.spaceclient.setting.ModeSetting;
-import gg.spaceclient.input.RawKeyboard;
 
-import java.util.Arrays;
 import net.minecraft.client.KeyMapping;
 
-import gg.spaceclient.util.Reflect;
-
 import java.lang.reflect.Method;
+import java.util.Arrays;
 
 /**
- * Hold the zoom key to narrow the field of view.
+ * Hold a key to zoom, and scroll to go further in or out.
  *
- * The field of view is changed through the game's own option rather than by
- * hooking the renderer, which keeps this free of mixins. The option object's
- * getter and setter are reached by reflection because their names have moved
- * between versions - a mismatch logs a warning instead of failing the build.
+ * Two things make this feel right rather than merely work:
+ *
+ * The magnification is advanced by **real elapsed time**, not per tick. Ticking
+ * runs twenty times a second, so a tick driven zoom moves in twenty visible
+ * steps no matter the frame rate - which is exactly what a stuttering zoom
+ * looks like. The value is recomputed each frame instead, from the wall clock.
+ *
+ * Scroll steps are **geometric**: each notch multiplies the magnification
+ * rather than adding to it. Adding makes the first notch enormous and the last
+ * one imperceptible; multiplying makes every notch feel the same size.
  */
 public class ZoomModule extends Module {
+    private final ModeSetting key = new ModeSetting(
+            "key", "Zoom key", "Which key to hold",
+            Arrays.asList("C", "X", "V", "B", "N", "Z", "G", "R", "F", "CTRL", "ALT", "BINDING"),
+            "C");
+
     private final IntSetting factor = new IntSetting(
-            "factor", "Zoom factor", "How far the zoom goes", 4, 2, 12);
+            "factor", "Zoom factor", "Magnification when the key is held", 4, 2, 12);
 
     private final ModeSetting transition = new ModeSetting(
             "transition", "Transition", "How the zoom eases in and out",
             Arrays.asList("INSTANT", "LINEAR", "EASE_OUT", "EASE_IN_OUT", "EXPONENTIAL"),
             "EASE_OUT");
 
-    private final IntSetting duration = new IntSetting(
-            "duration", "Duration (tenths of a second)",
-            "How long the zoom takes to reach full magnification", 3, 1, 20);
+    private final IntSetting durationIn = new IntSetting(
+            "duration_in", "Zoom in time (tenths of a second)", "How long zooming in takes", 3, 0, 20);
+
+    private final IntSetting durationOut = new IntSetting(
+            "duration_out", "Zoom out time (tenths of a second)", "How long zooming out takes", 3, 0, 20);
+
+    private final BooleanSetting scrollZoom = new BooleanSetting(
+            "scroll_zoom", "Scroll to adjust", "Use the wheel while zoomed to go further", true);
+
+    private final IntSetting stepAmount = new IntSetting(
+            "step_amount", "Per scroll step (percent)", "How much one notch multiplies by", 150, 105, 300);
+
+    private final IntSetting stepCount = new IntSetting(
+            "step_count", "Scroll steps", "How many notches are allowed", 4, 1, 12);
 
     private final BooleanSetting slowSensitivity = new BooleanSetting(
-            "slow_sensitivity", "Reduce sensitivity", "Aim slower while zoomed", true);
+            "slow_sensitivity", "Reduce sensitivity", "Aim slower the further you zoom", true);
 
-    /**
-     * The key is chosen here rather than only in the vanilla controls screen.
-     * The registered binding still works and can be rebound there, but that
-     * screen is easy to miss, and this reads the physical key directly so it
-     * cannot collide with another control.
-     */
-    private final ModeSetting key = new ModeSetting(
-            "key", "Zoom key", "Which key to hold",
-            Arrays.asList("C", "X", "V", "B", "N", "Z", "G", "R", "F", "CTRL", "ALT", "BINDING"),
-            "C");
+    private final BooleanSetting keepSteps = new BooleanSetting(
+            "keep_steps", "Remember scroll steps", "Keep the wheel position between zooms", false);
 
-    private double normalFov = -1;
+    // --- live state ---
+    private double progress = 0;        // 0 while not zooming, 1 at full zoom
+    private double scrollProgress = 0;  // smoothed position between scroll steps
+    private int scrollSteps = 0;
+    private long lastFrame = 0;
+
     private double normalSensitivity = -1;
-    private double current = 1.0;
     private boolean warned = false;
 
-    /** 0 while not zooming, 1 at full magnification. */
-    private double progress = 0;
-
-    /** What the last write achieved, for the diagnostics page. */
     private static String lastResult = "not attempted";
-
     public static String lastResult() { return lastResult; }
 
-    /** Set by the mixin the first time it runs, so the fallback can stand down. */
     private static volatile boolean MIXIN_ACTIVE = false;
 
     public static void markMixinActive() {
@@ -75,104 +86,118 @@ public class ZoomModule extends Module {
     public static boolean isMixinActive() { return MIXIN_ACTIVE; }
 
     public ZoomModule() {
-        super("zoom", "Zoom", "Hold the zoom key to look further", false);
-        addSettings(key, factor, transition, duration, slowSensitivity);
+        super("zoom", "Zoom", "Hold to zoom, scroll to go further", false);
+        addSettings(key, factor, transition, durationIn, durationOut,
+                scrollZoom, stepAmount, stepCount, slowSensitivity, keepSteps);
     }
 
     private boolean keyDown() {
-        // BINDING defers to whatever is set in the vanilla controls screen
         if (!key.is("BINDING") && RawKeyboard.isAvailable()) {
             int code = RawKeyboard.codeFor(key.get());
             if (code != org.lwjgl.glfw.GLFW.GLFW_KEY_UNKNOWN) {
                 return RawKeyboard.isDown(code);
             }
         }
-
         KeyMapping binding = SpaceClient.getZoomKey();
         return binding != null && binding.isDown();
     }
 
     @Override
-    public void onTick() {
-        if (mc.options == null) return;
-
-        // Progress moves between 0 and 1 over the configured duration; the
-        // curve is applied to that rather than to the factor, so the timing
-        // stays the same whatever magnification is chosen.
-        double step = 1.0 / Math.max(1, duration.get() * 2);
-        progress += keyDown() ? step : -step;
-        progress = Math.max(0, Math.min(1, progress));
-
-        double eased = ease(progress);
-        current = 1.0 + (factor.get() - 1.0) * eased;
-
-        // fov() has not been confirmed for this version, so it is looked up
-        // With the mixin in place the renderer already divides the field of
-        // view, so touching the option would zoom twice. It is only used when
-        // the mixin could not attach.
-        if (MIXIN_ACTIVE) {
-            handleSensitivity();
-            return;
-        }
-
-        Object fovOption = Reflect.call(mc.options, "fov", "getFov");
-        Object sensitivityOption = mc.options.sensitivity();
-
-        if (normalFov < 0) {
-            Double value = readOption(fovOption);
-            if (value == null) {
-                warnOnce();
-                return;
-            }
-            normalFov = value;
-        }
-
-        if (current <= 1.001) {
-            // Back to normal, and stop holding the option hostage
-            writeOption(fovOption, normalFov);
-            if (normalSensitivity >= 0) {
-                writeOption(sensitivityOption, normalSensitivity);
-                normalSensitivity = -1;
-            }
-            normalFov = -1;
-            return;
-        }
-
-        double wanted = normalFov / current;
-        writeOption(fovOption, wanted);
-
-        // Read it back: a setter that throws inside is otherwise invisible, and
-        // that is exactly how the zoom failed silently before.
-        Double actual = readOption(fovOption);
-        lastResult = actual == null
-                ? "value not readable after writing"
-                : Math.abs(actual - wanted) < 2
-                        ? "working, fov " + actual.intValue()
-                        : "write ignored, fov still " + actual.intValue();
-
-        if (slowSensitivity.get()) {
-            if (normalSensitivity < 0) {
-                Double value = readOption(sensitivityOption);
-                if (value != null) normalSensitivity = value;
-            }
-            if (normalSensitivity >= 0) {
-                writeOption(sensitivityOption, normalSensitivity / current);
-            }
-        }
+    protected void onEnable() {
+        RawMouse.install();
     }
 
-    /** Sensitivity handling, shared by both paths. */
+    @Override
+    public void onTick() {
+        boolean zooming = keyDown();
+
+        // The wheel only belongs to the zoom while it is actually held
+        RawMouse.setCapture(zooming && scrollZoom.get() && RawMouse.isInstalled());
+
+        if (zooming && scrollZoom.get()) {
+            int notches = RawMouse.consumeSteps();
+            if (notches != 0) {
+                scrollSteps = Math.max(0, Math.min(stepCount.get(), scrollSteps + notches));
+            }
+        }
+
+        if (!zooming && !keepSteps.get()) {
+            scrollSteps = 0;
+        }
+
+        handleSensitivity();
+    }
+
+    /**
+     * The divisor the renderer applies. Called once per frame, which is what
+     * makes the movement smooth: the value is advanced by however much real
+     * time has passed since the previous frame.
+     */
+    public float currentFactor() {
+        long now = System.nanoTime();
+        double delta = lastFrame == 0 ? 0 : (now - lastFrame) / 1_000_000_000.0;
+        lastFrame = now;
+
+        // A pause or a lag spike would otherwise jump the zoom across
+        delta = Math.min(delta, 0.1);
+
+        boolean zooming = keyDown();
+        double seconds = (zooming ? durationIn.get() : durationOut.get()) / 10.0;
+
+        if (seconds <= 0.001) {
+            progress = zooming ? 1 : 0;
+        } else {
+            double step = delta / seconds;
+            progress += zooming ? step : -step;
+            progress = Math.max(0, Math.min(1, progress));
+        }
+
+        // The scroll position eases as well, so a notch glides rather than jumps
+        double scrollTarget = stepCount.get() > 0
+                ? scrollSteps / (double) stepCount.get()
+                : 0;
+        double scrollStep = delta / 0.25;
+        if (scrollProgress < scrollTarget) {
+            scrollProgress = Math.min(scrollTarget, scrollProgress + scrollStep);
+        } else {
+            scrollProgress = Math.max(scrollTarget, scrollProgress - scrollStep);
+        }
+
+        double eased = ease(progress);
+        double base = 1.0 + (factor.get() - 1.0) * eased;
+
+        // Each notch multiplies, so every step feels the same size
+        double multiplier = stepAmount.get() / 100.0;
+        double steps = scrollProgress * stepCount.get();
+        double scrolled = Math.pow(multiplier, steps);
+
+        return (float) (base * (eased > 0.001 ? scrolled : 1.0));
+    }
+
+    /** Shapes the 0 to 1 progress into a curve. */
+    private double ease(double t) {
+        return switch (transition.get()) {
+            case "INSTANT" -> t > 0 ? 1 : 0;
+            case "LINEAR" -> t;
+            case "EASE_IN_OUT" -> t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+            case "EXPONENTIAL" -> t == 0 ? 0 : Math.pow(2, 10 * t - 10);
+            default -> 1 - Math.pow(1 - t, 3); // EASE_OUT
+        };
+    }
+
     private void handleSensitivity() {
         if (!slowSensitivity.get() || mc.options == null) return;
+
+        double zoom = currentFactor();
         Object sensitivityOption = mc.options.sensitivity();
 
-        if (current > 1.05) {
+        if (zoom > 1.05) {
             if (normalSensitivity < 0) {
                 Double value = readOption(sensitivityOption);
                 if (value != null) normalSensitivity = value;
             }
             if (normalSensitivity >= 0) {
-                writeOption(sensitivityOption, normalSensitivity / current);
+                writeOption(sensitivityOption, normalSensitivity / zoom);
             }
         } else if (normalSensitivity >= 0) {
             writeOption(sensitivityOption, normalSensitivity);
@@ -182,43 +207,22 @@ public class ZoomModule extends Module {
 
     @Override
     protected void onDisable() {
-        if (mc.options == null) return;
-        if (normalFov >= 0) {
-            writeOption(Reflect.call(mc.options, "fov", "getFov"), normalFov);
-            normalFov = -1;
-        }
-        if (normalSensitivity >= 0) {
+        RawMouse.setCapture(false);
+        if (normalSensitivity >= 0 && mc.options != null) {
             writeOption(mc.options.sensitivity(), normalSensitivity);
             normalSensitivity = -1;
         }
-        current = 1.0;
-    }
-
-    /** The zoom factor the renderer should divide the field of view by. */
-    public float currentFactor() {
-        return (float) current;
-    }
-
-    /** Shapes the 0 to 1 progress into a curve. */
-    private double ease(double t) {
-        return switch (transition.get()) {
-            case "INSTANT" -> t > 0 ? 1 : 0;
-            case "LINEAR" -> t;
-            case "EASE_IN_OUT" -> t < 0.5
-                    ? 2 * t * t
-                    : 1 - Math.pow(-2 * t + 2, 2) / 2;
-            case "EXPONENTIAL" -> t == 0 ? 0 : Math.pow(2, 10 * t - 10);
-            default -> 1 - Math.pow(1 - t, 3); // EASE_OUT
-        };
+        progress = 0;
+        scrollProgress = 0;
+        scrollSteps = 0;
     }
 
     private void warnOnce() {
         if (warned) return;
         warned = true;
-        SpaceClient.LOGGER.warn("Zoom could not read the field of view option on this version");
+        SpaceClient.LOGGER.warn("Zoom could not read an option on this version");
     }
 
-    /** Options expose their value under a name that has changed over time. */
     private Double readOption(Object option) {
         if (option == null) return null;
         for (String name : new String[]{"get", "getValue", "value"}) {
@@ -230,18 +234,11 @@ public class ZoomModule extends Module {
                 // Try the next name
             }
         }
+        warnOnce();
         return null;
     }
 
-    /**
-     * Writes a value back into an option.
-     *
-     * The type matters: field of view is an Integer option, and the generic
-     * setter erases to set(Object). Handing it a Double therefore compiles and
-     * invokes fine, then throws a ClassCastException inside - which the old
-     * version swallowed, so the zoom silently did nothing. The current value is
-     * read first and the new one is boxed to match it.
-     */
+    /** Boxes the value to whatever type the option already holds. */
     private void writeOption(Object option, double value) {
         if (option == null) return;
 
@@ -267,54 +264,11 @@ public class ZoomModule extends Module {
                 if (method.getParameterCount() != 1) continue;
                 try {
                     method.invoke(option, argument);
-
-                    // The field of view option is clamped to the slider's range,
-                    // roughly 30 to 110. A zoom wants to go well below that, and
-                    // the setter silently clamps instead of refusing - which is
-                    // why the sensitivity changed but the view barely did.
-                    Double check = readOption(option);
-                    if (check != null && Math.abs(check - value) > 0.5) {
-                        writeFieldDirectly(option, argument);
-                    }
                     return;
                 } catch (Exception ignored) {
                     // Try the next overload
                 }
             }
-        }
-
-        // No setter at all: go straight for the field
-        writeFieldDirectly(option, argument);
-    }
-
-    /**
-     * Writes the value into the option's own field, past whatever the setter
-     * would clamp or validate. The renderer reads the same field, so this is
-     * what makes a real zoom possible rather than a nudge to the slider's edge.
-     */
-    private void writeFieldDirectly(Object option, Object argument) {
-        Class<?> current = option.getClass();
-        while (current != null && current != Object.class) {
-            for (java.lang.reflect.Field field : current.getDeclaredFields()) {
-                if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) continue;
-                // The value field holds exactly the kind of box we just built
-                if (!field.getType().isAssignableFrom(argument.getClass())
-                        && field.getType() != Object.class) {
-                    continue;
-                }
-                try {
-                    field.setAccessible(true);
-                    Object existing = field.get(option);
-                    // Only overwrite something that already looks like the value
-                    if (existing != null && existing.getClass() == argument.getClass()) {
-                        field.set(option, argument);
-                        return;
-                    }
-                } catch (Throwable ignored) {
-                    // Try the next field
-                }
-            }
-            current = current.getSuperclass();
         }
     }
 }

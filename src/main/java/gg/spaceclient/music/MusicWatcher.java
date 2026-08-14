@@ -69,10 +69,24 @@ public final class MusicWatcher {
      * Only these two process names are considered, so a browser playing music
      * is ignored no matter what its tab is called.
      */
+    /** Process names both players have shipped under. */
+    private static final String[] SPOTIFY_NAMES = {"spotify"};
+    private static final String[] AMAZON_NAMES = {
+            "amazon music", "amazonmusic", "amazon music for pc", "amazonmusichelper"
+    };
+
+    /** What the last scan saw, for the diagnostics page. */
+    private static volatile String seenProcesses = "nothing scanned yet";
+
+    public static String seenProcesses() { return seenProcesses; }
+
     private static NowPlaying read() throws Exception {
+        // Every process with a window is listed, then matched here rather than
+        // filtered by name in PowerShell. Amazon Music has shipped under more
+        // than one process name, and asking for a name that does not exist
+        // returns nothing at all - which looked exactly like "not playing".
         String script =
-                "Get-Process -Name 'Spotify','Amazon Music' -ErrorAction SilentlyContinue " +
-                "| Where-Object { $_.MainWindowTitle -ne '' } " +
+                "Get-Process | Where-Object { $_.MainWindowTitle -ne '' } " +
                 "| ForEach-Object { $_.ProcessName + '|' + $_.MainWindowTitle }";
 
         ProcessBuilder builder = new ProcessBuilder(
@@ -91,6 +105,8 @@ public final class MusicWatcher {
         }
         process.waitFor();
 
+        StringBuilder players = new StringBuilder();
+
         for (String line : output.toString().split("\n")) {
             String trimmed = line.trim();
             if (trimmed.isEmpty() || !trimmed.contains("|")) continue;
@@ -98,7 +114,12 @@ public final class MusicWatcher {
             String process_name = trimmed.substring(0, trimmed.indexOf('|')).trim();
             String windowTitle = trimmed.substring(trimmed.indexOf('|') + 1).trim();
 
-            String source = process_name.equalsIgnoreCase("Spotify") ? "Spotify" : "Amazon Music";
+            String source = sourceOf(process_name);
+            if (source == null) continue;
+
+            if (players.length() > 0) players.append(", ");
+            players.append(process_name);
+            seenProcesses = players.toString();
 
             // An idle title means the app is open but paused or stopped
             boolean idle = false;
@@ -114,8 +135,26 @@ public final class MusicWatcher {
             return parse(source, windowTitle);
         }
 
+        seenProcesses = players.length() == 0 ? "no player process with a window" : players.toString();
         status = "no player running";
         return NowPlaying.NOTHING;
+    }
+
+    /** Which player a process belongs to, or null when it is neither. */
+    private static String sourceOf(String processName) {
+        String lower = processName.toLowerCase();
+
+        for (String candidate : SPOTIFY_NAMES) {
+            if (lower.equals(candidate)) return "Spotify";
+        }
+        for (String candidate : AMAZON_NAMES) {
+            if (lower.equals(candidate)) return "Amazon Music";
+        }
+        // Some builds append a version or suffix to the process name
+        if (lower.startsWith("amazon music") || lower.startsWith("amazonmusic")) {
+            return "Amazon Music";
+        }
+        return null;
     }
 
     /**

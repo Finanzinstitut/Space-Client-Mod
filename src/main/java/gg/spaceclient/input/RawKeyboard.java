@@ -22,6 +22,11 @@ public final class RawKeyboard {
     private static boolean lookedUp = false;
     private static boolean warned = false;
 
+    /** The GLFW window, for anything else that needs to talk to the device. */
+    public static long windowHandle() {
+        return handle();
+    }
+
     private static long handle() {
         if (lookedUp) return handle;
         lookedUp = true;

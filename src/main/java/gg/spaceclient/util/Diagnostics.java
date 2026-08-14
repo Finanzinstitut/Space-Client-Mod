@@ -68,6 +68,13 @@ public final class Diagnostics {
                 gg.spaceclient.modules.ZoomModule.lastResult()));
 
         boolean musicSupported = gg.spaceclient.music.MusicWatcher.isSupported();
+        checks.add(new Check("Music processes", true,
+                gg.spaceclient.music.MusicWatcher.seenProcesses()));
+
+        boolean scroll = gg.spaceclient.input.RawMouse.isInstalled();
+        checks.add(new Check("Scroll wheel hook", scroll,
+                scroll ? "installed, chaining to the game" : "not installed - enable Zoom once"));
+
         checks.add(new Check("Music detection", musicSupported,
                 musicSupported
                         ? gg.spaceclient.music.MusicWatcher.status()
