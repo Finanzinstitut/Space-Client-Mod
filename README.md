@@ -126,21 +126,29 @@ guaranteed to be on the runtime image.
 ## Hitboxes
 
 Four categories — **yourself, other players, mobs, items** — each in its own
-sub-menu with a switch, a colour and a line width. On top of that the
-look-direction arrows can be turned off, or limited to players only, since on
-dropped items they are mostly clutter.
+sub-menu with a switch, a colour and a line width. The look-direction arrows can
+be turned off, or limited to players only.
 
-Line width is faked by drawing the box several times, each slightly larger than
-the last: the render pipeline does not expose line thickness directly.
+### Why the earlier attempts drew nothing
 
-The drawing goes through `LevelRenderer.renderLineBox`, located by name and
-parameter count through reflection rather than called directly, because the
-render rewrite in this version moved a great deal around.
+Every previous version was built on `LevelRenderer.renderLineBox`. **That method
+does not exist in 26.2 at all.** The render rework replaced immediate drawing
+with a submit based pipeline, so there was nothing to call — no amount of
+reflection around a missing method could have helped.
 
-If the world render event cannot be subscribed to at all, the module **falls
-back to Minecraft's own hitbox view** — the same boxes and arrows as F3+B, for
-every entity at once. Per-category colours and widths are lost in that mode, but
-the module still does something rather than silently nothing.
+Drawing now goes the way this version expects:
+
+- a mixin on `LevelRenderer.submitFeatures` runs after the world has gathered
+  its own geometry,
+- boxes are handed to the `SubmitNodeCollector` via `submitCustomGeometry`,
+- and the twelve edges are written as vertex pairs, each with a colour and a
+  normal. Line render types drop any vertex without a normal, silently.
+
+Line width is faked by drawing the outline several times, each slightly larger:
+the pipeline exposes no thickness.
+
+If the mixin does not attach on some future version, the module falls back to
+switching on Minecraft's own hitbox view, and the Diagnostics page says so.
 
 ## Accounts and sessions
 

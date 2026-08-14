@@ -4,232 +4,179 @@ import gg.spaceclient.SpaceClient;
 import gg.spaceclient.modules.HitboxModule;
 import gg.spaceclient.util.Reflect;
 
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 import java.lang.reflect.Method;
-import java.util.Collection;
 
 /**
- * Draws the hitboxes.
+ * Draws the hitboxes through 26.2's submit based render pipeline.
  *
- * Everything the world renderer exposes changed in this version's render
- * rewrite, and none of it could be verified, so every call in here goes through
- * reflection. That is deliberate: a wrong guess makes the boxes not appear and
- * writes one line to the log, instead of failing the build and costing another
- * upload-and-wait cycle.
- *
- * Even the context type is taken as Object: the Fabric render event classes
- * moved in this version, and naming them in a signature was enough to fail the
- * build. Nothing here is a compile-time dependency any more.
+ * Everything before this was built on `LevelRenderer.renderLineBox`, which does
+ * not exist in this version at all - the render rework replaced it. Geometry is
+ * now handed to a SubmitNodeCollector, which is what PolyHitbox does and what
+ * this follows: the collector takes a pose, a render type and a callback that
+ * writes the vertices.
  */
 public final class HitboxRenderer {
-    private static Method renderLineBox;
+    private static Method renderTypeGetter;
     private static boolean lookedUp = false;
     private static boolean warned = false;
+    private static boolean available = false;
 
-    /** False when the render event could not be subscribed to at all. */
-    private static boolean available = true;
+    public static void setAvailable(boolean value) { available = value; }
+    public static boolean isAvailable() { return available; }
 
-    public static void setAvailable(boolean value) {
-        available = value;
-    }
-
-    /** Whether custom boxes can be drawn, which decides if the module needs a fallback. */
-    public static boolean isAvailable() {
-        return available;
-    }
-
-    /** @param context a Fabric WorldRenderContext, taken as Object so the class
-     *                need not exist at compile time */
-    public static void render(Object context) {
+    /** Called from the mixin once per frame, after the world's own features. */
+    public static void submit(SubmitNodeCollector collector) {
         HitboxModule module = (HitboxModule) SpaceClient.getModuleManager().get("hitbox");
         if (module == null || !module.isEnabled() || !module.anyCategoryOn()) return;
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) return;
 
-        Method draw = lineBoxMethod();
-        if (draw == null) {
-            warnOnce("the line renderer was not found");
+        RenderType lines = lineType();
+        if (lines == null) {
+            warnOnce("no line render type found");
             return;
         }
 
-        Object camera = Reflect.call(context, "camera");
-        Object cameraPos = Reflect.call(camera, "getPosition", "position");
-        Object matrices = Reflect.call(context, "matrixStack", "poseStack", "pose");
-        Object consumers = Reflect.call(context, "consumers", "bufferSource");
-        if (cameraPos == null || matrices == null || consumers == null) {
-            warnOnce("the render context did not hand over what is needed");
+        // The camera sits at the origin of the render space, so every box has
+        // to be moved by its position.
+        Vec3 camera = cameraPosition(mc);
+        if (camera == null) {
+            warnOnce("camera position unavailable");
             return;
         }
 
-        Object buffer = lineBuffer(consumers);
-        if (buffer == null) {
-            warnOnce("no line buffer available");
-            return;
-        }
+        available = true;
 
-        double camX = coordinate(cameraPos, "x");
-        double camY = coordinate(cameraPos, "y");
-        double camZ = coordinate(cameraPos, "z");
-
-        Object entities = Reflect.call(mc.level, "entitiesForRendering", "getEntities");
-        if (!(entities instanceof Iterable<?> iterable)) {
-            warnOnce("the entity list could not be read");
-            return;
-        }
-
-        for (Object entity : iterable) {
-            if (!(entity instanceof net.minecraft.world.entity.Entity typed)) continue;
-
-            HitboxModule.Category category = module.categoryOf(typed);
+        for (Entity entity : mc.level.entitiesForRendering()) {
+            HitboxModule.Category category = module.categoryOf(entity);
             if (!module.isEnabledFor(category)) continue;
+            if (entity.distanceTo(mc.player) > module.getRange()) continue;
 
-            Object distance = Reflect.callWith(typed, "distanceTo", mc.player);
-            Double blocks = Reflect.asDouble(distance);
-            if (blocks != null && blocks > module.getRange()) continue;
-
-            Object box = Reflect.call(typed, "getBoundingBox");
-            if (box == null) continue;
-            Object moved = Reflect.callWith(box, "move", -camX, -camY, -camZ);
-            if (moved == null) continue;
-
+            AABB box = entity.getBoundingBox().move(-camera.x, -camera.y, -camera.z);
             int argb = module.colorFor(category);
-            float a = ((argb >>> 24) & 0xFF) / 255f;
-            float r = ((argb >> 16) & 0xFF) / 255f;
-            float g = ((argb >> 8) & 0xFF) / 255f;
-            float b = (argb & 0xFF) / 255f;
-
-            // Thickness is faked by drawing the box repeatedly, grown a little
-            // each time: the pipeline does not expose line width.
             int width = module.widthFor(category);
+            boolean arrow = module.arrowFor(category);
+
+            // Thickness is faked by drawing the outline several times, each a
+            // little larger: the pipeline exposes no line width.
             for (int pass = 0; pass < width; pass++) {
-                Object passBox = pass == 0
-                        ? moved
-                        : Reflect.callWith(moved, "inflate", pass * 0.004);
-                if (passBox == null) passBox = moved;
-                try {
-                    draw.invoke(null, matrices, buffer, passBox, r, g, b, a);
-                } catch (Throwable t) {
-                    warnOnce("the line renderer rejected the call");
-                    return;
-                }
+                AABB grown = pass == 0 ? box : box.inflate(pass * 0.004);
+                submitBox(collector, lines, grown, argb);
             }
 
-            if (module.arrowFor(category)) {
-                drawLookArrow(draw, matrices, buffer, typed, camX, camY, camZ);
+            if (arrow) {
+                Vec3 eyes = entity.getEyePosition().subtract(camera);
+                Vec3 tip = eyes.add(entity.getViewVector(1.0f).scale(2.0));
+                submitLine(collector, lines, eyes, tip, 0xFF0000FF);
             }
         }
+    }
+
+    /** Twelve edges of a box, written as line pairs. */
+    private static void submitBox(SubmitNodeCollector collector, RenderType type,
+                                  AABB box, int argb) {
+        double x1 = box.minX, y1 = box.minY, z1 = box.minZ;
+        double x2 = box.maxX, y2 = box.maxY, z2 = box.maxZ;
+
+        double[][] edges = {
+                {x1, y1, z1, x2, y1, z1}, {x2, y1, z1, x2, y1, z2},
+                {x2, y1, z2, x1, y1, z2}, {x1, y1, z2, x1, y1, z1},
+                {x1, y2, z1, x2, y2, z1}, {x2, y2, z1, x2, y2, z2},
+                {x2, y2, z2, x1, y2, z2}, {x1, y2, z2, x1, y2, z1},
+                {x1, y1, z1, x1, y2, z1}, {x2, y1, z1, x2, y2, z1},
+                {x2, y1, z2, x2, y2, z2}, {x1, y1, z2, x1, y2, z2},
+        };
+
+        collector.submitCustomGeometry(new PoseStack(), type, (pose, buffer) -> {
+            for (double[] edge : edges) {
+                writeLine(buffer, pose, edge[0], edge[1], edge[2], edge[3], edge[4], edge[5], argb);
+            }
+        });
+    }
+
+    private static void submitLine(SubmitNodeCollector collector, RenderType type,
+                                   Vec3 from, Vec3 to, int argb) {
+        collector.submitCustomGeometry(new PoseStack(), type, (pose, buffer) ->
+                writeLine(buffer, pose, from.x, from.y, from.z, to.x, to.y, to.z, argb));
     }
 
     /**
-     * The same idea as Mojang's debug arrow: a thin box running two blocks out
-     * from the eyes along the view vector, drawn in blue.
+     * Line render types want a normal per vertex; without one the line is
+     * dropped silently, which is a long afternoon if you do not know it.
      */
-    private static void drawLookArrow(Method draw, Object matrices, Object buffer,
-                                      Object entity, double camX, double camY, double camZ) {
-        try {
-            Object eyes = Reflect.call(entity, "getEyePosition");
-            Object look = Reflect.callWith(entity, "getViewVector", 1.0f);
-            if (eyes == null || look == null) return;
+    private static void writeLine(VertexConsumer buffer, PoseStack.Pose pose,
+                                  double x1, double y1, double z1,
+                                  double x2, double y2, double z2, int argb) {
+        float dx = (float) (x2 - x1);
+        float dy = (float) (y2 - y1);
+        float dz = (float) (z2 - z1);
+        float length = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (length < 1.0e-5f) return;
 
-            double ex = coordinate(eyes, "x") - camX;
-            double ey = coordinate(eyes, "y") - camY;
-            double ez = coordinate(eyes, "z") - camZ;
-            double tx = ex + coordinate(look, "x") * 2;
-            double ty = ey + coordinate(look, "y") * 2;
-            double tz = ez + coordinate(look, "z") * 2;
+        dx /= length;
+        dy /= length;
+        dz /= length;
 
-            Object line = newBox(
-                    Math.min(ex, tx) - 0.01, Math.min(ey, ty) - 0.01, Math.min(ez, tz) - 0.01,
-                    Math.max(ex, tx) + 0.01, Math.max(ey, ty) + 0.01, Math.max(ez, tz) + 0.01);
-            if (line == null) return;
-
-            draw.invoke(null, matrices, buffer, line, 0f, 0f, 1f, 1f);
-        } catch (Throwable ignored) {
-            // The boxes already drew; a missing arrow is not worth stopping for
-        }
+        buffer.addVertex(pose, (float) x1, (float) y1, (float) z1)
+                .setColor(argb)
+                .setNormal(pose, dx, dy, dz);
+        buffer.addVertex(pose, (float) x2, (float) y2, (float) z2)
+                .setColor(argb)
+                .setNormal(pose, dx, dy, dz);
     }
 
-    private static Object newBox(double x1, double y1, double z1,
-                                 double x2, double y2, double z2) {
+    /** The render type used for debug style lines, whatever it is called here. */
+    private static RenderType lineType() {
+        if (lookedUp && renderTypeGetter == null) return null;
+
+        if (!lookedUp) {
+            lookedUp = true;
+            try {
+                Class<?> types = Class.forName(
+                        "net.minecraft.client.renderer.rendertype.RenderTypes");
+                for (String name : new String[]{"lines", "debugLine", "debugLineStrip", "debugQuads"}) {
+                    for (Method method : types.getMethods()) {
+                        if (!method.getName().equals(name)) continue;
+                        if (method.getParameterCount() != 0) continue;
+                        if (!RenderType.class.isAssignableFrom(method.getReturnType())) continue;
+                        renderTypeGetter = method;
+                        break;
+                    }
+                    if (renderTypeGetter != null) break;
+                }
+            } catch (Throwable t) {
+                SpaceClient.LOGGER.warn("Could not reach the render types: {}", t.getMessage());
+            }
+        }
+
         try {
-            Class<?> aabb = Class.forName("net.minecraft.world.phys.AABB");
-            return aabb.getConstructor(
-                            double.class, double.class, double.class,
-                            double.class, double.class, double.class)
-                    .newInstance(x1, y1, z1, x2, y2, z2);
+            return renderTypeGetter == null ? null : (RenderType) renderTypeGetter.invoke(null);
         } catch (Throwable t) {
             return null;
         }
     }
 
-    /** Vectors expose x, y and z as fields in some versions and methods in others. */
-    private static double coordinate(Object vector, String name) {
-        try {
-            var field = vector.getClass().getField(name);
-            return field.getDouble(vector);
-        } catch (Throwable ignored) {
-            Double value = Reflect.asDouble(Reflect.call(vector, name));
-            return value == null ? 0 : value;
-        }
-    }
-
-    private static Object lineBuffer(Object consumers) {
-        try {
-            Class<?> renderType = Class.forName("net.minecraft.client.renderer.RenderType");
-            Object lines = null;
-            for (Method method : renderType.getMethods()) {
-                if (method.getParameterCount() == 0 && method.getName().equals("lines")) {
-                    lines = method.invoke(null);
-                    break;
-                }
-            }
-            if (lines == null) return null;
-            return Reflect.callWith(consumers, "getBuffer", lines);
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
-
-    /**
-     * Where the box drawing helper lives.
-     *
-     * Mojang moved these out of LevelRenderer into ShapeRenderer during the
-     * render rework, which is why looking only at LevelRenderer found nothing.
-     */
-    public static final String[] SHAPE_CLASSES = {
-            "net.minecraft.client.renderer.ShapeRenderer",
-            "net.minecraft.client.renderer.debug.DebugRenderer",
-            "net.minecraft.client.renderer.LevelRenderer",
-    };
-
-    public static Method lineBoxMethod() {
-        if (lookedUp) return renderLineBox;
-        lookedUp = true;
-
-        for (String className : SHAPE_CLASSES) {
-            try {
-                Class<?> type = Class.forName(className);
-                for (Method method : type.getMethods()) {
-                    if (!method.getName().equals("renderLineBox")) continue;
-                    // The overload taking a whole box plus four colour floats
-                    if (method.getParameterCount() == 7) {
-                        renderLineBox = method;
-                        return renderLineBox;
-                    }
-                }
-            } catch (Throwable ignored) {
-                // Try the next class
-            }
-        }
-        return renderLineBox;
+    private static Vec3 cameraPosition(Minecraft mc) {
+        Object camera = Reflect.call(mc.gameRenderer, "getMainCamera", "mainCamera");
+        Object position = Reflect.call(camera, "getPosition", "position");
+        return position instanceof Vec3 vec ? vec : null;
     }
 
     private static void warnOnce(String reason) {
         if (warned) return;
         warned = true;
-        SpaceClient.LOGGER.warn("Hitboxes cannot be drawn on this version: {}", reason);
+        SpaceClient.LOGGER.warn("Hitboxes cannot be drawn: {}", reason);
     }
 
     private HitboxRenderer() {}

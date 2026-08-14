@@ -26,28 +26,18 @@ public final class Diagnostics {
         List<Check> checks = new ArrayList<>();
         Minecraft mc = Minecraft.getInstance();
 
-        // --- world rendering, needed for custom hitboxes ---
-        Class<?> events = findClass(
-                "net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents",
-                "net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents",
-                "net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents");
-        checks.add(new Check("World render event", events != null,
-                events != null ? events.getSimpleName() : "no known class found"));
+        // --- hitbox drawing ---
+        Class<?> collector = findClass("net.minecraft.client.renderer.SubmitNodeCollector");
+        checks.add(new Check("Submit pipeline", collector != null,
+                collector != null ? "SubmitNodeCollector present" : "not found"));
 
-        Method lineBox = gg.spaceclient.render.HitboxRenderer.lineBoxMethod();
-        checks.add(new Check("Line box renderer", lineBox != null,
-                lineBox != null
-                        ? lineBox.getDeclaringClass().getSimpleName() + ".renderLineBox"
-                        : "not found in " + String.join(", ",
-                                gg.spaceclient.render.HitboxRenderer.SHAPE_CLASSES)));
+        Class<?> renderTypes = findClass("net.minecraft.client.renderer.rendertype.RenderTypes");
+        checks.add(new Check("Render types", renderTypes != null,
+                renderTypes != null ? "RenderTypes present" : "not found"));
 
         boolean drawing = gg.spaceclient.render.HitboxRenderer.isAvailable();
-        checks.add(new Check("Hitbox drawing active", drawing,
-                drawing ? "custom boxes in use" : "falling back to the game's own view"));
-
-        // Why the subscription failed, which the previous page did not show
-        checks.add(new Check("Render subscription", drawing,
-                gg.spaceclient.render.WorldRenderHook.failure()));
+        checks.add(new Check("Hitbox mixin", drawing,
+                drawing ? "attached and drawing" : "not reached yet - enable the module and look around"));
 
         // --- raw keyboard, needed for keystrokes and the zoom key ---
         boolean keyboard = gg.spaceclient.input.RawKeyboard.isAvailable();

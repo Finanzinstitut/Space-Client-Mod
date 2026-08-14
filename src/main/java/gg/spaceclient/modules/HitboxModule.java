@@ -172,10 +172,15 @@ public class HitboxModule extends Module {
         }
     }
 
+    /**
+     * The fallback only runs if the renderer never reported itself working -
+     * that is, if the mixin did not attach on this version. Otherwise the
+     * custom boxes are the real ones and switching the game's own view on as
+     * well would just draw everything twice.
+     */
     @Override
     public void onTick() {
         if (HitboxRenderer.isAvailable()) return;
-        // Re-applied because the debug key and other code can reset it
         setVanillaHitboxes(true);
     }
 
