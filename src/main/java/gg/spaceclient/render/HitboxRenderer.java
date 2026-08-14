@@ -26,6 +26,9 @@ import java.lang.reflect.Method;
  * writes the vertices.
  */
 public final class HitboxRenderer {
+    /** One identity pose, reused: the coordinates are already world relative. */
+    private static final PoseStack IDENTITY = new PoseStack();
+
     private static Method renderTypeGetter;
     private static boolean lookedUp = false;
     private static boolean warned = false;
@@ -68,24 +71,21 @@ public final class HitboxRenderer {
             int width = module.widthFor(category);
             boolean arrow = module.arrowFor(category);
 
-            // Thickness is faked by drawing the outline several times, each a
-            // little larger: the pipeline exposes no line width.
-            for (int pass = 0; pass < width; pass++) {
-                AABB grown = pass == 0 ? box : box.inflate(pass * 0.004);
-                submitBox(collector, lines, grown, argb);
-            }
+            // Each unit of width is about a sixth of a block wide slab
+            double thickness = width * 0.008;
+            submitBox(collector, lines, box, argb, thickness);
 
             if (arrow) {
                 Vec3 eyes = entity.getEyePosition().subtract(camera);
                 Vec3 tip = eyes.add(entity.getViewVector(1.0f).scale(2.0));
-                submitLine(collector, lines, eyes, tip, 0xFF0000FF);
+                submitLine(collector, lines, eyes, tip, 0xFF0000FF, thickness);
             }
         }
     }
 
     /** Twelve edges of a box, written as line pairs. */
     private static void submitBox(SubmitNodeCollector collector, RenderType type,
-                                  AABB box, int argb) {
+                                  AABB box, int argb, double thickness) {
         double x1 = box.minX, y1 = box.minY, z1 = box.minZ;
         double x2 = box.maxX, y2 = box.maxY, z2 = box.maxZ;
 
@@ -98,42 +98,67 @@ public final class HitboxRenderer {
                 {x2, y1, z2, x2, y2, z2}, {x1, y1, z2, x1, y2, z2},
         };
 
-        collector.submitCustomGeometry(new PoseStack(), type, (pose, buffer) -> {
+        collector.submitCustomGeometry(IDENTITY, type, (pose, buffer) -> {
             for (double[] edge : edges) {
-                writeLine(buffer, pose, edge[0], edge[1], edge[2], edge[3], edge[4], edge[5], argb);
+                writeEdge(buffer, edge[0], edge[1], edge[2], edge[3], edge[4], edge[5],
+                        thickness, argb);
             }
         });
     }
 
     private static void submitLine(SubmitNodeCollector collector, RenderType type,
-                                   Vec3 from, Vec3 to, int argb) {
-        collector.submitCustomGeometry(new PoseStack(), type, (pose, buffer) ->
-                writeLine(buffer, pose, from.x, from.y, from.z, to.x, to.y, to.z, argb));
+                                   Vec3 from, Vec3 to, int argb, double thickness) {
+        collector.submitCustomGeometry(IDENTITY, type, (pose, buffer) ->
+                writeEdge(buffer, from.x, from.y, from.z, to.x, to.y, to.z, thickness, argb));
     }
 
     /**
-     * Line render types want a normal per vertex; without one the line is
-     * dropped silently, which is a long afternoon if you do not know it.
+     * Draws one edge as a pair of crossed quads.
+     *
+     * The debug quad type carries no line width, so an edge is a thin slab
+     * instead. Two of them at right angles keep the edge visible from every
+     * direction, where a single flat quad would disappear when viewed edge on.
      */
-    private static void writeLine(VertexConsumer buffer, PoseStack.Pose pose,
+    private static void writeEdge(VertexConsumer buffer,
                                   double x1, double y1, double z1,
-                                  double x2, double y2, double z2, int argb) {
-        float dx = (float) (x2 - x1);
-        float dy = (float) (y2 - y1);
-        float dz = (float) (z2 - z1);
-        float length = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
-        if (length < 1.0e-5f) return;
+                                  double x2, double y2, double z2,
+                                  double thickness, int argb) {
+        double dx = x2 - x1, dy = y2 - y1, dz = z2 - z1;
+        double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (length < 1.0e-5) return;
 
-        dx /= length;
-        dy /= length;
-        dz /= length;
+        dx /= length; dy /= length; dz /= length;
 
-        buffer.addVertex(pose, (float) x1, (float) y1, (float) z1)
-                .setColor(argb)
-                .setNormal(pose, dx, dy, dz);
-        buffer.addVertex(pose, (float) x2, (float) y2, (float) z2)
-                .setColor(argb)
-                .setNormal(pose, dx, dy, dz);
+        // Any two directions at right angles to the edge will do
+        double ax, ay, az;
+        if (Math.abs(dy) < 0.9) {
+            ax = -dz; ay = 0; az = dx;      // perpendicular in the horizontal plane
+        } else {
+            ax = 1; ay = 0; az = 0;
+        }
+        double aLength = Math.sqrt(ax * ax + ay * ay + az * az);
+        ax /= aLength; ay /= aLength; az /= aLength;
+
+        // The second perpendicular is the cross product of the first two
+        double bx = dy * az - dz * ay;
+        double by = dz * ax - dx * az;
+        double bz = dx * ay - dy * ax;
+
+        double half = thickness / 2.0;
+
+        quad(buffer, x1, y1, z1, x2, y2, z2, ax * half, ay * half, az * half, argb);
+        quad(buffer, x1, y1, z1, x2, y2, z2, bx * half, by * half, bz * half, argb);
+    }
+
+    /** A flat slab from one point to another, offset either side. */
+    private static void quad(VertexConsumer buffer,
+                             double x1, double y1, double z1,
+                             double x2, double y2, double z2,
+                             double ox, double oy, double oz, int argb) {
+        buffer.addVertex((float) (x1 - ox), (float) (y1 - oy), (float) (z1 - oz)).setColor(argb);
+        buffer.addVertex((float) (x2 - ox), (float) (y2 - oy), (float) (z2 - oz)).setColor(argb);
+        buffer.addVertex((float) (x2 + ox), (float) (y2 + oy), (float) (z2 + oz)).setColor(argb);
+        buffer.addVertex((float) (x1 + ox), (float) (y1 + oy), (float) (z1 + oz)).setColor(argb);
     }
 
     /** The render type used for debug style lines, whatever it is called here. */
@@ -145,7 +170,10 @@ public final class HitboxRenderer {
             try {
                 Class<?> types = Class.forName(
                         "net.minecraft.client.renderer.rendertype.RenderTypes");
-                for (String name : new String[]{"lines", "debugLine", "debugLineStrip", "debugQuads"}) {
+                // Quads, not lines: the debug quad type is what this pipeline
+                // offers, and drawing edges as thin quads is also what makes a
+                // configurable thickness possible at all.
+                for (String name : new String[]{"debugQuads", "debugFilledBox", "lines"}) {
                     for (Method method : types.getMethods()) {
                         if (!method.getName().equals(name)) continue;
                         if (method.getParameterCount() != 0) continue;

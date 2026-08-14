@@ -192,11 +192,14 @@ Drawing now goes the way this version expects:
 - a mixin on `LevelRenderer.submitFeatures` runs after the world has gathered
   its own geometry,
 - boxes are handed to the `SubmitNodeCollector` via `submitCustomGeometry`,
-- and the twelve edges are written as vertex pairs, each with a colour and a
-  normal. Line render types drop any vertex without a normal, silently.
+- and each of the twelve edges is drawn as **two thin quads at right angles**,
+  using the debug quad render type.
 
-Line width is faked by drawing the outline several times, each slightly larger:
-the pipeline exposes no thickness.
+That last point is the part that took longest to get right. There is no line
+type with a width in this pipeline, so an edge is a thin slab rather than a
+line, and thickness is simply how wide that slab is. Two slabs crossed keep the
+edge visible from every direction — a single flat one vanishes when viewed edge
+on. The vertices carry a colour and nothing else: no pose, no normal.
 
 If the mixin does not attach on some future version, the module falls back to
 switching on Minecraft's own hitbox view, and the Diagnostics page says so.

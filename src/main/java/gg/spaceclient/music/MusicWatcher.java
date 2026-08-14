@@ -53,6 +53,23 @@ public final class MusicWatcher {
         polling = true;
         CompletableFuture.runAsync(() -> {
             try {
+                // Windows' own media session list is asked first: it carries the
+                // track for every player, including the ones that never put it
+                // in their window title. The title scan stays as a fallback for
+                // when that interface is unavailable.
+                NowPlaying session = MediaSession.read();
+                if (session != null && !session.isEmpty()) {
+                    current = session;
+                    status = "media session: " + session.source();
+                    return;
+                }
+                if (session != null) {
+                    // The interface worked and reported nothing playing
+                    current = NowPlaying.NOTHING;
+                    status = "nothing playing";
+                    return;
+                }
+
                 current = read();
             } catch (Throwable t) {
                 status = "lookup failed: " + t.getMessage();

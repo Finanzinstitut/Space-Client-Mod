@@ -68,6 +68,9 @@ public final class Diagnostics {
                 gg.spaceclient.modules.ZoomModule.lastResult()));
 
         boolean musicSupported = gg.spaceclient.music.MusicWatcher.isSupported();
+        // Which route the track came from, since the two differ in what they see
+        checks.add(new Check("Music route", true, gg.spaceclient.music.MusicWatcher.status()));
+
         checks.add(new Check("Music processes", true,
                 gg.spaceclient.music.MusicWatcher.seenProcesses()));
 

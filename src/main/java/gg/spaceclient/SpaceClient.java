@@ -119,6 +119,10 @@ public class SpaceClient implements ClientModInitializer {
             }
             moduleManager.onTick();
             SessionWatcher.tick(client);
+
+            // The window only exists once the game is running, so the hook is
+            // installed on the first tick rather than during initialisation.
+            gg.spaceclient.input.RawMouse.install();
         });
 
         // Our elements draw just before the chat, so the HUD API handles layering.

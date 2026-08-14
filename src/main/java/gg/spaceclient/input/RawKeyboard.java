@@ -28,8 +28,21 @@ public final class RawKeyboard {
     }
 
     private static long handle() {
-        if (lookedUp) return handle;
+        if (lookedUp && handle != 0) return handle;
         lookedUp = true;
+
+        // GLFW knows the window it is currently drawing into, which is the one
+        // we want. Digging through the Window object for a long field was the
+        // roundabout way, and it found nothing on this version.
+        try {
+            long current = GLFW.glfwGetCurrentContext();
+            if (current != 0) {
+                handle = current;
+                return handle;
+            }
+        } catch (Throwable ignored) {
+            // Falls through to the reflective attempt
+        }
 
         try {
             Object window = Minecraft.getInstance().getWindow();
