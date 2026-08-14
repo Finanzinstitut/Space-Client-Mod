@@ -222,6 +222,23 @@ on. The vertices carry a colour and nothing else: no pose, no normal.
 If the mixin does not attach on some future version, the module falls back to
 switching on Minecraft's own hitbox view, and the Diagnostics page says so.
 
+### Why the boxes jittered
+
+Entities are drawn *between* ticks, at a position interpolated from the previous
+one. The bounding box, though, is the position from the last tick — so a box
+drawn straight from it trails anything that moves and snaps forward twenty times
+a second. On a walking player that reads as the box lagging behind and shaking.
+
+The box is now offset by the same amount the entity's drawn position differs
+from its tick position, which locks it to the model. The look arrow uses the
+same partial tick, so it no longer swings independently of the head it belongs
+to. A teleport is ignored rather than interpolated, or the box would stretch
+across the world for one frame.
+
+Two smaller fixes came with it: the outline is nudged fractionally outwards, as
+an edge sitting exactly on the model surface flickers against it as the camera
+moves, and there is now a switch for hiding boxes behind blocks.
+
 ### A crash worth explaining
 
 An early version wrote vertices with a normal, which the debug quad format does

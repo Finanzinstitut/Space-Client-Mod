@@ -66,10 +66,14 @@ public class HitboxModule extends Module {
     private final IntSetting range = new IntSetting(
             "range", "Range", "Only draw within this many blocks", 48, 8, 128);
 
+    private final BooleanSetting hideBehindWalls = new BooleanSetting(
+            "hide_behind_walls", "Hide behind blocks",
+            "Only draw boxes for entities you can actually see", false);
+
     public HitboxModule() {
         super("hitbox", "Hitbox", "Draws entity hitboxes with per-category control", false);
 
-        addSettings(showArrows, arrowsPlayersOnly, range);
+        addSettings(showArrows, arrowsPlayersOnly, range, hideBehindWalls);
         addGroups(
                 SettingGroup.of("Yourself", "Your own hitbox in third person",
                         selfOn, selfColor, selfWidth),
@@ -125,6 +129,8 @@ public class HitboxModule extends Module {
     }
 
     public int getRange() { return range.get(); }
+
+    public boolean hideBehindWalls() { return hideBehindWalls.get(); }
 
     // --- fallback ---------------------------------------------------------
     // When the world render event is unavailable, custom boxes cannot be drawn.

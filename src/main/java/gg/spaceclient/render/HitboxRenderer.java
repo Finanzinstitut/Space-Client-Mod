@@ -69,24 +69,36 @@ public final class HitboxRenderer {
         }
 
         available = true;
+        float partialTick = partialTick(mc);
 
         for (Entity entity : mc.level.entitiesForRendering()) {
             HitboxModule.Category category = module.categoryOf(entity);
             if (!module.isEnabledFor(category)) continue;
             if (entity.distanceTo(mc.player) > module.getRange()) continue;
 
-            AABB box = entity.getBoundingBox().move(-camera.x, -camera.y, -camera.z);
+            // Optional: skip anything the player cannot actually see
+            if (module.hideBehindWalls() && !mc.player.hasLineOfSight(entity)) continue;
+
+            // The box has to follow the entity's *drawn* position, not the one
+            // from the last tick. Entities are rendered between ticks, so an
+            // uninterpolated box lags behind anything that moves and jitters
+            // twenty times a second - which is what the boxes were doing.
+            AABB box = interpolated(entity, partialTick)
+                    .move(-camera.x, -camera.y, -camera.z);
             int argb = module.colorFor(category);
             int width = module.widthFor(category);
             boolean arrow = module.arrowFor(category);
 
-            // Each unit of width is about a sixth of a block wide slab
+            // Each unit of width is about a sixth of a block wide slab. The box
+            // is also nudged outwards by half of that: an edge sitting exactly
+            // on the model's surface flickers against it as the camera moves.
             double thickness = width * 0.008;
+            box = box.inflate(thickness / 2);
             submitBox(collector, lines, box, argb, thickness);
 
             if (arrow) {
-                Vec3 eyes = entity.getEyePosition().subtract(camera);
-                Vec3 tip = eyes.add(entity.getViewVector(1.0f).scale(2.0));
+                Vec3 eyes = entity.getEyePosition(partialTick).subtract(camera);
+                Vec3 tip = eyes.add(entity.getViewVector(partialTick).scale(2.0));
                 submitLine(collector, lines, eyes, tip, 0xFF0000FF, thickness);
             }
         }
@@ -132,6 +144,65 @@ public final class HitboxRenderer {
                 disableAfterFailure(t);
             }
         });
+    }
+
+    /**
+     * The bounding box where the entity is actually being drawn.
+     *
+     * Rendering happens between ticks, so an entity's drawn position sits
+     * somewhere between its previous and current one. The box is moved by that
+     * same difference, which keeps it locked to the model instead of trailing
+     * it.
+     */
+    private static AABB interpolated(Entity entity, float partialTick) {
+        AABB box = entity.getBoundingBox();
+        if (partialTick >= 0.999f) return box;
+
+        Double oldX = Reflect.asDouble(field(entity, "xOld"));
+        Double oldY = Reflect.asDouble(field(entity, "yOld"));
+        Double oldZ = Reflect.asDouble(field(entity, "zOld"));
+        if (oldX == null || oldY == null || oldZ == null) return box;
+
+        // How far back from the current position the drawn one sits
+        double dx = (oldX - entity.getX()) * (1 - partialTick);
+        double dy = (oldY - entity.getY()) * (1 - partialTick);
+        double dz = (oldZ - entity.getZ()) * (1 - partialTick);
+
+        // A teleport would otherwise stretch the box across the world
+        if (Math.abs(dx) > 8 || Math.abs(dy) > 8 || Math.abs(dz) > 8) return box;
+
+        return box.move(dx, dy, dz);
+    }
+
+    /** Reads a field by name, since these are fields rather than accessors. */
+    private static Object field(Object target, String name) {
+        Class<?> current = target.getClass();
+        while (current != null) {
+            try {
+                var f = current.getDeclaredField(name);
+                f.setAccessible(true);
+                return f.get(target);
+            } catch (NoSuchFieldException ignored) {
+                current = current.getSuperclass();
+            } catch (Throwable t) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /** How far between ticks this frame sits, 0 to 1. */
+    private static float partialTick(Minecraft mc) {
+        Object tracker = Reflect.call(mc, "getDeltaTracker", "getTimer");
+        if (tracker == null) return 1.0f;
+
+        // The accessor takes a flag on some versions and nothing on others
+        Object value = Reflect.callWith(tracker, "getGameTimeDeltaPartialTick", Boolean.FALSE);
+        if (value == null) value = Reflect.call(tracker, "getGameTimeDeltaPartialTick");
+        if (value == null) value = Reflect.call(tracker, "getRealtimeDeltaTicks", "partialTick");
+
+        Double partial = Reflect.asDouble(value);
+        return partial == null ? 1.0f : (float) Math.max(0, Math.min(1, partial));
     }
 
     /**
