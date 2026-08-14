@@ -35,6 +35,7 @@ addition is confirmed building.
 | Click Graph | off | rolling graph, so bursts and steady clicking look different |
 | Marker | off | sneak + drop stores a spot; shows bearing and distance back |
 | Now Playing | off | Spotify or Amazon Music only, with controls in chat |
+| Hit Colour | off | tints what you hit, and what is within reach |
 
 Press **Right Shift** to open the menu. The interface deliberately matches the
 launcher rather than vanilla Minecraft: the same violet and cyan accents, the
@@ -170,6 +171,27 @@ already knew how to do.
 
 The lesson generalises: a mod's initialiser runs early, and "early" here means
 before the game has a window at all.
+
+## Hit Colour
+
+Two cues in one module, because they answer different questions: the reach tint
+says whether a swing would connect at all, the hit tint confirms one landed.
+Each has its own sub-menu with a switch and a colour, plus a fade for the hit
+flash and an adjustable reach distance.
+
+The colour is drawn as a **translucent shell** over the entity rather than by
+recolouring its model. Tinting the model itself needs a hook into the entity
+renderer whose shape has not been confirmed for this version, and a shell
+through the pipeline that already works is worth more than a tint that might
+never draw. It shares the hitbox module's render pass, so it costs nothing
+extra.
+
+## Mouse only, on purpose
+
+Widgets do not take keyboard focus. That matters most in the chat, where the
+music controls sit: the arrow keys are for stepping back through sent messages
+and Enter is for sending. A focusable widget steals both, so Enter would skip
+the track instead of posting the message.
 
 ## Diagnostics
 

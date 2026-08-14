@@ -66,6 +66,17 @@ public class SliderRow extends AbstractSliderButton {
         graphics.text(font, valueText, x2 - font.width(valueText) - 10, textY, Theme.TEXT_DIM, false);
     }
 
+    /** Mouse only, for the same reason as the buttons. */
+    @Override
+    public void setFocused(boolean focused) {
+        super.setFocused(false);
+    }
+
+    @Override
+    public boolean isFocused() {
+        return false;
+    }
+
     @Override
     public void updateWidgetNarration(NarrationElementOutput builder) {
         // Narration is not implemented for this widget.

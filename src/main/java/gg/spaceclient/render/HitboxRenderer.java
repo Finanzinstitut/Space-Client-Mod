@@ -1,6 +1,7 @@
 package gg.spaceclient.render;
 
 import gg.spaceclient.SpaceClient;
+import gg.spaceclient.modules.HitColorModule;
 import gg.spaceclient.modules.HitboxModule;
 import gg.spaceclient.util.Reflect;
 
@@ -49,7 +50,11 @@ public final class HitboxRenderer {
         if (failed) return;
 
         HitboxModule module = (HitboxModule) SpaceClient.getModuleManager().get("hitbox");
-        if (module == null || !module.isEnabled() || !module.anyCategoryOn()) return;
+        HitColorModule tint = (HitColorModule) SpaceClient.getModuleManager().get("hitcolor");
+
+        boolean wantBoxes = module != null && module.isEnabled() && module.anyCategoryOn();
+        boolean wantTint = tint != null && tint.isEnabled() && tint.anythingToTint();
+        if (!wantBoxes && !wantTint) return;
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) return;
@@ -72,6 +77,19 @@ public final class HitboxRenderer {
         float partialTick = partialTick(mc);
 
         for (Entity entity : mc.level.entitiesForRendering()) {
+            // The tinted shell is drawn first, so an outline sits on top of it
+            if (wantTint) {
+                int shade = tint.tintFor(entity);
+                if (shade != 0) {
+                    AABB shell = interpolated(entity, partialTick)
+                            .move(-camera.x, -camera.y, -camera.z)
+                            .inflate(0.02);
+                    submitFilled(collector, lines, shell, shade);
+                }
+            }
+
+            if (!wantBoxes || module == null) continue;
+
             HitboxModule.Category category = module.categoryOf(entity);
             if (!module.isEnabledFor(category)) continue;
             if (entity.distanceTo(mc.player) > module.getRange()) continue;
@@ -133,6 +151,46 @@ public final class HitboxRenderer {
                 disableAfterFailure(t);
             }
         });
+    }
+
+    /**
+     * A solid, translucent shell around an entity.
+     *
+     * Six faces rather than an outline: the point is to shade the whole body,
+     * and a box the size of the hitbox is close enough to it that the tint
+     * reads as the entity glowing.
+     */
+    private static void submitFilled(SubmitNodeCollector collector, RenderType type,
+                                     AABB box, int argb) {
+        double x1 = box.minX, y1 = box.minY, z1 = box.minZ;
+        double x2 = box.maxX, y2 = box.maxY, z2 = box.maxZ;
+
+        collector.submitCustomGeometry(IDENTITY, type, (pose, buffer) -> {
+            try {
+                // bottom and top
+                face(buffer, x1, y1, z1, x2, y1, z1, x2, y1, z2, x1, y1, z2, argb);
+                face(buffer, x1, y2, z2, x2, y2, z2, x2, y2, z1, x1, y2, z1, argb);
+                // the four sides
+                face(buffer, x1, y1, z1, x1, y2, z1, x2, y2, z1, x2, y1, z1, argb);
+                face(buffer, x2, y1, z2, x2, y2, z2, x1, y2, z2, x1, y1, z2, argb);
+                face(buffer, x1, y1, z2, x1, y2, z2, x1, y2, z1, x1, y1, z1, argb);
+                face(buffer, x2, y1, z1, x2, y2, z1, x2, y2, z2, x2, y1, z2, argb);
+            } catch (Throwable t) {
+                disableAfterFailure(t);
+            }
+        });
+    }
+
+    /** One quad from four corners. */
+    private static void face(VertexConsumer buffer,
+                             double x1, double y1, double z1,
+                             double x2, double y2, double z2,
+                             double x3, double y3, double z3,
+                             double x4, double y4, double z4, int argb) {
+        buffer.addVertex((float) x1, (float) y1, (float) z1).setColor(argb);
+        buffer.addVertex((float) x2, (float) y2, (float) z2).setColor(argb);
+        buffer.addVertex((float) x3, (float) y3, (float) z3).setColor(argb);
+        buffer.addVertex((float) x4, (float) y4, (float) z4).setColor(argb);
     }
 
     private static void submitLine(SubmitNodeCollector collector, RenderType type,

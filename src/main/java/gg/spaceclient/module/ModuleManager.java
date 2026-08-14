@@ -33,6 +33,7 @@ public class ModuleManager {
         register(new InputRateModule());
         register(new CoordsCopyModule());
         register(new MusicModule());
+        register(new HitColorModule());
     }
 
     private void register(Module module) {

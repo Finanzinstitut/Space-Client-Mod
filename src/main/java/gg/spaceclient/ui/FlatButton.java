@@ -63,6 +63,24 @@ public class FlatButton extends Button {
         return this;
     }
 
+    /**
+     * These buttons are driven by the mouse only.
+     *
+     * Taking keyboard focus is actively harmful where they overlap the game:
+     * in the chat, the arrow keys are for walking back through sent messages
+     * and Enter is for sending. A focusable widget steals both, so a press of
+     * Enter would skip the track instead of posting the message.
+     */
+    @Override
+    public void setFocused(boolean focused) {
+        super.setFocused(false);
+    }
+
+    @Override
+    public boolean isFocused() {
+        return false;
+    }
+
     /** Starts the flash. Call this from the press handler. */
     public void flash() {
         clickedAt = System.currentTimeMillis();
