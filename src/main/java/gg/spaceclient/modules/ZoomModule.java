@@ -26,8 +26,14 @@ public class ZoomModule extends Module {
     private final IntSetting factor = new IntSetting(
             "factor", "Zoom factor", "How far the zoom goes", 4, 2, 12);
 
-    private final BooleanSetting smooth = new BooleanSetting(
-            "smooth", "Smooth", "Ease in and out instead of snapping", true);
+    private final ModeSetting transition = new ModeSetting(
+            "transition", "Transition", "How the zoom eases in and out",
+            Arrays.asList("INSTANT", "LINEAR", "EASE_OUT", "EASE_IN_OUT", "EXPONENTIAL"),
+            "EASE_OUT");
+
+    private final IntSetting duration = new IntSetting(
+            "duration", "Duration (tenths of a second)",
+            "How long the zoom takes to reach full magnification", 3, 1, 20);
 
     private final BooleanSetting slowSensitivity = new BooleanSetting(
             "slow_sensitivity", "Reduce sensitivity", "Aim slower while zoomed", true);
@@ -48,14 +54,29 @@ public class ZoomModule extends Module {
     private double current = 1.0;
     private boolean warned = false;
 
+    /** 0 while not zooming, 1 at full magnification. */
+    private double progress = 0;
+
     /** What the last write achieved, for the diagnostics page. */
     private static String lastResult = "not attempted";
 
     public static String lastResult() { return lastResult; }
 
+    /** Set by the mixin the first time it runs, so the fallback can stand down. */
+    private static volatile boolean MIXIN_ACTIVE = false;
+
+    public static void markMixinActive() {
+        if (!MIXIN_ACTIVE) {
+            MIXIN_ACTIVE = true;
+            lastResult = "renderer hook active";
+        }
+    }
+
+    public static boolean isMixinActive() { return MIXIN_ACTIVE; }
+
     public ZoomModule() {
         super("zoom", "Zoom", "Hold the zoom key to look further", false);
-        addSettings(key, factor, smooth, slowSensitivity);
+        addSettings(key, factor, transition, duration, slowSensitivity);
     }
 
     private boolean keyDown() {
@@ -75,15 +96,25 @@ public class ZoomModule extends Module {
     public void onTick() {
         if (mc.options == null) return;
 
-        double target = keyDown() ? factor.get() : 1.0;
-        if (smooth.get()) {
-            current += (target - current) * 0.35;
-            if (Math.abs(current - target) < 0.01) current = target;
-        } else {
-            current = target;
-        }
+        // Progress moves between 0 and 1 over the configured duration; the
+        // curve is applied to that rather than to the factor, so the timing
+        // stays the same whatever magnification is chosen.
+        double step = 1.0 / Math.max(1, duration.get() * 2);
+        progress += keyDown() ? step : -step;
+        progress = Math.max(0, Math.min(1, progress));
+
+        double eased = ease(progress);
+        current = 1.0 + (factor.get() - 1.0) * eased;
 
         // fov() has not been confirmed for this version, so it is looked up
+        // With the mixin in place the renderer already divides the field of
+        // view, so touching the option would zoom twice. It is only used when
+        // the mixin could not attach.
+        if (MIXIN_ACTIVE) {
+            handleSensitivity();
+            return;
+        }
+
         Object fovOption = Reflect.call(mc.options, "fov", "getFov");
         Object sensitivityOption = mc.options.sensitivity();
 
@@ -130,6 +161,25 @@ public class ZoomModule extends Module {
         }
     }
 
+    /** Sensitivity handling, shared by both paths. */
+    private void handleSensitivity() {
+        if (!slowSensitivity.get() || mc.options == null) return;
+        Object sensitivityOption = mc.options.sensitivity();
+
+        if (current > 1.05) {
+            if (normalSensitivity < 0) {
+                Double value = readOption(sensitivityOption);
+                if (value != null) normalSensitivity = value;
+            }
+            if (normalSensitivity >= 0) {
+                writeOption(sensitivityOption, normalSensitivity / current);
+            }
+        } else if (normalSensitivity >= 0) {
+            writeOption(sensitivityOption, normalSensitivity);
+            normalSensitivity = -1;
+        }
+    }
+
     @Override
     protected void onDisable() {
         if (mc.options == null) return;
@@ -142,6 +192,24 @@ public class ZoomModule extends Module {
             normalSensitivity = -1;
         }
         current = 1.0;
+    }
+
+    /** The zoom factor the renderer should divide the field of view by. */
+    public float currentFactor() {
+        return (float) current;
+    }
+
+    /** Shapes the 0 to 1 progress into a curve. */
+    private double ease(double t) {
+        return switch (transition.get()) {
+            case "INSTANT" -> t > 0 ? 1 : 0;
+            case "LINEAR" -> t;
+            case "EASE_IN_OUT" -> t < 0.5
+                    ? 2 * t * t
+                    : 1 - Math.pow(-2 * t + 2, 2) / 2;
+            case "EXPONENTIAL" -> t == 0 ? 0 : Math.pow(2, 10 * t - 10);
+            default -> 1 - Math.pow(1 - t, 3); // EASE_OUT
+        };
     }
 
     private void warnOnce() {

@@ -179,9 +179,27 @@ A zoom wants to go well below that: at four times magnification from a base of
 110, the target is 27. The setter does not refuse that — it silently clamps to
 30, so the mouse sensitivity dropped as configured while the view barely moved.
 
-The value is therefore written into the option's own field when the setter's
-result comes back clamped, past the validation. The renderer reads the same
-field, so the zoom is real rather than a nudge to the slider's edge.
+The zoom therefore takes the same route Zoomify does — confirmed by reading
+Zoomify's own source rather than guessing again: a **mixin on
+`Camera.calculateFov`** (and `calculateHudFov`, for the held item) divides the
+computed value by the zoom factor, past the clamp entirely.
+
+An earlier attempt targeted `GameRenderer.getFov` and failed silently, because
+that method does not compute the field of view in this version - it reads the
+option, which is exactly the value that was already being clamped. The
+computation happens on `Camera`, which is where Zoomify hooks it too.
+
+The mixin names its target as a string, matches methods by name only and uses
+`require = 0`, so a signature that moved again is skipped with a log line
+instead of stopping the game from starting.
+
+The first time the hook runs it marks itself active and the option-based
+fallback stands down, so the two can never both apply and zoom twice.
+
+The transition between normal view and full zoom runs over a configurable
+duration with a choice of curves — instant, linear, ease out, ease in and out,
+or exponential — applied to the progress rather than the factor, so the timing
+stays the same whatever magnification is set.
 
 ### "invalid_public_key_signature" after switching accounts
 

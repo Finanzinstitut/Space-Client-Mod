@@ -67,6 +67,12 @@ public final class Diagnostics {
                             : "no getter matched"));
         }
 
+        checks.add(new Check("Zoom renderer hook",
+                gg.spaceclient.modules.ZoomModule.isMixinActive(),
+                gg.spaceclient.modules.ZoomModule.isMixinActive()
+                        ? "CameraMixin attached - real zoom"
+                        : "not attached - falling back to the clamped option (check Camera.calculateFov exists)"));
+
         checks.add(new Check("Zoom write",
                 !gg.spaceclient.modules.ZoomModule.lastResult().startsWith("write ignored"),
                 gg.spaceclient.modules.ZoomModule.lastResult()));
