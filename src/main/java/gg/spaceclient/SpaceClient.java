@@ -15,6 +15,7 @@ import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import com.mojang.blaze3d.platform.InputConstants;
 
 
+import gg.spaceclient.music.MusicControls;
 import gg.spaceclient.session.SessionWatcher;
 import gg.spaceclient.ui.AccountsScreen;
 import gg.spaceclient.ui.FlatButton;
@@ -25,6 +26,7 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
 import net.minecraft.resources.Identifier;
 
@@ -95,6 +97,13 @@ public class SpaceClient implements ClientModInitializer {
         // A button on the server list, where switching accounts is actually
         // needed - the in-game menu is out of reach from the main menu.
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
+            // Playback controls belong on the chat screen, where the cursor is
+            // free and the HUD element is still visible behind it.
+            if (screen instanceof ChatScreen) {
+                MusicControls.attach(screen);
+                return;
+            }
+
             if (!(screen instanceof JoinMultiplayerScreen)) return;
             ScreenInjector.addWidget(screen, new FlatButton(
                     10, 10, 116, 20,

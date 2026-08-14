@@ -34,6 +34,7 @@ addition is confirmed building.
 | Align | off | only the deviation from the nearest axis; turns green when exact |
 | Click Graph | off | rolling graph, so bursts and steady clicking look different |
 | Marker | off | sneak + drop stores a spot; shows bearing and distance back |
+| Now Playing | off | Spotify or Amazon Music only, with controls in chat |
 
 Press **Right Shift** to open the menu. The interface deliberately matches the
 launcher rather than vanilla Minecraft: the same violet and cyan accents, the
@@ -101,6 +102,33 @@ once, which is checked mechanically rather than assumed.
 That split exists because each failed build means another upload from a phone,
 so the cost of guessing wrong is much higher than the cost of a little
 reflection.
+
+## Now Playing
+
+Reads the track from the **local Spotify or Amazon Music app** and shows it as a
+normal HUD element — draggable in the HUD editor, colours and options in its own
+settings, like every other module.
+
+Detection works off the desktop app's window title, which is the only thing
+available without signing into a web API. That has a useful side effect: music
+playing in a browser tab has no such process, so YouTube and the like are
+ignored, which is the intended behaviour. Only the two player processes are
+looked at by name; nothing else is considered.
+
+**Playback controls appear when you open the chat.** The HUD itself cannot take
+clicks — it draws underneath everything and the game holds the cursor — but once
+a screen has the mouse, ordinary widgets work. Three buttons are placed just
+under the element: previous, play/pause, next. They press the system media keys,
+which Windows routes to whichever app is currently playing, so no direct
+connection to either player is needed.
+
+Two honest limitations:
+
+- **Windows only.** The lookup runs through PowerShell so that nothing has to be
+  shipped alongside the mod. On other systems the module says so and stays quiet.
+- **No cover art.** Window titles carry the track name and artist, nothing else.
+  A drawn record stands in for the artwork; real covers would need a signed-in
+  web API, which is a separate project of the size the Azure login was.
 
 ## Diagnostics
 

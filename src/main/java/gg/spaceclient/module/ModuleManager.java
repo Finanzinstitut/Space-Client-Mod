@@ -32,6 +32,7 @@ public class ModuleManager {
         register(new YawLockModule());
         register(new InputRateModule());
         register(new CoordsCopyModule());
+        register(new MusicModule());
     }
 
     private void register(Module module) {

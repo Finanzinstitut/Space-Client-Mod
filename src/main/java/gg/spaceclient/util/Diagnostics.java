@@ -67,6 +67,12 @@ public final class Diagnostics {
                 !gg.spaceclient.modules.ZoomModule.lastResult().startsWith("write ignored"),
                 gg.spaceclient.modules.ZoomModule.lastResult()));
 
+        boolean musicSupported = gg.spaceclient.music.MusicWatcher.isSupported();
+        checks.add(new Check("Music detection", musicSupported,
+                musicSupported
+                        ? gg.spaceclient.music.MusicWatcher.status()
+                        : "Windows only - the window title lookup uses PowerShell"));
+
         // --- the account object, needed for switching sessions ---
         Field userField = null;
         for (Field field : Minecraft.class.getDeclaredFields()) {
