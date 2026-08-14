@@ -41,7 +41,8 @@ public final class RawMouse {
 
         long window = RawKeyboard.windowHandle();
         if (window == 0) {
-            SpaceClient.LOGGER.warn("Scroll wheel unavailable - no window handle");
+            // Called every tick until the window exists; saying so once is
+            // plenty, and before that it is expected rather than a problem.
             return;
         }
 

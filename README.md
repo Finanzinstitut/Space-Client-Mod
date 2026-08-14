@@ -153,6 +153,24 @@ mouse event signature, which changed in this version, while buttons are already
 known to work. A colour wheel takes about as much room as four ordinary rows, so
 a module with several colours fills a page quickly.
 
+## A crash before the window opened
+
+Enabling Zoom in the config made the game fail on startup with
+`GLFW error before init: The GLFW library is not initialized`.
+
+The chain: loading the config switches modules on, which fires their enable
+hook, which installed the scroll wheel hook, which asked GLFW for the window —
+all during mod initialisation, long before Minecraft starts GLFW itself. The
+call queued an error that Minecraft found moments later and turned into a crash.
+
+Everything that talks to GLFW now waits for a flag set on the **first client
+tick**, by which point the window certainly exists. Before that the handle is
+simply zero and every input feature reports itself unavailable, which they
+already knew how to do.
+
+The lesson generalises: a mod's initialiser runs early, and "early" here means
+before the game has a window at all.
+
 ## Diagnostics
 
 The last button in the menu opens a page listing every reflective lookup the mod

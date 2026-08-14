@@ -103,11 +103,6 @@ public class ZoomModule extends Module {
     }
 
     @Override
-    protected void onEnable() {
-        RawMouse.install();
-    }
-
-    @Override
     public void onTick() {
         boolean zooming = keyDown();
 

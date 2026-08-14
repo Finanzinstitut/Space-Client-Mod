@@ -22,12 +22,27 @@ public final class RawKeyboard {
     private static boolean lookedUp = false;
     private static boolean warned = false;
 
+    /**
+     * GLFW must not be touched before the game has started it.
+     *
+     * Calling into it during mod initialisation queues a "library is not
+     * initialised" error that Minecraft finds moments later and turns into a
+     * crash before the window even opens. The flag is set from the first client
+     * tick, by which point the window certainly exists.
+     */
+    private static volatile boolean ready = false;
+
+    public static void markReady() {
+        ready = true;
+    }
+
     /** The GLFW window, for anything else that needs to talk to the device. */
     public static long windowHandle() {
         return handle();
     }
 
     private static long handle() {
+        if (!ready) return 0;
         if (lookedUp && handle != 0) return handle;
         lookedUp = true;
 

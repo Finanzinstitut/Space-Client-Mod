@@ -114,6 +114,9 @@ public class SpaceClient implements ClientModInitializer {
         });
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            // From here on the window exists, so GLFW is safe to talk to
+            gg.spaceclient.input.RawKeyboard.markReady();
+
             while (menuKey.consumeClick()) {
                 client.gui.setScreen(new SpaceMenuScreen());
             }
