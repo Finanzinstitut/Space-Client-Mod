@@ -77,6 +77,13 @@ public final class HitboxRenderer {
         float partialTick = partialTick(mc);
 
         for (Entity entity : mc.level.entitiesForRendering()) {
+            // Anything the game has hidden stays hidden, unless asked otherwise.
+            // A spectator is invisible to everyone and should never show up.
+            boolean invisible = entity.isInvisible()
+                    || (entity instanceof net.minecraft.world.entity.player.Player player
+                        && player.isSpectator());
+            if (invisible && !(wantBoxes && module != null && module.showInvisible())) continue;
+
             // The tinted shell is drawn first, so an outline sits on top of it
             if (wantTint) {
                 int shade = tint.tintFor(entity);

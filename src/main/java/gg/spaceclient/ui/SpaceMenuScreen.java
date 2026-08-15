@@ -81,31 +81,38 @@ public class SpaceMenuScreen extends Screen {
         int rows = (modules.size() + COLUMNS - 1) / COLUMNS;
         int bottom = top + rows * (ROW_H + GAP) + 14;
 
-        int quarter = (PANEL_W - GAP * 3) / 4;
+        int fifth = (PANEL_W - GAP * 4) / 5;
 
         this.addRenderableWidget(new FlatButton(
-                left, bottom, quarter, ROW_H,
+                left, bottom, fifth, ROW_H,
                 () -> "Move HUD",
                 () -> false,
                 () -> Minecraft.getInstance().gui.setScreen(new HudEditorScreen(this))
         ).asAction());
 
         this.addRenderableWidget(new FlatButton(
-                left + quarter + GAP, bottom, quarter, ROW_H,
+                left + fifth + GAP, bottom, fifth, ROW_H,
                 () -> "Accounts",
                 () -> false,
                 () -> Minecraft.getInstance().gui.setScreen(new AccountsScreen(this))
         ).asAction());
 
         this.addRenderableWidget(new FlatButton(
-                left + (quarter + GAP) * 2, bottom, quarter, ROW_H,
+                left + (fifth + GAP) * 2, bottom, fifth, ROW_H,
+                () -> "Shop",
+                () -> false,
+                () -> Minecraft.getInstance().gui.setScreen(new ShopScreen(this))
+        ).asAction());
+
+        this.addRenderableWidget(new FlatButton(
+                left + (fifth + GAP) * 3, bottom, fifth, ROW_H,
                 () -> "Appearance",
                 () -> false,
                 () -> Minecraft.getInstance().gui.setScreen(new AppearanceScreen(this))
         ).asAction());
 
         this.addRenderableWidget(new FlatButton(
-                left + (quarter + GAP) * 3, bottom, quarter, ROW_H,
+                left + (fifth + GAP) * 4, bottom, fifth, ROW_H,
                 () -> "Diagnostics",
                 () -> false,
                 () -> Minecraft.getInstance().gui.setScreen(new DiagnosticsScreen(this))

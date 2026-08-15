@@ -70,10 +70,19 @@ public class HitboxModule extends Module {
             "hide_behind_walls", "Hide behind blocks",
             "Only draw boxes for entities you can actually see", false);
 
+    /**
+     * An invisible entity is one the game has deliberately hidden, so drawing a
+     * box around it hands you information the game meant to withhold - and on a
+     * server that is the sort of thing that gets a client called a cheat.
+     */
+    private final BooleanSetting showInvisible = new BooleanSetting(
+            "show_invisible", "Draw invisible entities",
+            "Keep drawing boxes for entities the game has hidden", false);
+
     public HitboxModule() {
         super("hitbox", "Hitbox", "Draws entity hitboxes with per-category control", false);
 
-        addSettings(showArrows, arrowsPlayersOnly, range, hideBehindWalls);
+        addSettings(showArrows, arrowsPlayersOnly, range, hideBehindWalls, showInvisible);
         addGroups(
                 SettingGroup.of("Yourself", "Your own hitbox in third person",
                         selfOn, selfColor, selfWidth),
@@ -131,6 +140,8 @@ public class HitboxModule extends Module {
     public int getRange() { return range.get(); }
 
     public boolean hideBehindWalls() { return hideBehindWalls.get(); }
+
+    public boolean showInvisible() { return showInvisible.get(); }
 
     // --- fallback ---------------------------------------------------------
     // When the world render event is unavailable, custom boxes cannot be drawn.

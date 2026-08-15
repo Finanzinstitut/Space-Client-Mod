@@ -81,6 +81,22 @@ public class FlatButton extends Button {
         return false;
     }
 
+    /**
+     * Keeps the widget out of tab and arrow key navigation entirely.
+     *
+     * Refusing focus was not enough on its own: the screen walks its widgets
+     * looking for a focus path, and a widget that merely reports itself
+     * unfocused can still be handed one. Returning nothing here takes it out of
+     * that walk, which is what stops the arrow keys from landing on it.
+     *
+     * Deliberately without @Override - if the navigation type is ever renamed,
+     * this quietly becomes an unused method rather than a compile error.
+     */
+    public net.minecraft.client.gui.ComponentPath nextFocusPath(
+            net.minecraft.client.gui.navigation.FocusNavigationEvent event) {
+        return null;
+    }
+
     /** Starts the flash. Call this from the press handler. */
     public void flash() {
         clickedAt = System.currentTimeMillis();

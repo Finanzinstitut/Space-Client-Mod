@@ -193,6 +193,43 @@ music controls sit: the arrow keys are for stepping back through sent messages
 and Enter is for sending. A focusable widget steals both, so Enter would skip
 the track instead of posting the message.
 
+Refusing focus turned out not to be enough on its own. The screen walks its
+widgets looking for a focus path, and one that merely reports itself unfocused
+can still be handed one — which is why the problem came back intermittently.
+The widgets now return nothing from that walk, taking them out of navigation
+altogether.
+
+## Invisible entities
+
+Hitboxes and tints skip anything the game has hidden: an invisible mob, a player
+under a potion, a spectator. Drawing a box around them would hand you
+information the game deliberately withheld, and on a server that is exactly the
+sort of thing that gets a client called a cheat. There is a switch for it in the
+hitbox settings, off by default and clearly labelled.
+
+## Shop
+
+Cosmetics are bought with Galaxy Points from the menu's **Shop** button. Click
+an item to buy it, click it again to wear it or take it off.
+
+Nothing about the shop is decided in the mod. The balance, the catalogue and
+whether a purchase goes through all come from the service, and requests carry
+the Minecraft session token so it can confirm who is asking rather than trusting
+a uuid. A refusal is shown in the server's own words — "not enough points" and
+"already owned" are worth telling apart.
+
+That split is deliberate: these points are meant to cost money, and a balance
+kept in `spaceclient.json` would be a number anyone could edit.
+
+**Points are granted manually for now**, through an admin endpoint on the
+service. Payments are a separate step, and the code is the small half of it —
+see the service's README for what the other half involves.
+
+**The cosmetics do not render yet.** Buying and wearing works end to end, and
+the service already knows what everyone is wearing, but drawing something on a
+player model needs a hook into the entity renderer whose shape has not been
+confirmed for this version. That is the next piece.
+
 ## Diagnostics
 
 The last button in the menu opens a page listing every reflective lookup the mod

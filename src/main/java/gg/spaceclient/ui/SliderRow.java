@@ -77,6 +77,12 @@ public class SliderRow extends AbstractSliderButton {
         return false;
     }
 
+    /** Out of tab and arrow key navigation, for the same reason. */
+    public net.minecraft.client.gui.ComponentPath nextFocusPath(
+            net.minecraft.client.gui.navigation.FocusNavigationEvent event) {
+        return null;
+    }
+
     @Override
     public void updateWidgetNarration(NarrationElementOutput builder) {
         // Narration is not implemented for this widget.
