@@ -32,7 +32,7 @@ import java.util.concurrent.CompletableFuture;
  * asking rather than trusting a uuid in the body.
  */
 public final class ShopClient {
-    private static final String BASE = "https://spaceclient-finanzinstitut.workers.dev";
+    private static final String BASE = "https://spaceclient-badges.spaceclient-finanzinstitut.workers.dev";
 
     private static volatile int balance = 0;
     private static volatile List<ShopItem> catalogue = List.of();
