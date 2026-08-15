@@ -105,9 +105,16 @@ public final class ShopClient {
                         status = "session rejected - refreshing, try again in a moment";
                         SessionManager.refreshCurrent();
                     } else {
-                        // Saying which account was rejected is what turns this
-                        // from a mystery into something checkable
-                        status = "the shop rejected this session (playing as "
+                        // The server now says why, and that reason is far more
+                        // use than the fact that it said no
+                        String reason = response.body();
+                        try {
+                            JsonObject error = JsonParser.parseString(reason).getAsJsonObject();
+                            if (error.has("error")) reason = error.get("error").getAsString();
+                        } catch (Throwable ignored) {
+                            // Keep the raw body if it was not JSON
+                        }
+                        status = reason + "  (playing as "
                                 + Minecraft.getInstance().getUser().getName() + ")";
                     }
                     return;
