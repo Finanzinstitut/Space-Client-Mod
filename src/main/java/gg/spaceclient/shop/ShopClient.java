@@ -40,6 +40,16 @@ public final class ShopClient {
     private static volatile String status = "not loaded";
     private static volatile boolean busy = false;
 
+    /**
+     * When a session refresh was last triggered from here.
+     *
+     * A rejected token used to start one on every attempt, so a screen that
+     * retried in a loop hammered the login chain along with it. One attempt per
+     * minute is plenty: if the first refresh did not help, the second will not
+     * either.
+     */
+    private static volatile long lastSessionRetry = 0;
+
     public static int balance() { return balance; }
     public static List<ShopItem> catalogue() { return catalogue; }
     public static Map<String, String> equipped() { return equipped; }
@@ -89,12 +99,26 @@ public final class ShopClient {
 
                 if (response.statusCode() == 401) {
                     // The session may simply have gone stale while the game ran
-                    status = "session rejected - refreshing";
-                    SessionManager.refreshCurrent();
+                    long now = System.currentTimeMillis();
+                    if (now - lastSessionRetry > 60_000) {
+                        lastSessionRetry = now;
+                        status = "session rejected - refreshing, try again in a moment";
+                        SessionManager.refreshCurrent();
+                    } else {
+                        // Saying which account was rejected is what turns this
+                        // from a mystery into something checkable
+                        status = "the shop rejected this session (playing as "
+                                + Minecraft.getInstance().getUser().getName() + ")";
+                    }
                     return;
                 }
                 if (response.statusCode() != 200) {
-                    status = "shop unavailable (" + response.statusCode() + ")";
+                    // The server's own words beat a bare status code
+                    String body = response.body();
+                    status = "shop unavailable (" + response.statusCode() + ")"
+                            + (body != null && !body.isBlank()
+                                    ? ": " + body.substring(0, Math.min(120, body.length()))
+                                    : "");
                     return;
                 }
 

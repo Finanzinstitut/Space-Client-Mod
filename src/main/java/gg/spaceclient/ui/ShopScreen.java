@@ -27,6 +27,16 @@ public class ShopScreen extends Screen {
     private int page = 0;
     private int pageCount = 1;
 
+    /**
+     * Whether the catalogue has been asked for yet.
+     *
+     * Loading from init() and then rebuilding the widgets calls init() again,
+     * which asks again, which rebuilds again - the screen never settles and
+     * sits on "working..." forever. The request happens once per opening
+     * instead, and a rebuild after it arrives does not trigger another.
+     */
+    private boolean requested = false;
+
     public ShopScreen(Screen parent) {
         super(Component.literal("Shop"));
         this.parent = parent;
@@ -36,8 +46,11 @@ public class ShopScreen extends Screen {
 
     @Override
     protected void init() {
-        ShopClient.refresh().thenRun(() ->
-                Minecraft.getInstance().execute(this::rebuildWidgets));
+        if (!requested) {
+            requested = true;
+            ShopClient.refresh().thenRun(() ->
+                    Minecraft.getInstance().execute(this::rebuildWidgets));
+        }
 
         List<ShopItem> items = ShopClient.catalogue();
         int left = panelLeft();
