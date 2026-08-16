@@ -10,6 +10,7 @@ import gg.spaceclient.session.SessionManager;
 import net.minecraft.client.Minecraft;
 
 import java.net.URI;
+import java.security.SecureRandom;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -28,8 +30,10 @@ import java.util.concurrent.CompletableFuture;
  * That split matters because these points are meant to cost money: a balance
  * kept in a config file is a number the owner can edit.
  *
- * Requests carry the Minecraft session token, so the server can confirm who is
- * asking rather than trusting a uuid in the body.
+ * Identity is proved with Mojang's server handshake: the game authenticates to
+ * Mojang directly and the shop server merely asks Mojang to confirm it. The
+ * session token never leaves this machine, and the server still knows exactly
+ * who is asking rather than trusting a uuid in the body.
  */
 public final class ShopClient {
     private static final String BASE = "https://spaceclient-badges.spaceclient-finanzinstitut.workers.dev";
@@ -50,6 +54,9 @@ public final class ShopClient {
      */
     private static volatile long lastSessionRetry = 0;
 
+    /** One generator, reseeded by the platform, rather than one per request. */
+    private static final SecureRandom RANDOM = new SecureRandom();
+
     public static int balance() { return balance; }
     public static List<ShopItem> catalogue() { return catalogue; }
     public static Map<String, String> equipped() { return equipped; }
@@ -60,7 +67,7 @@ public final class ShopClient {
         return HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(6)).build();
     }
 
-    /** The token the server uses to work out who is asking. */
+    /** The token the game holds. It is proof for Mojang, and never leaves this machine. */
     private static String token() {
         try {
             var user = Minecraft.getInstance().getUser();
@@ -78,18 +85,110 @@ public final class ShopClient {
         return null;
     }
 
+    /** The profile id the session belongs to, undashed, as Mojang wants it. */
+    private static String profileId() {
+        try {
+            var user = Minecraft.getInstance().getUser();
+            for (String accessor : new String[]{"getProfileId", "getUuid", "getUUID"}) {
+                try {
+                    Object value = user.getClass().getMethod(accessor).invoke(user);
+                    if (value instanceof UUID id) return id.toString().replace("-", "");
+                    if (value instanceof String text && !text.isEmpty()) {
+                        return text.replace("-", "");
+                    }
+                } catch (Exception ignored) {
+                    // Try the next accessor
+                }
+            }
+        } catch (Throwable ignored) {
+            // Falls through to null
+        }
+        return null;
+    }
+
+    /**
+     * Proves to Mojang who we are, and hands back the id the server can check.
+     *
+     * The shop used to send the session token itself, and the server asked
+     * Mojang whose it was. Mojang serves that account API an Akamai block page
+     * to anything running in a datacentre, which a Cloudflare worker always is,
+     * so the answer was a 403 that had nothing to do with the token.
+     *
+     * This is the handshake Mojang built for servers instead. The game tells
+     * Mojang "I am about to join a server called <id>", and the worker later
+     * asks "did you just see that?". The token stays here, which is where it
+     * belongs - the shop server never had any business holding it.
+     *
+     * The id is single use and short lived, so a fresh one is minted per call.
+     */
+    private static String handshake() {
+        String token = token();
+        String profile = profileId();
+        if (token == null || profile == null) return null;
+
+        byte[] noise = new byte[16];
+        RANDOM.nextBytes(noise);
+        StringBuilder serverId = new StringBuilder(32);
+        for (byte b : noise) serverId.append(String.format("%02x", b));
+
+        String body = "{\"accessToken\":\"" + token + "\","
+                + "\"selectedProfile\":\"" + profile + "\","
+                + "\"serverId\":\"" + serverId + "\"}";
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://sessionserver.mojang.com/session/minecraft/join"))
+                    .header("Content-Type", "application/json")
+                    .timeout(Duration.ofSeconds(10))
+                    .POST(HttpRequest.BodyPublishers.ofString(body))
+                    .build();
+
+            HttpResponse<String> response =
+                    http().send(request, HttpResponse.BodyHandlers.ofString());
+
+            // Mojang answers a good handshake with 204 and nothing else
+            if (response.statusCode() == 204 || response.statusCode() == 200) {
+                return serverId.toString();
+            }
+
+            SpaceClient.LOGGER.warn("Mojang refused the handshake ({}): {}",
+                    response.statusCode(), response.body());
+            return null;
+
+        } catch (Throwable t) {
+            SpaceClient.LOGGER.warn("Could not reach Mojang for the handshake", t);
+            return null;
+        }
+    }
+
+    /** The name the game plays as, which the handshake is tied to. */
+    private static String playerName() {
+        try {
+            return Minecraft.getInstance().getUser().getName();
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
     public static CompletableFuture<Void> refresh() {
         return CompletableFuture.runAsync(() -> {
-            String token = token();
-            if (token == null) {
+            String name = playerName();
+            if (token() == null || name == null) {
                 status = "sign in with Microsoft to use the shop";
                 return;
             }
             busy = true;
             try {
+                String serverId = handshake();
+                if (serverId == null) {
+                    status = "Mojang would not confirm this session - is the game online?";
+                    return;
+                }
+
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(BASE + "/shop"))
-                        .header("Authorization", "Bearer " + token)
+                        .header("X-Space-Name", name)
+                        .header("X-Space-Server", serverId)
                         .timeout(Duration.ofSeconds(10))
                         .GET()
                         .build();
@@ -179,16 +278,23 @@ public final class ShopClient {
 
     private static CompletableFuture<Void> post(String path, String body, String verb) {
         return CompletableFuture.runAsync(() -> {
-            String token = token();
-            if (token == null) {
+            String name = playerName();
+            if (token() == null || name == null) {
                 status = "sign in with Microsoft to use the shop";
                 return;
             }
             busy = true;
             try {
+                String serverId = handshake();
+                if (serverId == null) {
+                    status = "Mojang would not confirm this session - is the game online?";
+                    return;
+                }
+
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(BASE + path))
-                        .header("Authorization", "Bearer " + token)
+                        .header("X-Space-Name", name)
+                        .header("X-Space-Server", serverId)
                         .header("Content-Type", "application/json")
                         .timeout(Duration.ofSeconds(10))
                         .POST(HttpRequest.BodyPublishers.ofString(body))
