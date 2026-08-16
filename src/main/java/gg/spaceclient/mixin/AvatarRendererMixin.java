@@ -62,5 +62,32 @@ public class AvatarRendererMixin {
         } catch (Throwable ignored) {
             // A cosmetic must never be able to stop a player from rendering
         }
+
+        try {
+            spaceclient$wave(state);
+        } catch (Throwable ignored) {
+            // Motion is a nicety; rendering the player is not
+        }
+    }
+
+    /**
+     * Applies the Wavey Cape module's angles, for every player rather than
+     * only the one wearing a shop cape.
+     *
+     * Vanilla capes deserve the motion too - the module is about how capes
+     * behave, not about what was bought.
+     */
+    private static void spaceclient$wave(AvatarRenderState state) {
+        var manager = gg.spaceclient.SpaceClient.getModuleManager();
+        if (manager == null) return;
+        var module = manager.get("waveycape");
+        if (!(module instanceof gg.spaceclient.modules.WaveyCapeModule wavey)) return;
+
+        float[] shaped = wavey.shape(state.capeFlap, state.capeLean, state.capeLean2);
+        if (shaped == null) return;
+
+        state.capeFlap = shaped[0];
+        state.capeLean = shaped[1];
+        state.capeLean2 = shaped[2];
     }
 }
