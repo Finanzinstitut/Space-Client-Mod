@@ -3,7 +3,9 @@ package gg.spaceclient.cosmetics;
 import gg.spaceclient.SpaceClient;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -45,7 +47,7 @@ public final class CosmeticsManager {
     private static final Map<UUID, Map<String, String>> WORN = new ConcurrentHashMap<>();
 
     /** Cape textures, resolved once each rather than per frame. */
-    private static final Map<String, ResourceLocation> CAPE_TEXTURES = new ConcurrentHashMap<>();
+    private static final Map<String, Identifier> CAPE_TEXTURES = new ConcurrentHashMap<>();
 
     private static volatile long lastRefresh = 0L;
     private static volatile long failedUntil = 0L;
@@ -71,17 +73,17 @@ public final class CosmeticsManager {
      * no texture for should simply not draw, so an older client meeting a newer
      * catalogue degrades quietly instead of showing everyone a missing texture.
      */
-    public static ResourceLocation capeTexture(String itemId) {
+    public static Identifier capeTexture(String itemId) {
         if (itemId == null || itemId.isEmpty()) return null;
         if (!itemId.startsWith("cape_")) return null;
 
         return CAPE_TEXTURES.computeIfAbsent(itemId, id ->
-                ResourceLocation.fromNamespaceAndPath(
+                Identifier.fromNamespaceAndPath(
                         "spaceclient", "textures/cosmetics/" + id + ".png"));
     }
 
     /** The cape this player is wearing, or null. Cache only - never blocks. */
-    public static ResourceLocation capeFor(UUID uuid) {
+    public static Identifier capeFor(UUID uuid) {
         if (uuid == null) return null;
         Map<String, String> worn = WORN.get(uuid);
         if (worn == null) return null;
@@ -111,10 +113,14 @@ public final class CosmeticsManager {
 
         List<UUID> ids = new ArrayList<>();
         try {
-            mc.level.players().forEach(player -> {
-                UUID id = player.getUUID();
+            // entitiesForRendering is what the hitbox renderer already walks on
+            // this version, so it is known to exist here; ClientLevel.players()
+            // is not, and a wrong guess costs a build.
+            for (Entity entity : mc.level.entitiesForRendering()) {
+                if (!(entity instanceof Player)) continue;
+                UUID id = entity.getUUID();
                 if (id != null) ids.add(id);
-            });
+            }
         } catch (Throwable t) {
             // A world in an odd state must not stop the game
             return;
