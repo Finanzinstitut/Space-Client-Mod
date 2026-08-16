@@ -49,6 +49,14 @@ public final class CosmeticsManager {
     /** Cape textures, resolved once each rather than per frame. */
     private static final Map<String, Identifier> CAPE_TEXTURES = new ConcurrentHashMap<>();
 
+    /** Capes that exist as a numbered set of frames rather than one image. */
+    private static final java.util.Set<String> ANIMATED =
+            java.util.Set.of("cape_aurora", "cape_pulsar");
+
+    /** How many frames each animated cape ships, and how long each is held. */
+    private static final int ANIMATION_FRAMES = 12;
+    private static final long FRAME_MS = 80L;
+
     private static volatile long lastRefresh = 0L;
     private static volatile long failedUntil = 0L;
     private static volatile boolean inFlight = false;
@@ -77,10 +85,23 @@ public final class CosmeticsManager {
         if (itemId == null || itemId.isEmpty()) return null;
         if (!itemId.startsWith("cape_")) return null;
 
+        // Animated capes are many files cycled here rather than one file with
+        // an animation marker. Vanilla only animates atlas sprites, and a cape
+        // is a standalone texture, so the marker is simply ignored - the whole
+        // frame strip ends up stretched across the cloth.
+        String path = ANIMATED.contains(itemId)
+                ? itemId + "_" + frameIndex()
+                : itemId;
+
         // Bare id on purpose: ClientAsset.ResourceTexture puts "textures/" in
         // front and ".png" behind it, so spelling those here would double them.
-        return CAPE_TEXTURES.computeIfAbsent(itemId, id ->
-                Identifier.fromNamespaceAndPath("spaceclient", "cosmetics/" + id));
+        return CAPE_TEXTURES.computeIfAbsent(path, p ->
+                Identifier.fromNamespaceAndPath("spaceclient", "cosmetics/" + p));
+    }
+
+    /** Which frame the animated capes are on, shared so everyone stays in step. */
+    private static int frameIndex() {
+        return (int) ((System.currentTimeMillis() / FRAME_MS) % ANIMATION_FRAMES);
     }
 
     /** The cape this player is wearing, or null. Cache only - never blocks. */
