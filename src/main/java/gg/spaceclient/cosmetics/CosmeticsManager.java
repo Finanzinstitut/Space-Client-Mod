@@ -77,9 +77,10 @@ public final class CosmeticsManager {
         if (itemId == null || itemId.isEmpty()) return null;
         if (!itemId.startsWith("cape_")) return null;
 
+        // Bare id on purpose: ClientAsset.ResourceTexture puts "textures/" in
+        // front and ".png" behind it, so spelling those here would double them.
         return CAPE_TEXTURES.computeIfAbsent(itemId, id ->
-                Identifier.fromNamespaceAndPath(
-                        "spaceclient", "textures/cosmetics/" + id + ".png"));
+                Identifier.fromNamespaceAndPath("spaceclient", "cosmetics/" + id));
     }
 
     /** The cape this player is wearing, or null. Cache only - never blocks. */
