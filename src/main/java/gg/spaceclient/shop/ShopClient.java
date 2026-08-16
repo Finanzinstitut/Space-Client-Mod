@@ -57,6 +57,12 @@ public final class ShopClient {
     /** One generator, reseeded by the platform, rather than one per request. */
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    /** Short enough to stay inside Mojang's window, long enough to cover a click. */
+    private static final long HANDSHAKE_REUSE_MS = 25_000L;
+
+    private static volatile String cachedHandshake = null;
+    private static volatile long cachedHandshakeAt = 0L;
+
     public static int balance() { return balance; }
     public static List<ShopItem> catalogue() { return catalogue; }
     public static Map<String, String> equipped() { return equipped; }
@@ -122,6 +128,16 @@ public final class ShopClient {
      * The id is single use and short lived, so a fresh one is minted per call.
      */
     private static String handshake() {
+        // Mojang throttles /join, and a single click asks twice: once for the
+        // action and once for the refresh that follows it. A handshake stays
+        // good for a short while, so reusing one turns four calls per purchase
+        // into one and takes the rate limit - and the wait - out of the way.
+        long now = System.currentTimeMillis();
+        String cached = cachedHandshake;
+        if (cached != null && now - cachedHandshakeAt < HANDSHAKE_REUSE_MS) {
+            return cached;
+        }
+
         String token = token();
         String profile = profileId();
         if (token == null || profile == null) return null;
@@ -148,8 +164,14 @@ public final class ShopClient {
 
             // Mojang answers a good handshake with 204 and nothing else
             if (response.statusCode() == 204 || response.statusCode() == 200) {
-                return serverId.toString();
+                String fresh = serverId.toString();
+                cachedHandshake = fresh;
+                cachedHandshakeAt = System.currentTimeMillis();
+                return fresh;
             }
+
+            // A refusal makes the cached one suspect too
+            cachedHandshake = null;
 
             SpaceClient.LOGGER.warn("Mojang refused the handshake ({}): {}",
                     response.statusCode(), response.body());
@@ -313,6 +335,7 @@ public final class ShopClient {
                     return;
                 }
                 status = verb;
+                gg.spaceclient.cosmetics.CosmeticsManager.refreshSoon();
 
             } catch (Throwable t) {
                 status = "request failed: " + t.getMessage();

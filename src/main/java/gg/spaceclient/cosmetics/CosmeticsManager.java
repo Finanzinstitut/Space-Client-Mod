@@ -134,6 +134,17 @@ public final class CosmeticsManager {
         Thread.ofVirtual().name("spaceclient-cosmetics").start(() -> fetch(ids));
     }
 
+    /**
+     * Marks the cache due, so the next tick refetches instead of waiting out
+     * the interval. Called after equipping: the change is the player's own and
+     * they are looking straight at it, so half a minute of nothing reads as a
+     * bug rather than as a cache.
+     */
+    public static void refreshSoon() {
+        lastRefresh = 0L;
+        failedUntil = 0L;
+    }
+
     /** Drops everything on disconnect, so a rejoin does not show stale capes. */
     public static void clear() {
         WORN.clear();
