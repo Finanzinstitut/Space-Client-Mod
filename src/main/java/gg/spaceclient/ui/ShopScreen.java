@@ -27,7 +27,6 @@ public class ShopScreen extends Screen {
      * already paid for. Store shows only what is for sale, Wardrobe only what
      * is yours, and each list shrinks as the other grows.
      */
-    private enum Tab { STORE, WARDROBE }
 
     /**
      * Which kind of cosmetic to list.
@@ -51,8 +50,6 @@ public class ShopScreen extends Screen {
     private static final int PANEL_W = 380;
 
     private final Screen parent;
-    /** The shop only ever sells; wearing moved to its own screen. */
-    private final Tab tab = Tab.STORE;
     private Category category = Category.ALL;
     private int page = 0;
     private int pageCount = 1;
@@ -160,7 +157,7 @@ public class ShopScreen extends Screen {
     private List<ShopItem> visibleItems() {
         List<ShopItem> out = new java.util.ArrayList<>();
         for (ShopItem item : ShopClient.catalogue()) {
-            if (tab == Tab.WARDROBE ? !item.owned() : item.owned()) continue;
+            if (item.owned()) continue;   // the shop sells; the wardrobe wears
             if (category.type != null && !category.type.equals(item.type())) continue;
             out.add(item);
         }
@@ -171,7 +168,7 @@ public class ShopScreen extends Screen {
     private int countIn(Category c) {
         int count = 0;
         for (ShopItem item : ShopClient.catalogue()) {
-            if (tab == Tab.WARDROBE ? !item.owned() : item.owned()) continue;
+            if (item.owned()) continue;   // the shop sells; the wardrobe wears
             if (c.type != null && !c.type.equals(item.type())) continue;
             count++;
         }
@@ -192,13 +189,6 @@ public class ShopScreen extends Screen {
         return count;
     }
 
-    /** A tab change restarts paging, since page three of the old list means nothing here. */
-    private void switchTo(Tab target) {
-        if (tab == target) return;
-        tab = target;
-        page = 0;
-        this.rebuildWidgets();
-    }
 
     private String label(ShopItem item, boolean worn) {
         if (worn) return item.name() + "  -  worn";
@@ -234,9 +224,8 @@ public class ShopScreen extends Screen {
         // An empty list with no explanation reads as a failure to load
         if (visibleItems().isEmpty() && !ShopClient.isBusy()) {
             String what = category == Category.ALL ? "" : " " + category.label.toLowerCase();
-            String empty = tab == Tab.STORE
-                    ? "You own every" + (what.isEmpty() ? "thing in the store." : what + " there is.")
-                    : "No" + (what.isEmpty() ? "thing" : what) + " owned yet - try the Store.";
+            String empty = "You own every"
+                    + (what.isEmpty() ? "thing in the store." : what + " there is.");
             graphics.text(this.font, empty,
                     left + (PANEL_W - this.font.width(empty)) / 2, 180,
                     Theme.TEXT_DIM, false);

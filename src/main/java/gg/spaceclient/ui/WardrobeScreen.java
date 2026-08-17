@@ -41,11 +41,16 @@ public class WardrobeScreen extends Screen {
     private final List<FlatButton> rows = new ArrayList<>();
     private final List<Integer> rowBaseY = new ArrayList<>();
 
-    /** How far the model has been turned, in degrees, and the drag in progress. */
-    private float spin = 180f;
-    private boolean dragging = false;
-    private int dragFromX = 0;
-    private float spinAtGrab = 0f;
+    /**
+     * How far the model is turned.
+     *
+     * Driven by where the pointer is rather than by a held button. Reading the
+     * button would mean either the mouse event API, whose signatures this
+     * version changed, or the window handle, which this version renamed - and
+     * both of those have already cost a build. Hovering is enough: the model
+     * turns as you move across the bay, and settles back when you leave.
+     */
+    private float spin = 0f;
 
     public WardrobeScreen(Screen parent) {
         super(Component.literal("Wardrobe"));
@@ -198,7 +203,7 @@ public class WardrobeScreen extends Screen {
 
         PlayerPreview.draw(graphics, px1, listTop() - 12, px2, listBottom() - 24, spin);
 
-        String hint = "drag to turn";
+        String hint = "move here to turn";
         graphics.text(this.font, hint,
                 px1 + (PREVIEW_W - this.font.width(hint)) / 2, listBottom() - 16,
                 Theme.TEXT_DIM, false);
@@ -208,51 +213,21 @@ public class WardrobeScreen extends Screen {
             graphics.text(this.font, empty, listLeft(), listTop() + 10, Theme.TEXT_DIM, false);
         }
 
-        trackDrag(mouseX, mouseY);
+        trackPointer(mouseX, mouseY);
     }
 
-    /**
-     * Turns the model while the pointer is held down inside the bay.
-     *
-     * Done by watching the pointer each frame rather than by handling drag
-     * events, because this version changed those signatures and the rest of
-     * this codebase avoids them for that reason.
-     */
-    private void trackDrag(int mouseX, int mouseY) {
-        boolean held = net.minecraft.client.Minecraft.getInstance().mouseHandler != null
-                && isLeftDown();
+    /** Eases the turn toward wherever the pointer is over the bay. */
+    private void trackPointer(int mouseX, int mouseY) {
         boolean inside = mouseX >= previewLeft() && mouseX <= previewLeft() + PREVIEW_W
                 && mouseY >= listTop() - 34 && mouseY <= listBottom();
 
-        if (held && inside && !dragging) {
-            dragging = true;
-            dragFromX = mouseX;
-            spinAtGrab = spin;
-        } else if (!held) {
-            dragging = false;
-        }
+        float target = inside
+                ? (previewLeft() + PREVIEW_W / 2f) - mouseX
+                : 0f;
 
-        if (dragging) {
-            spin = spinAtGrab + (mouseX - dragFromX) * 1.4f;
-        }
-    }
-
-    /**
-     * Whether the left button is down, read straight from the window.
-     *
-     * Deliberately without any Minecraft input class, so a rename in the input
-     * rework cannot break the build; a failure here simply means the model
-     * does not turn.
-     */
-    private boolean isLeftDown() {
-        try {
-            long window = net.minecraft.client.Minecraft.getInstance().getWindow().getWindow();
-            return org.lwjgl.glfw.GLFW.glfwGetMouseButton(
-                    window, org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_LEFT)
-                    == org.lwjgl.glfw.GLFW.GLFW_PRESS;
-        } catch (Throwable ignored) {
-            return false;
-        }
+        // Eased rather than snapped, so leaving the bay lets the model swing
+        // back instead of flicking
+        spin += (target - spin) * 0.25f;
     }
 
     @Override
