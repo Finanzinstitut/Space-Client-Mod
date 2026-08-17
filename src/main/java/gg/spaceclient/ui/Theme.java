@@ -19,6 +19,18 @@ public final class Theme {
     public static final int CYAN      = 0xFF38E0FF; // --accent-2
     public static final int OFF       = 0xFF3A3560;
 
+    // --- surfaces for the card layout ---
+    public static final int SIDEBAR      = 0xF00A0820;
+    public static final int SIDEBAR_PICK = 0x33FFFFFF;
+    public static final int CONTENT      = 0xE6080618;
+    public static final int CARD         = 0xFF15123A;
+    public static final int CARD_HOVER   = 0xFF1E1A4E;
+    public static final int CARD_FOOT    = 0xFF0E0C28;
+    public static final int BORDER_HOVER = 0xFF453D80;
+
+    /** Text drawn on top of a filled accent strip, which is bright. */
+    public static final int TEXT_ON_ACCENT = 0xFF0A0818;
+
     public static int backdrop() {
         return switch (SpaceClient.getSettings().backgroundStyle()) {
             case "SOLID_BLACK" -> 0xFF000000;

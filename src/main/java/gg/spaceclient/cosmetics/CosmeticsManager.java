@@ -50,8 +50,11 @@ public final class CosmeticsManager {
     private static final Map<String, Identifier> CAPE_TEXTURES = new ConcurrentHashMap<>();
 
     /** Capes that exist as a numbered set of frames rather than one image. */
-    private static final java.util.Set<String> ANIMATED =
-            java.util.Set.of("cape_aurora", "cape_pulsar");
+    private static final java.util.Set<String> ANIMATED = java.util.Set.of(
+            "cape_aurora", "cape_pulsar", "cape_rainbow", "cape_matrix",
+            "cape_lava", "cape_tide", "cape_comet", "cape_ember",
+            "cape_neon", "cape_scan", "cape_snowfall", "cape_spark",
+            "wings_phoenix", "wings_void", "wings_prism", "wings_frost");
 
     /** How many frames each animated cape ships, and how long each is held. */
     private static final int ANIMATION_FRAMES = 12;
@@ -82,8 +85,25 @@ public final class CosmeticsManager {
      * catalogue degrades quietly instead of showing everyone a missing texture.
      */
     public static Identifier capeTexture(String itemId) {
+        return cosmeticTexture(itemId, "cape_");
+    }
+
+    /** The wings texture for an item, or null if it is not a known wing. */
+    public static Identifier wingsTexture(String itemId) {
+        return cosmeticTexture(itemId, "wings_");
+    }
+
+    /** The wings this player is wearing, or null. Cache only - never blocks. */
+    public static Identifier wingsFor(UUID uuid) {
+        if (uuid == null) return null;
+        Map<String, String> worn = WORN.get(uuid);
+        if (worn == null) return null;
+        return wingsTexture(worn.get("wings"));
+    }
+
+    private static Identifier cosmeticTexture(String itemId, String prefix) {
         if (itemId == null || itemId.isEmpty()) return null;
-        if (!itemId.startsWith("cape_")) return null;
+        if (!itemId.startsWith(prefix)) return null;
 
         // Animated capes are many files cycled here rather than one file with
         // an animation marker. Vanilla only animates atlas sprites, and a cape
@@ -95,8 +115,8 @@ public final class CosmeticsManager {
 
         // Bare id on purpose: ClientAsset.ResourceTexture puts "textures/" in
         // front and ".png" behind it, so spelling those here would double them.
-        return CAPE_TEXTURES.computeIfAbsent(path, p ->
-                Identifier.fromNamespaceAndPath("spaceclient", "cosmetics/" + p));
+        return CAPE_TEXTURES.computeIfAbsent(path, key ->
+                Identifier.fromNamespaceAndPath("spaceclient", "cosmetics/" + key));
     }
 
     /** Which frame the animated capes are on, shared so everyone stays in step. */

@@ -42,7 +42,8 @@ public class AvatarRendererMixin {
             if (id == null) return;
 
             Identifier cape = CosmeticsManager.capeFor(id);
-            if (cape == null) return;
+            Identifier wings = CosmeticsManager.wingsFor(id);
+            if (cape == null && wings == null) return;
 
             PlayerSkin skin = state.skin;
             if (skin == null) return;
@@ -50,14 +51,23 @@ public class AvatarRendererMixin {
             // The vanilla record rather than a hand rolled Texture: it is what
             // every other cape in the game is, equals and all, and its single
             // argument form expands the id into textures/<path>.png for us.
-            ClientAsset.Texture texture = new ClientAsset.ResourceTexture(cape);
+            ClientAsset.Texture capeTex = cape == null
+                    ? skin.cape()
+                    : new ClientAsset.ResourceTexture(cape);
+
+            // A cape file carries wing art in its right hand region, which is
+            // why vanilla capes become matching elytra. So a cape supplies both
+            // - unless separate wings are worn, and those win the elytra slot.
+            ClientAsset.Texture elytraTex = wings != null
+                    ? new ClientAsset.ResourceTexture(wings)
+                    : capeTex;
 
             state.skin = new PlayerSkin(
-                    skin.body(), texture, skin.elytra(), skin.model(), skin.secure());
+                    skin.body(), capeTex, elytraTex, skin.model(), skin.secure());
 
             // The flag mirrors the player's own cape toggle, which says nothing
             // about a cape they got from the shop
-            state.showCape = true;
+            if (cape != null) state.showCape = true;
 
         } catch (Throwable ignored) {
             // A cosmetic must never be able to stop a player from rendering
