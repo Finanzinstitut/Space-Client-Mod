@@ -73,8 +73,10 @@ public class NavButton extends Button {
             graphics.fill(x1, y1, x1 + 1, y2, border);
             graphics.fill(x2 - 1, y1, x2, y2, border);
 
+            // Drawn with a shadow: at this size the label sits on a filled
+            // panel, and the outline is what separates it from the fill
             graphics.text(font, text, x1 + (width - font.width(text)) / 2, y1 + (height - 8) / 2,
-                    Theme.TEXT, false);
+                    0xFFFFFFFF, true);
             return;
         }
 

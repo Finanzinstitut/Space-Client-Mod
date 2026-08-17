@@ -31,9 +31,9 @@ public final class Theme {
      * colour left them nearly invisible - the same fill that reads as a raised
      * card against a lit grid reads as nothing at all against empty background.
      */
-    public static final int CHIP         = 0xFF241F55;
-    public static final int CHIP_HOVER   = 0xFF322B72;
-    public static final int CHIP_BORDER  = 0xFF463E90;
+    public static final int CHIP         = 0xFF3B3486;
+    public static final int CHIP_HOVER   = 0xFF524AAE;
+    public static final int CHIP_BORDER  = 0xFF7C72D8;
     public static final int CARD_FOOT    = 0xFF0E0C28;
     public static final int BORDER_HOVER = 0xFF453D80;
 
