@@ -44,8 +44,18 @@ public class SpaceMenuScreen extends Screen {
     /** Eased separately from scroll so the grid glides instead of jumping. */
     private float scrollShown = 0f;
 
-    /** When the screen opened, for the fade in. */
-    private long openedAt = System.currentTimeMillis();
+    /**
+     * When the screen opened, for the fade in.
+     *
+     * Set once at construction rather than in init. init runs again on every
+     * rebuild, and rebuilding on each scroll step was restarting the fade -
+     * which is what made the screen flash black while the wheel turned.
+     */
+    private final long openedAt = System.currentTimeMillis();
+
+    /** The cards, kept so scrolling can move them instead of rebuilding them. */
+    private final List<ModCard> cards = new ArrayList<>();
+    private final List<Integer> cardBaseY = new ArrayList<>();
 
     public SpaceMenuScreen() {
         super(Component.literal("Space Client"));
@@ -86,7 +96,6 @@ public class SpaceMenuScreen extends Screen {
 
     @Override
     protected void init() {
-        openedAt = System.currentTimeMillis();
         buildSidebar();
         buildChips();
         buildGrid();
@@ -99,6 +108,7 @@ public class SpaceMenuScreen extends Screen {
                 {"Move HUD", "hud"},
                 {"Accounts", "accounts"},
                 {"Shop", "shop"},
+                {"Wardrobe", "wardrobe"},
                 {"Appearance", "appearance"},
                 {"Diagnostics", "diagnostics"},
         };
@@ -122,6 +132,7 @@ public class SpaceMenuScreen extends Screen {
             case "hud" -> mc.gui.setScreen(new HudEditorScreen(this));
             case "accounts" -> mc.gui.setScreen(new AccountsScreen(this));
             case "shop" -> mc.gui.setScreen(new ShopScreen(this));
+            case "wardrobe" -> mc.gui.setScreen(new WardrobeScreen(this));
             case "appearance" -> mc.gui.setScreen(new AppearanceScreen(this));
             case "diagnostics" -> mc.gui.setScreen(new DiagnosticsScreen(this));
             default -> {
@@ -159,6 +170,9 @@ public class SpaceMenuScreen extends Screen {
     }
 
     private void buildGrid() {
+        cards.clear();
+        cardBaseY.clear();
+
         List<Module> modules = shown();
         int cols = columns();
         int left = contentLeft();
@@ -191,6 +205,8 @@ public class SpaceMenuScreen extends Screen {
                     }
             );
             this.addRenderableWidget(holder[0]);
+            cards.add(holder[0]);
+            cardBaseY.add(gridTop() + (i / cols) * (CARD_H + GAP));
         }
 
         int rows = (modules.size() + cols - 1) / cols;
@@ -213,8 +229,21 @@ public class SpaceMenuScreen extends Screen {
         if (maxScroll <= 0) return false;
         int before = scroll;
         scroll = Math.max(0, Math.min(maxScroll, scroll - (int) (amount * 24)));
-        if (scroll != before) this.rebuildWidgets();
+        if (scroll != before) reposition();
         return true;
+    }
+
+    /**
+     * Slides the existing cards rather than building new ones.
+     *
+     * rebuildWidgets on every wheel notch threw away and recreated every
+     * widget, which restarted their hover animations and the screen fade -
+     * the flash of black. Moving them keeps all of that intact.
+     */
+    private void reposition() {
+        for (int i = 0; i < cards.size() && i < cardBaseY.size(); i++) {
+            cards.get(i).setY(cardBaseY.get(i) - scroll);
+        }
     }
 
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {

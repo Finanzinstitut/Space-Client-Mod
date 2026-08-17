@@ -51,7 +51,8 @@ public class ShopScreen extends Screen {
     private static final int PANEL_W = 380;
 
     private final Screen parent;
-    private Tab tab = Tab.STORE;
+    /** The shop only ever sells; wearing moved to its own screen. */
+    private final Tab tab = Tab.STORE;
     private Category category = Category.ALL;
     private int page = 0;
     private int pageCount = 1;
@@ -83,31 +84,19 @@ public class ShopScreen extends Screen {
 
         List<ShopItem> items = visibleItems();
         int left = panelLeft();
-        int top = 154;
+        int top = 124;
 
         int room = this.height - top - 80;
         int perPage = Math.max(1, room / (ROW_H + GAP));
         pageCount = Math.max(1, (items.size() + perPage - 1) / perPage);
         page = Math.max(0, Math.min(page, pageCount - 1));
 
-        int half = (PANEL_W - GAP) / 2;
-        this.addRenderableWidget(new FlatButton(
-                left, 92, half, ROW_H,
-                () -> "Store", () -> tab == Tab.STORE,
-                () -> switchTo(Tab.STORE)
-        ));
-        this.addRenderableWidget(new FlatButton(
-                left + half + GAP, 92, half, ROW_H,
-                () -> "Wardrobe (" + ownedCount() + ")", () -> tab == Tab.WARDROBE,
-                () -> switchTo(Tab.WARDROBE)
-        ));
-
         Category[] categories = Category.values();
         int catW = (PANEL_W - GAP * (categories.length - 1)) / categories.length;
         for (int i = 0; i < categories.length; i++) {
             Category c = categories[i];
             this.addRenderableWidget(new FlatButton(
-                    left + (catW + GAP) * i, 122, catW, ROW_H,
+                    left + (catW + GAP) * i, 92, catW, ROW_H,
                     () -> c.label + " (" + countIn(c) + ")",
                     () -> category == c,
                     () -> switchCategory(c)
@@ -238,10 +227,9 @@ public class ShopScreen extends Screen {
 
         graphics.fill(left, 74, left + PANEL_W, 75, Theme.BORDER);
 
-        String hint = tab == Tab.STORE
-                ? "Click an item to buy it. It then moves to your Wardrobe."
-                : "Click to wear. Click the worn one again to take it off.";
-        graphics.text(this.font, hint, left, 80, Theme.TEXT_DIM, false);
+        graphics.text(this.font,
+                "Click an item to buy it. Wear it from the Wardrobe.",
+                left, 78, Theme.TEXT_DIM, false);
 
         // An empty list with no explanation reads as a failure to load
         if (visibleItems().isEmpty() && !ShopClient.isBusy()) {

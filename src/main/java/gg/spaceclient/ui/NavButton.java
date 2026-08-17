@@ -62,16 +62,19 @@ public class NavButton extends Button {
         if (style == Style.CHIP) {
             int bg = pick > 0.02f
                     ? Theme.accentDim()
-                    : (hover > 0.02f ? Theme.CARD_HOVER : Theme.CARD);
+                    : (hover > 0.02f ? Theme.CHIP_HOVER : Theme.CHIP);
             graphics.fill(x1, y1, x2, y2, bg);
-            if (pick > 0.02f) {
-                graphics.fill(x1, y1, x2, y1 + 1, Theme.accent());
-                graphics.fill(x1, y2 - 1, x2, y2, Theme.accent());
-                graphics.fill(x1, y1, x1 + 1, y2, Theme.accent());
-                graphics.fill(x2 - 1, y1, x2, y2, Theme.accent());
-            }
+
+            // Every chip keeps an outline, not just the selected one, so an
+            // unselected chip still reads as a button rather than as a gap
+            int border = pick > 0.02f ? Theme.accent() : Theme.CHIP_BORDER;
+            graphics.fill(x1, y1, x2, y1 + 1, border);
+            graphics.fill(x1, y2 - 1, x2, y2, border);
+            graphics.fill(x1, y1, x1 + 1, y2, border);
+            graphics.fill(x2 - 1, y1, x2, y2, border);
+
             graphics.text(font, text, x1 + (width - font.width(text)) / 2, y1 + (height - 8) / 2,
-                    pick > 0.5f ? Theme.TEXT : Theme.TEXT_DIM, false);
+                    Theme.TEXT, false);
             return;
         }
 

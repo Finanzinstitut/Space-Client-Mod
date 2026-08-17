@@ -8,6 +8,8 @@ import net.minecraft.core.ClientAsset;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Avatar;
 import net.minecraft.world.entity.player.PlayerSkin;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -68,6 +70,16 @@ public class AvatarRendererMixin {
             // The flag mirrors the player's own cape toggle, which says nothing
             // about a cape they got from the shop
             if (cape != null) state.showCape = true;
+
+            // The elytra slot only draws when the game believes an elytra is
+            // worn, so shop wings on an empty chest were invisible - which is
+            // exactly what happened. Handing the render state an elytra makes
+            // the layer draw, and the state is a per frame copy, so nothing
+            // about the actual inventory is touched.
+            if (wings != null && state.chestEquipment != null
+                    && state.chestEquipment.isEmpty()) {
+                state.chestEquipment = new ItemStack(Items.ELYTRA);
+            }
 
         } catch (Throwable ignored) {
             // A cosmetic must never be able to stop a player from rendering
