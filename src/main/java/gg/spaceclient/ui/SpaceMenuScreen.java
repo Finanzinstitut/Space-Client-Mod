@@ -107,8 +107,6 @@ public class SpaceMenuScreen extends Screen {
                 {"Mods", ""},
                 {"Move HUD", "hud"},
                 {"Accounts", "accounts"},
-                {"Shop", "shop"},
-                {"Wardrobe", "wardrobe"},
                 {"Appearance", "appearance"},
                 {"Diagnostics", "diagnostics"},
         };
@@ -131,8 +129,6 @@ public class SpaceMenuScreen extends Screen {
         switch (opens) {
             case "hud" -> mc.gui.setScreen(new HudEditorScreen(this));
             case "accounts" -> mc.gui.setScreen(new AccountsScreen(this));
-            case "shop" -> mc.gui.setScreen(new ShopScreen(this));
-            case "wardrobe" -> mc.gui.setScreen(new WardrobeScreen(this));
             case "appearance" -> mc.gui.setScreen(new AppearanceScreen(this));
             case "diagnostics" -> mc.gui.setScreen(new DiagnosticsScreen(this));
             default -> {

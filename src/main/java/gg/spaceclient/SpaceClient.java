@@ -122,7 +122,6 @@ public class SpaceClient implements ClientModInitializer {
             }
             moduleManager.onTick();
             SessionWatcher.tick(client);
-            gg.spaceclient.cosmetics.CosmeticsManager.tick();
 
             // The window only exists once the game is running, so the hook is
             // installed on the first tick rather than during initialisation.
