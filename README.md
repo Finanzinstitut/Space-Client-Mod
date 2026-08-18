@@ -499,3 +499,66 @@ Push to GitHub; the workflow builds on `main` and uploads the jar as an artifact
 ## License
 
 All Rights Reserved.
+
+## Cosmetics
+
+Space Client has no cosmetics system of its own. Cosmetica is the account and
+the catalogue; Space Client draws the interface.
+
+The sidebar entry opens `CosmeticsScreen`, which uses the same layout as the
+mods grid - sidebar, chips, cards - and reads Cosmetica's data through
+`CosmeticaBridge`. Everything in that bridge is reflection: Cosmetica is a
+separate mod that a player may not have, and a direct import would make it a
+hard build dependency.
+
+### Why the data is copied instead of the widgets
+
+Cosmetica 2 no longer builds its menus on Minecraft's `Screen`. Its screens are
+`cc.cosmetica.kupe.api.Screen` - Kupe is a declarative toolkit with its own
+screen stack, its own layout pass and its own renderer. Nothing from it can be
+placed inside a Minecraft screen, so `RotatableGUIPlayer` and friends are not
+reusable here even though they do exactly the right thing inside Cosmetica.
+
+This also means the previous bridge could never have worked: it cast Kupe's
+`HomeScreen` to a Minecraft `Screen`, which throws, which the catch block then
+reported as "Cosmetica is installed but its menu could not be opened".
+
+### What is mirrored and what is handed over
+
+Mirrored in Space Client's own interface:
+
+- outfit list, with thumbnails, and which one is worn
+- wearing an outfit and taking one off
+- the cape, elytra and accessories currently on the player
+- whether the Cosmetica account is signed in
+
+Handed over to Cosmetica's Kupe screens, because reimplementing them would mean
+reimplementing the search, the per-cosmetic offset and flag editor, and the
+delete confirmations against an API this mod does not compile against:
+
+- browsing the catalogue
+- creating an outfit and deleting one
+- nametag styling
+- Cosmetica's own settings
+
+A handover replaces the whole screen. Closing a Kupe screen returns wherever
+Kupe decides, not to the Space Client menu.
+
+### Textures
+
+`Textures` resolves the texture drawing call on `GuiGraphicsExtractor` at
+runtime rather than naming it. No file in this repository has ever drawn a
+texture, so that signature is unverified on 26.2, and a wrong guess in a direct
+call would cost a build. It logs the signature it settles on the first time a
+thumbnail is drawn:
+
+    Using blit(...) for menu textures (pipeline=..., tint=...)
+
+Send that line back and the reflection can be replaced with a direct call. If it
+instead logs that no usable call was found, cards fall back to a dashed
+placeholder and everything else still works.
+
+Outfit thumbnails are requested by Cosmetica as an eight frame animation sheet,
+so cards draw one frame rather than the whole texture. If the thumbnails come
+out squashed or show the wrong slice, that constant (`OUTFIT_FRAMES`) is the
+thing to change.

@@ -130,7 +130,7 @@ public class SpaceMenuScreen extends Screen {
         switch (opens) {
             case "hud" -> mc.gui.setScreen(new HudEditorScreen(this));
             case "accounts" -> mc.gui.setScreen(new AccountsScreen(this));
-            case "cosmetica" -> CosmeticaBridge.open(this);
+            case "cosmetica" -> mc.gui.setScreen(new CosmeticsScreen(this));
             case "appearance" -> mc.gui.setScreen(new AppearanceScreen(this));
             case "diagnostics" -> mc.gui.setScreen(new DiagnosticsScreen(this));
             default -> {
