@@ -107,6 +107,7 @@ public class SpaceMenuScreen extends Screen {
                 {"Mods", ""},
                 {"Move HUD", "hud"},
                 {"Accounts", "accounts"},
+                {"Cosmetica", "cosmetica"},
                 {"Appearance", "appearance"},
                 {"Diagnostics", "diagnostics"},
         };
@@ -129,6 +130,7 @@ public class SpaceMenuScreen extends Screen {
         switch (opens) {
             case "hud" -> mc.gui.setScreen(new HudEditorScreen(this));
             case "accounts" -> mc.gui.setScreen(new AccountsScreen(this));
+            case "cosmetica" -> CosmeticaBridge.open(this);
             case "appearance" -> mc.gui.setScreen(new AppearanceScreen(this));
             case "diagnostics" -> mc.gui.setScreen(new DiagnosticsScreen(this));
             default -> {
