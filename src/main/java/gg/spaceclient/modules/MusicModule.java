@@ -41,10 +41,24 @@ public class MusicModule extends HudModule {
     private final ColorSetting artistColor = new ColorSetting(
             "artist_color", "Artist colour", "Colour of the artist line", 0xFF9A95C9);
 
+    /**
+     * Off by default, and that is the whole point of it being a setting: this
+     * publishes what you are listening to, continuously, to anyone running the
+     * client who can see you. That is a thing to opt into, not out of.
+     */
+    private final BooleanSetting overName = new BooleanSetting(
+            "over_name", "Over name",
+            "Show your track above your name tag to other Space Client players", false);
+
     public MusicModule() {
         super("music", "Now Playing", "Shows the track from Spotify or Amazon Music",
                 0.02f, 0.80f, false);
-        addSettings(source, showSource, hideWhenIdle, titleColor, artistColor);
+        addSettings(source, showSource, hideWhenIdle, overName, titleColor, artistColor);
+    }
+
+    /** Whether the track is being published over the name tag. */
+    public boolean sharesOverName() {
+        return overName.get();
     }
 
     /** The track, after the source filter is applied. */

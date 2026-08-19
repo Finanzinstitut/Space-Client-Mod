@@ -5,7 +5,8 @@
   "client": [
     "CameraMixin",
     "LevelRendererMixin",
-    "AvatarRendererMixin"
+    "AvatarRendererMixin",
+    "EntityRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 0

@@ -123,6 +123,11 @@ public class SpaceClient implements ClientModInitializer {
             moduleManager.onTick();
             SessionWatcher.tick(client);
 
+            // Driven here rather than from the module, because a module only
+            // ticks while it is enabled - and the entry still has to be taken
+            // down when the setting goes off.
+            gg.spaceclient.net.NowPlayingShare.tick();
+
             // The window only exists once the game is running, so the hook is
             // installed on the first tick rather than during initialisation.
             gg.spaceclient.input.RawMouse.install();
