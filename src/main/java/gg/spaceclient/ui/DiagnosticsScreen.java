@@ -1,5 +1,8 @@
 package gg.spaceclient.ui;
 
+import gg.spaceclient.music.MediaSession;
+import gg.spaceclient.music.MusicWatcher;
+import gg.spaceclient.net.SpaceApi;
 import gg.spaceclient.util.Diagnostics;
 
 import net.minecraft.client.Minecraft;
@@ -22,6 +25,21 @@ public class DiagnosticsScreen extends Screen {
     }
 
     private int panelLeft() { return (this.width - PANEL_W) / 2; }
+
+    /** One label and value row, cut to the panel rather than wrapped. */
+    private int line(GuiGraphicsExtractor graphics, int left, int y,
+                     String label, String value) {
+        graphics.text(this.font, label, left, y, Theme.TEXT, false);
+
+        String text = value == null ? "-" : value;
+        int room = PANEL_W - 190;
+        while (this.font.width(text) > room && text.length() > 1) {
+            text = text.substring(0, text.length() - 1);
+        }
+
+        graphics.text(this.font, text, left + 190, y, Theme.TEXT_DIM, false);
+        return y + this.font.lineHeight + 3;
+    }
 
     @Override
     protected void init() {
@@ -73,6 +91,23 @@ public class DiagnosticsScreen extends Screen {
             }
             y += 2;
         }
+
+        // Live state, below the version checks. These are not pass or fail
+        // questions about this Minecraft build - they say what the two things
+        // that talk to the outside world are doing right now, which is
+        // otherwise only visible in the log.
+        y += 8;
+        graphics.fill(left, y, left + PANEL_W, y + 1, Theme.BORDER);
+        y += 10;
+
+        graphics.text(this.font, "NOW PLAYING", left, y, Theme.CYAN, false);
+        y += this.font.lineHeight + 4;
+
+        y = line(graphics, left, y, "Music lookup", MusicWatcher.status());
+        y = line(graphics, left, y, "Media session", MediaSession.status());
+        y = line(graphics, left, y, "Player scan", MusicWatcher.seenProcesses());
+        y = line(graphics, left, y, "Sharing", SpaceApi.status()
+                + (SpaceApi.hasToken() ? " (token held)" : " (no token)"));
 
         super.extractRenderState(graphics, mouseX, mouseY, delta);
     }

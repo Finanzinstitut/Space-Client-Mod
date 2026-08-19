@@ -53,7 +53,23 @@ public class MusicModule extends HudModule {
     public MusicModule() {
         super("music", "Now Playing", "Shows the track from Spotify or Amazon Music",
                 0.02f, 0.80f, false);
-        addSettings(source, showSource, hideWhenIdle, overName, titleColor, artistColor);
+        addSettings(source, showSource, hideWhenIdle, overName, showOnSelf,
+                titleColor, artistColor);
+    }
+
+    /**
+     * Normally your own song is not drawn over your own head - it is already in
+     * the HUD element, so it would just be there twice. This puts it there
+     * anyway, which is the only way to check the whole chain without a second
+     * account: the line you see has been to the worker and back.
+     */
+    private final BooleanSetting showOnSelf = new BooleanSetting(
+            "over_name_self", "Over my own name",
+            "Also draw your own track over your head, for testing", false);
+
+    /** Whether your own track is drawn over your own head too. */
+    public boolean showsOnSelf() {
+        return showOnSelf.get();
     }
 
     /** Whether the track is being published over the name tag. */

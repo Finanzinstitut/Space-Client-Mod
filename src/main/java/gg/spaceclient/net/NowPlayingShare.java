@@ -54,6 +54,18 @@ public final class NowPlayingShare {
     private static String lastReported = "";
     private static boolean wasSharing = false;
 
+    /**
+     * Whether your own track should be drawn over your own head.
+     *
+     * Read from the render thread every frame, so it goes through here rather
+     * than making the mixin dig the module out of the manager itself.
+     */
+    public static boolean showOnSelf() {
+        MusicModule module = module();
+        return module != null && module.isEnabled()
+                && module.sharesOverName() && module.showsOnSelf();
+    }
+
     /** What this player is playing, or null. Called from the render thread. */
     public static String songFor(UUID uuid) {
         return uuid == null ? null : songs.get(uuid);
@@ -134,6 +146,14 @@ public final class NowPlayingShare {
         lastFetch = now;
 
         List<UUID> wanted = new ArrayList<>();
+
+        // Deliberately fetched rather than read from the local module: the
+        // point of the self setting is to prove the round trip, and taking a
+        // shortcut here would prove nothing.
+        if (showOnSelf() && mc.player.getUUID() != null) {
+            wanted.add(mc.player.getUUID());
+        }
+
         for (Player player : mc.level.players()) {
             if (player == mc.player) continue;
             UUID uuid = player.getUUID();

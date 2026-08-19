@@ -34,6 +34,17 @@ public final class MusicWatcher {
 
     private static long lastPoll = 0;
 
+    /**
+     * How many polls in a row have come back with nothing.
+     *
+     * A track is not dropped on the first empty answer. Both lookups go through
+     * a freshly spawned PowerShell, and one of those occasionally comes back
+     * slow or empty while the music keeps playing - which showed up as the
+     * overlay blinking out for a couple of seconds at a time. Two agreeing
+     * answers are needed before the track is considered gone.
+     */
+    private static int emptyReads = 0;
+
     public static NowPlaying current() { return current; }
     public static boolean isSupported() { return supported; }
     public static String status() { return status; }
@@ -58,26 +69,40 @@ public final class MusicWatcher {
                 // in their window title. The title scan stays as a fallback for
                 // when that interface is unavailable.
                 NowPlaying session = MediaSession.read();
-                if (session != null && !session.isEmpty()) {
-                    current = session;
-                    status = "media session: " + session.source();
-                    return;
-                }
-                if (session != null) {
-                    // The interface worked and reported nothing playing
-                    current = NowPlaying.NOTHING;
-                    status = "nothing playing";
-                    return;
-                }
 
-                current = read();
+                if (session != null && !session.isEmpty()) {
+                    status = "media session: " + session.source();
+                    apply(session);
+                } else if (session != null) {
+                    // The interface worked and reported nothing playing
+                    status = "nothing playing";
+                    apply(NowPlaying.NOTHING);
+                } else {
+                    // The interface could not be reached at all, so the window
+                    // titles get their turn - Spotify still puts the track there
+                    apply(read());
+                }
             } catch (Throwable t) {
                 status = "lookup failed: " + t.getMessage();
-                current = NowPlaying.NOTHING;
+                apply(NowPlaying.NOTHING);
             } finally {
                 polling = false;
             }
         });
+    }
+
+    /**
+     * Takes a fresh reading, holding the old one through a single empty answer.
+     */
+    private static void apply(NowPlaying reading) {
+        if (reading != null && !reading.isEmpty()) {
+            emptyReads = 0;
+            current = reading;
+            return;
+        }
+
+        emptyReads++;
+        if (emptyReads >= 2) current = NowPlaying.NOTHING;
     }
 
     /**

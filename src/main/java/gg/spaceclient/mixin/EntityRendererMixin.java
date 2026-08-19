@@ -34,6 +34,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * fires exactly once either way. If nothing ever appears, that assumption is
  * the thing to flip - drop the last parameter from the descriptor below.
  *
+ * Your own head is skipped unless the self setting is on - the track is
+ * already in the HUD element, so it would otherwise read twice.
+ *
  * Identity comes from AvatarRenderState.id, the entity id. The render state
  * carries no UUID, but the id is enough to find the player in the level and ask
  * it - which beats stamping a UUID on through a mixin interface, because the
@@ -73,7 +76,7 @@ public class EntityRendererMixin {
 
             Entity entity = mc.level.getEntity(avatar.id);
             if (!(entity instanceof Player player)) return;
-            if (player == mc.player) return;
+            if (player == mc.player && !NowPlayingShare.showOnSelf()) return;
 
             String song = NowPlayingShare.songFor(player.getUUID());
             if (song == null || song.isEmpty()) return;

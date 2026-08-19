@@ -21,6 +21,11 @@ import java.nio.file.Path;
  */
 public final class MediaSession {
 
+    /** Why the last lookup failed, for the diagnostics page. */
+    private static volatile String status = "not run yet";
+
+    public static String status() { return status; }
+
     /** Which apps count. Anything else, a browser included, is ignored. */
     private static boolean isWanted(String appId) {
         String lower = appId.toLowerCase();
@@ -31,10 +36,22 @@ public final class MediaSession {
         return appId.toLowerCase().contains("spotify") ? "Spotify" : "Amazon Music";
     }
 
-    /** @return what is playing, or null when the lookup could not run at all */
+    /**
+     * @return what is playing, or null when the lookup could not run at all
+     *
+     * The difference matters more than it looks. Null sends the caller to the
+     * window title fallback; NOTHING tells it the interface answered and there
+     * really is no music. Conflating the two was the bug that made this work
+     * only sometimes: a failed WinRT call came back looking exactly like
+     * silence, the fallback never ran, and the overlay went blank until the
+     * next poll happened to succeed.
+     */
     public static NowPlaying read() {
         Path script = scriptFile();
-        if (script == null) return null;
+        if (script == null) {
+            status = "script could not be written";
+            return null;
+        }
 
         try {
             Process process = new ProcessBuilder(
@@ -51,7 +68,30 @@ public final class MediaSession {
                     output.append(line).append('\n');
                 }
             }
-            process.waitFor();
+            int exit = process.waitFor();
+
+            String text = output.toString();
+
+            // The script reports its own failures on a line of this shape
+            if (text.contains("ERROR|")) {
+                int start = text.indexOf("ERROR|") + 6;
+                int end = text.indexOf('\n', start);
+                status = "session interface failed: "
+                        + text.substring(start, end < 0 ? text.length() : end).trim();
+                return null;
+            }
+
+            if (exit != 0) {
+                status = "session lookup exited " + exit;
+                return null;
+            }
+
+            if (text.isBlank()) {
+                // No sessions at all reads the same as a silently broken call,
+                // so this goes to the fallback rather than claiming silence
+                status = "session list came back empty";
+                return null;
+            }
 
             NowPlaying paused = null;
 
@@ -61,14 +101,14 @@ public final class MediaSession {
                 if (parts.length < 4) continue;
 
                 String appId = parts[0].trim();
-                String status = parts[1].trim();
+                String playback = parts[1].trim();
                 String artist = parts[2].trim();
                 String title = parts[3].trim();
 
                 if (title.isEmpty() || !isWanted(appId)) continue;
 
                 NowPlaying track = new NowPlaying(
-                        sourceOf(appId), artist, title, status.equalsIgnoreCase("Playing"));
+                        sourceOf(appId), artist, title, playback.equalsIgnoreCase("Playing"));
 
                 // A playing session wins; a paused one is kept in case nothing
                 // is actually playing right now.
@@ -76,9 +116,11 @@ public final class MediaSession {
                 if (paused == null) paused = track;
             }
 
+            status = "ok";
             return paused != null ? paused : NowPlaying.NOTHING;
 
         } catch (Throwable t) {
+            status = "session lookup threw: " + t.getMessage();
             SpaceClient.LOGGER.warn("Media session lookup failed: {}", t.getMessage());
             return null;
         }
@@ -94,7 +136,10 @@ public final class MediaSession {
      */
     private static Path scriptFile() {
         try {
-            Path path = Path.of(System.getProperty("java.io.tmpdir"), "spaceclient-media.ps1");
+            // Versioned: the file is cached in temp and only written when missing,
+            // so a fixed script would never reach a machine that already had the
+            // broken one. Bump this whenever the script below changes.
+            Path path = Path.of(System.getProperty("java.io.tmpdir"), "spaceclient-media-2.ps1");
             if (Files.exists(path)) return path;
 
             String script = String.join("\n",
@@ -108,7 +153,7 @@ public final class MediaSession {
                     "  function Await($operation, $resultType) {",
                     "    $method = $asTask.MakeGenericMethod($resultType)",
                     "    $task = $method.Invoke($null, @($operation))",
-                    "    $task.Wait(3000) | Out-Null",
+                    "    if (-not $task.Wait(4000)) { throw 'media session call timed out' }",
                     "    $task.Result",
                     "  }",
                     "",
