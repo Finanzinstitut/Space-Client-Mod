@@ -31,9 +31,18 @@ public final class Theme {
      * colour left them nearly invisible - the same fill that reads as a raised
      * card against a lit grid reads as nothing at all against empty background.
      */
-    public static final int CHIP         = 0xFF3B3486;
-    public static final int CHIP_HOVER   = 0xFF524AAE;
-    public static final int CHIP_BORDER  = 0xFF7C72D8;
+    /**
+     * Chips are lifted to the brightness of a picked sidebar row.
+     *
+     * They sit on the bare content panel with nothing behind them, so the
+     * values that read as a raised card against the lit module grid vanished
+     * against empty background. These are deliberately lighter than any other
+     * surface here: a filter row that cannot be read is a filter row nobody
+     * uses.
+     */
+    public static final int CHIP         = 0xFF6055B8;
+    public static final int CHIP_HOVER   = 0xFF7669D6;
+    public static final int CHIP_BORDER  = 0xFFA79CF0;
     public static final int CARD_FOOT    = 0xFF0E0C28;
     public static final int BORDER_HOVER = 0xFF453D80;
 

@@ -60,8 +60,10 @@ public class NavButton extends Button {
         String text = label.get();
 
         if (style == Style.CHIP) {
+            // The picked chip takes the full accent rather than the dimmed one:
+            // dimmed sat below the unselected fill and read as switched off.
             int bg = pick > 0.02f
-                    ? Theme.accentDim()
+                    ? Theme.accent()
                     : (hover > 0.02f ? Theme.CHIP_HOVER : Theme.CHIP);
             graphics.fill(x1, y1, x2, y2, bg);
 
