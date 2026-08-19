@@ -9,7 +9,9 @@ import gg.spaceclient.util.Reflect;
 
 import net.minecraft.client.Minecraft;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -158,10 +160,9 @@ public final class SpaceApi {
         try {
             Minecraft mc = Minecraft.getInstance();
 
-            Object service = Reflect.call(mc,
-                    "getMinecraftSessionService", "getSessionService", "getUserApiService");
+            Object service = findSessionService(mc);
             if (service == null) {
-                status = "no session service on this version";
+                status = "no session service found on Minecraft";
                 return false;
             }
 
@@ -174,7 +175,7 @@ public final class SpaceApi {
             Object accessToken = Reflect.call(user,
                     "getAccessToken", "accessToken", "getSessionId");
             if (!(accessToken instanceof String secret) || secret.isEmpty()) {
-                status = "no access token - the handshake needs a signed in account";
+                status = "no access token reachable on the account object";
                 return false;
             }
 
@@ -226,6 +227,58 @@ public final class SpaceApi {
             SpaceClient.LOGGER.warn("Mojang handshake failed", t);
             return false;
         }
+    }
+
+    /**
+     * Finds the object that can talk to Mojang's session server.
+     *
+     * Looked up by what it can do, not by what it is called. Guessing accessor
+     * names was the first attempt and it failed on this version - so instead
+     * every field Minecraft holds is read and asked whether it has a joinServer
+     * method. That question has one right answer regardless of what Mojang
+     * renamed the getter to.
+     *
+     * Only fields are read and only methods with a matching return type are
+     * called. Invoking arbitrary no-argument methods on Minecraft to see what
+     * comes back would be a fine way to hit stop() or clearLevel().
+     */
+    private static Object findSessionService(Minecraft mc) {
+        // Fields first: reading one cannot have a side effect
+        for (Field field : Minecraft.class.getDeclaredFields()) {
+            if (Modifier.isStatic(field.getModifiers())) continue;
+            try {
+                field.setAccessible(true);
+                Object value = field.get(mc);
+                if (canJoinServer(value)) return value;
+            } catch (Throwable ignored) {
+                // Next field
+            }
+        }
+
+        // Then getters, but only ones already declared to return something
+        // session shaped - the return type is checked before anything is called
+        for (Method method : Minecraft.class.getMethods()) {
+            if (method.getParameterCount() != 0) continue;
+            if (method.getReturnType() == void.class) continue;
+            if (!method.getReturnType().getName().contains("Session")) continue;
+            try {
+                method.setAccessible(true);
+                Object value = method.invoke(mc);
+                if (canJoinServer(value)) return value;
+            } catch (Throwable ignored) {
+                // Next method
+            }
+        }
+
+        return null;
+    }
+
+    private static boolean canJoinServer(Object candidate) {
+        if (candidate == null) return false;
+        for (Method method : candidate.getClass().getMethods()) {
+            if (method.getName().equals("joinServer")) return true;
+        }
+        return false;
     }
 
     private static UUID profileUuid(Object user, Minecraft mc) {
