@@ -2,7 +2,6 @@ package gg.spaceclient.ui;
 
 import gg.spaceclient.music.MediaSession;
 import gg.spaceclient.music.MusicWatcher;
-import gg.spaceclient.mixin.EntityRendererMixin;
 import gg.spaceclient.net.NowPlayingShare;
 import gg.spaceclient.net.SpaceApi;
 import gg.spaceclient.util.Diagnostics;
@@ -112,7 +111,7 @@ public class DiagnosticsScreen extends Screen {
                 + (SpaceApi.hasToken() ? " (token held)" : " (no token)"));
         y = line(graphics, left, y, "Reported", NowPlayingShare.reportStatus());
         y = line(graphics, left, y, "Songs known", NowPlayingShare.cacheStatus());
-        y = line(graphics, left, y, "Name tag hook", EntityRendererMixin.hookStatus());
+        y = line(graphics, left, y, "Name tag hook", NowPlayingShare.hookStatus());
 
         super.extractRenderState(graphics, mouseX, mouseY, delta);
     }

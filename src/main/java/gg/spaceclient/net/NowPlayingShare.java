@@ -66,6 +66,35 @@ public final class NowPlayingShare {
                 && module.sharesOverName() && module.showsOnSelf();
     }
 
+    private static int hookLong = 0;
+    private static int hookShort = 0;
+    private static int hookDrawn = 0;
+
+    /**
+     * Called by the name tag mixin every time it runs.
+     *
+     * The counters live here rather than in the mixin because mixin classes are
+     * consumed by the transformer and never loaded as ordinary classes - so
+     * calling one from mod code throws NoClassDefFoundError. The mixin may call
+     * into here; nothing may call into the mixin.
+     */
+    public static void noteHook(boolean longOverload, boolean didDraw) {
+        if (longOverload) hookLong++; else hookShort++;
+        if (didDraw) hookDrawn++;
+    }
+
+    /** Whether the long overload has ever run, so the short one can stand down. */
+    public static boolean longHookSeen() {
+        return hookLong > 0;
+    }
+
+    /** What the name tag hook has been doing, for the diagnostics page. */
+    public static String hookStatus() {
+        if (hookLong == 0 && hookShort == 0) return "never fired";
+        return "fired " + (hookLong + hookShort) + "x (long " + hookLong
+                + ", short " + hookShort + "), drew " + hookDrawn;
+    }
+
     /** What the last lookup came back with, for the diagnostics page. */
     public static String cacheStatus() {
         Minecraft mc = Minecraft.getInstance();

@@ -45,23 +45,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(EntityRenderer.class)
 public class EntityRendererMixin {
 
-    /**
-     * How often each overload has actually fired.
-     *
-     * Counted because "nothing appears" has two very different causes - the
-     * hook never running, or running and finding no song - and from the outside
-     * they look identical. The diagnostics page reads these.
-     */
-    private static int longHits = 0;
-    private static int shortHits = 0;
-    private static int drawn = 0;
-
-    public static String hookStatus() {
-        if (longHits == 0 && shortHits == 0) return "never fired";
-        return "fired " + (longHits + shortHits) + "x (long " + longHits
-                + ", short " + shortHits + "), drew " + drawn;
-    }
-
     /** Roughly one line of name tag text, in world units. */
     private static final double LINE_HEIGHT = 0.28;
 
@@ -90,9 +73,12 @@ public class EntityRendererMixin {
                                                SubmitNodeCollector collector,
                                                CameraRenderState camera,
                                                CallbackInfo ci) {
-        shortHits++;
-        if (longHits > 0) return;
-        draw(state, poseStack, collector, camera);
+        if (NowPlayingShare.longHookSeen()) {
+            NowPlayingShare.noteHook(false, false);
+            return;
+        }
+        boolean drew = draw(state, poseStack, collector, camera);
+        NowPlayingShare.noteHook(false, drew);
     }
 
     @Inject(
@@ -109,35 +95,35 @@ public class EntityRendererMixin {
                                           CameraRenderState camera,
                                           int color,
                                           CallbackInfo ci) {
-        longHits++;
-        draw(state, poseStack, collector, camera);
+        boolean drew = draw(state, poseStack, collector, camera);
+        NowPlayingShare.noteHook(true, drew);
     }
 
-    private static void draw(EntityRenderState state,
-                             PoseStack poseStack,
-                             SubmitNodeCollector collector,
-                             CameraRenderState camera) {
+    /** @return whether a line was actually drawn */
+    private static boolean draw(EntityRenderState state,
+                                PoseStack poseStack,
+                                SubmitNodeCollector collector,
+                                CameraRenderState camera) {
         try {
-            if (!(state instanceof AvatarRenderState avatar)) return;
+            if (!(state instanceof AvatarRenderState avatar)) return false;
 
             Vec3 attachment = state.nameTagAttachment;
-            if (attachment == null) return;
+            if (attachment == null) return false;
 
             Minecraft mc = Minecraft.getInstance();
-            if (mc.level == null) return;
+            if (mc.level == null) return false;
 
             Entity entity = mc.level.getEntity(avatar.id);
-            if (!(entity instanceof Player player)) return;
-            if (player == mc.player && !NowPlayingShare.showOnSelf()) return;
+            if (!(entity instanceof Player player)) return false;
+            if (player == mc.player && !NowPlayingShare.showOnSelf()) return false;
 
             String song = NowPlayingShare.songFor(player.getUUID());
-            if (song == null || song.isEmpty()) return;
+            if (song == null || song.isEmpty()) return false;
 
             // Above the name rather than below it, and above the score line
             // too - the score sits under the name, so one line up is clear.
             Vec3 above = attachment.add(0.0, LINE_HEIGHT, 0.0);
 
-            drawn++;
             collector.submitNameTag(
                     poseStack,
                     above,
@@ -147,9 +133,11 @@ public class EntityRendererMixin {
                     state.lightCoords,
                     camera
             );
+            return true;
 
         } catch (Throwable ignored) {
             // A song is never worth a broken frame
+            return false;
         }
     }
 }
