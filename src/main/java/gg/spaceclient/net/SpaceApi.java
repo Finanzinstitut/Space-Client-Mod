@@ -180,6 +180,7 @@ public final class SpaceApi {
             }
 
             Object profile = Reflect.call(user, "getGameProfile", "gameProfile");
+            if (profile == null) profile = Reflect.call(mc, "getGameProfile");
             UUID uuid = profileUuid(user, mc);
 
             for (Method method : service.getClass().getMethods()) {
@@ -233,25 +234,35 @@ public final class SpaceApi {
      * Finds the object that can talk to Mojang's session server.
      *
      * Looked up by what it can do, not by what it is called. Guessing accessor
-     * names was the first attempt and it failed on this version - so instead
-     * every field Minecraft holds is read and asked whether it has a joinServer
-     * method. That question has one right answer regardless of what Mojang
-     * renamed the getter to.
+     * names failed first; then searching Minecraft's own fields failed too, and
+     * the dump said why: the service is not held directly. Minecraft has a
+     * `services` record, and the session service is a component of it. So the
+     * search goes two levels deep - every field Minecraft holds, and every
+     * field those hold - asking each whether it has a joinServer method.
      *
-     * Only fields are read and only methods with a matching return type are
-     * called. Invoking arbitrary no-argument methods on Minecraft to see what
-     * comes back would be a fine way to hit stop() or clearLevel().
+     * Only fields are read, and only methods whose return type already looks
+     * session shaped are called. Invoking arbitrary no-argument methods on
+     * Minecraft to see what comes back would be a fine way to hit stop() or
+     * clearLevel().
      */
     private static Object findSessionService(Minecraft mc) {
-        // Fields first: reading one cannot have a side effect
+        // Two passes rather than one recursive walk, so the direct hit wins
+        // even if some nested field would also match
         for (Field field : Minecraft.class.getDeclaredFields()) {
-            if (Modifier.isStatic(field.getModifiers())) continue;
-            try {
-                field.setAccessible(true);
-                Object value = field.get(mc);
+            Object value = readField(field, mc);
+            if (canJoinServer(value)) return value;
+        }
+
+        for (Field field : Minecraft.class.getDeclaredFields()) {
+            Object holder = readField(field, mc);
+            if (holder == null) continue;
+
+            Class<?> type = holder.getClass();
+            if (type.getName().startsWith("java.")) continue;
+
+            for (Field nested : type.getDeclaredFields()) {
+                Object value = readField(nested, holder);
                 if (canJoinServer(value)) return value;
-            } catch (Throwable ignored) {
-                // Next field
             }
         }
 
@@ -263,14 +274,24 @@ public final class SpaceApi {
             if (!method.getReturnType().getName().contains("Session")) continue;
             try {
                 method.setAccessible(true);
-                Object value = method.invoke(mc);
-                if (canJoinServer(value)) return value;
+                if (canJoinServer(method.invoke(mc))) return method.invoke(mc);
             } catch (Throwable ignored) {
                 // Next method
             }
         }
 
         return null;
+    }
+
+    /** Reads one instance field, or null if it cannot be read. */
+    private static Object readField(Field field, Object owner) {
+        if (Modifier.isStatic(field.getModifiers())) return null;
+        try {
+            field.setAccessible(true);
+            return field.get(owner);
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     private static boolean canJoinServer(Object candidate) {
@@ -291,7 +312,13 @@ public final class SpaceApi {
                 // Fall through to the player
             }
         }
-        // In world the player carries the same id, which is a reliable fallback
+        // Minecraft.getGameProfile() is confirmed present on this version, so
+        // the id is reachable even before a world is joined
+        Object profile = Reflect.call(mc, "getGameProfile");
+        Object id = Reflect.call(profile, "getId", "id");
+        if (id instanceof UUID fromProfile) return fromProfile;
+
+        // In world the player carries the same id
         return mc.player != null ? mc.player.getUUID() : null;
     }
 
