@@ -45,11 +45,55 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(EntityRenderer.class)
 public class EntityRendererMixin {
 
+    /**
+     * How often each overload has actually fired.
+     *
+     * Counted because "nothing appears" has two very different causes - the
+     * hook never running, or running and finding no song - and from the outside
+     * they look identical. The diagnostics page reads these.
+     */
+    private static int longHits = 0;
+    private static int shortHits = 0;
+    private static int drawn = 0;
+
+    public static String hookStatus() {
+        if (longHits == 0 && shortHits == 0) return "never fired";
+        return "fired " + (longHits + shortHits) + "x (long " + longHits
+                + ", short " + shortHits + "), drew " + drawn;
+    }
+
     /** Roughly one line of name tag text, in world units. */
     private static final double LINE_HEIGHT = 0.28;
 
     /** The same quarter black vanilla puts behind a name tag. */
     private static final int BACKGROUND = 0x40000000;
+
+    /**
+     * The four parameter overload, as insurance.
+     *
+     * The assumption was that the short one delegates to the long one. If that
+     * holds, this fires first and does nothing, because the long one is about
+     * to do the work. If it does not hold, this is the only one that ever runs
+     * and it takes over. Either way the line is drawn exactly once, and the
+     * counters say which world we are in.
+     */
+    @Inject(
+            method = "submitNameDisplay(Lnet/minecraft/client/renderer/entity/state/EntityRenderState;"
+                    + "Lcom/mojang/blaze3d/vertex/PoseStack;"
+                    + "Lnet/minecraft/client/renderer/SubmitNodeCollector;"
+                    + "Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V",
+            at = @At("TAIL"),
+            require = 0
+    )
+    private void spaceclient$songOverNameShort(EntityRenderState state,
+                                               PoseStack poseStack,
+                                               SubmitNodeCollector collector,
+                                               CameraRenderState camera,
+                                               CallbackInfo ci) {
+        shortHits++;
+        if (longHits > 0) return;
+        draw(state, poseStack, collector, camera);
+    }
 
     @Inject(
             method = "submitNameDisplay(Lnet/minecraft/client/renderer/entity/state/EntityRenderState;"
@@ -65,6 +109,14 @@ public class EntityRendererMixin {
                                           CameraRenderState camera,
                                           int color,
                                           CallbackInfo ci) {
+        longHits++;
+        draw(state, poseStack, collector, camera);
+    }
+
+    private static void draw(EntityRenderState state,
+                             PoseStack poseStack,
+                             SubmitNodeCollector collector,
+                             CameraRenderState camera) {
         try {
             if (!(state instanceof AvatarRenderState avatar)) return;
 
@@ -85,6 +137,7 @@ public class EntityRendererMixin {
             // too - the score sits under the name, so one line up is clear.
             Vec3 above = attachment.add(0.0, LINE_HEIGHT, 0.0);
 
+            drawn++;
             collector.submitNameTag(
                     poseStack,
                     above,

@@ -66,6 +66,22 @@ public final class NowPlayingShare {
                 && module.sharesOverName() && module.showsOnSelf();
     }
 
+    /** What the last lookup came back with, for the diagnostics page. */
+    public static String cacheStatus() {
+        Minecraft mc = Minecraft.getInstance();
+        UUID self = mc.player != null ? mc.player.getUUID() : null;
+        boolean mine = self != null && songs.containsKey(self);
+
+        if (lastFetch == 0) return "not fetched yet";
+        return songs.size() + " known, yours: " + (mine ? "yes" : "no");
+    }
+
+    /** What the local track last sent was, for the diagnostics page. */
+    public static String reportStatus() {
+        if (lastReport == 0) return "nothing sent yet";
+        return lastReported.isEmpty() ? "sent: (cleared)" : "sent: " + lastReported;
+    }
+
     /** What this player is playing, or null. Called from the render thread. */
     public static String songFor(UUID uuid) {
         return uuid == null ? null : songs.get(uuid);
