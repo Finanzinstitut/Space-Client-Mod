@@ -25,20 +25,48 @@ public class DiagnosticsScreen extends Screen {
         this.parent = parent;
     }
 
+    /** How far the list has been scrolled, in pixels. */
+    private double scroll = 0;
+
+    /** Where the content ended last frame, so scrolling knows when to stop. */
+    private int contentBottom = 0;
+
     private int panelLeft() { return (this.width - PANEL_W) / 2; }
+
+    /** The first row of content, and the last pixel before the Back button. */
+    private int listTop() { return 80; }
+    private int listBottom() { return this.height - 52; }
+
+    /** Whether a row at this height is inside the visible strip. */
+    private boolean visible(int y) {
+        return y >= listTop() - this.font.lineHeight && y <= listBottom();
+    }
+
+    private int maxScroll() {
+        return Math.max(0, contentBottom - listBottom() + 8);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY,
+                                 double scrollX, double scrollY) {
+        scroll = Math.max(0, Math.min(maxScroll(), scroll - scrollY * 18));
+        return true;
+    }
 
     /** One label and value row, cut to the panel rather than wrapped. */
     private int line(GuiGraphicsExtractor graphics, int left, int y,
                      String label, String value) {
-        graphics.text(this.font, label, left, y, Theme.TEXT, false);
+        if (visible(y)) {
+            graphics.text(this.font, label, left, y, Theme.TEXT, false);
 
-        String text = value == null ? "-" : value;
-        int room = PANEL_W - 190;
-        while (this.font.width(text) > room && text.length() > 1) {
-            text = text.substring(0, text.length() - 1);
+            String text = value == null ? "-" : value;
+            int room = PANEL_W - 190;
+            while (this.font.width(text) > room && text.length() > 1) {
+                text = text.substring(0, text.length() - 1);
+            }
+
+            graphics.text(this.font, text, left + 190, y, Theme.TEXT_DIM, false);
         }
-
-        graphics.text(this.font, text, left + 190, y, Theme.TEXT_DIM, false);
         return y + this.font.lineHeight + 3;
     }
 
@@ -68,13 +96,18 @@ public class DiagnosticsScreen extends Screen {
                 left + 34, 50, Theme.TEXT_DIM, false);
         graphics.fill(left, 74, left + PANEL_W, 75, Theme.BORDER);
 
-        int y = 88;
+        // Everything below the header scrolls as one list, so the last rows
+        // cannot end up underneath the Back button on a short window
+        int y = 88 - (int) scroll;
+
         for (Diagnostics.Check check : checks) {
             String mark = check.ok() ? "OK" : "--";
             int color = check.ok() ? 0xFF4ADE80 : 0xFFFF6B81;
 
-            graphics.text(this.font, mark, left, y, color, false);
-            graphics.text(this.font, check.name(), left + 24, y, Theme.TEXT, false);
+            if (visible(y)) {
+                graphics.text(this.font, mark, left, y, color, false);
+                graphics.text(this.font, check.name(), left + 24, y, Theme.TEXT, false);
+            }
 
             // Details can get long; wrap rather than run off the panel
             String detail = check.detail();
@@ -86,7 +119,9 @@ public class DiagnosticsScreen extends Screen {
                 while (this.font.width(line) > room && line.length() > 1) {
                     line = line.substring(0, line.length() - 1);
                 }
-                graphics.text(this.font, line, detailX, y, Theme.TEXT_DIM, false);
+                if (visible(y)) {
+                    graphics.text(this.font, line, detailX, y, Theme.TEXT_DIM, false);
+                }
                 detail = detail.substring(line.length());
                 y += this.font.lineHeight + 2;
             }
@@ -98,10 +133,10 @@ public class DiagnosticsScreen extends Screen {
         // that talk to the outside world are doing right now, which is
         // otherwise only visible in the log.
         y += 8;
-        graphics.fill(left, y, left + PANEL_W, y + 1, Theme.BORDER);
+        if (visible(y)) graphics.fill(left, y, left + PANEL_W, y + 1, Theme.BORDER);
         y += 10;
 
-        graphics.text(this.font, "NOW PLAYING", left, y, Theme.CYAN, false);
+        if (visible(y)) graphics.text(this.font, "NOW PLAYING", left, y, Theme.CYAN, false);
         y += this.font.lineHeight + 4;
 
         y = line(graphics, left, y, "Music lookup", MusicWatcher.status());
@@ -112,6 +147,15 @@ public class DiagnosticsScreen extends Screen {
         y = line(graphics, left, y, "Reported", NowPlayingShare.reportStatus());
         y = line(graphics, left, y, "Songs known", NowPlayingShare.cacheStatus());
         y = line(graphics, left, y, "Name tag hook", NowPlayingShare.hookStatus());
+
+        contentBottom = y + (int) scroll;
+
+        // A hint only while there is something below the fold
+        if (maxScroll() > 0) {
+            graphics.text(this.font, "scroll for more",
+                    left + PANEL_W - this.font.width("scroll for more"),
+                    this.height - 62, Theme.TEXT_DIM, false);
+        }
 
         super.extractRenderState(graphics, mouseX, mouseY, delta);
     }
