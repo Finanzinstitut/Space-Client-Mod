@@ -44,6 +44,16 @@ public class HostWorldScreen extends Screen {
                 () -> cheats,
                 () -> { cheats = !cheats; this.rebuildWidgets(); }));
 
+        y += 30;
+        this.addRenderableWidget(new FlatButton(
+                left, y, PANEL_W, 24,
+                () -> "Offline accounts: " + (WorldHost.allowsOffline() ? "allowed" : "no"),
+                WorldHost::allowsOffline,
+                () -> {
+                    WorldHost.setAllowOffline(!WorldHost.allowsOffline());
+                    this.rebuildWidgets();
+                }));
+
         y += 46;
         boolean hosting = WorldHost.isHosting();
 
@@ -93,6 +103,12 @@ public class HostWorldScreen extends Screen {
         // half succeed - open on the local network but not reachable from
         // outside - and that difference is the whole story for the person
         // waiting on an address to send.
+        if (WorldHost.allowsOffline()) {
+            graphics.text(this.font,
+                    "Anyone who can reach the world may pick any name.",
+                    left, 190, 0xFFFFC65C, false);
+        }
+
         int y = this.height - 96;
         graphics.text(this.font, "Status", left, y, Theme.TEXT, false);
         y += this.font.lineHeight + 3;

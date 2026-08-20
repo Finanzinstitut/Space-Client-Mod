@@ -35,6 +35,20 @@ public final class WorldHost {
     private static volatile boolean mapped = false;
     private static volatile boolean working = false;
 
+    /**
+     * Whether accounts without a Mojang session may join.
+     *
+     * Off by default, and it stays a per session choice rather than something
+     * saved: switching authentication off is the kind of thing that should be
+     * decided deliberately each time, not inherited from a decision made weeks
+     * ago and forgotten.
+     */
+    private static volatile boolean allowOffline = false;
+
+    public static boolean allowsOffline() { return allowOffline; }
+
+    public static void setAllowOffline(boolean value) { allowOffline = value; }
+
     public static String status() { return status; }
     public static String address() { return address; }
     public static boolean busy() { return working; }
@@ -88,6 +102,11 @@ public final class WorldHost {
         // From here the world is already playable on the local network, so a
         // failure past this point is worth reporting but not worth undoing
         say("§bSpace Client §7- world opened on port §f" + port);
+
+        if (allowOffline) {
+            say("§eOffline accounts are allowed. §7Anyone reaching this world can "
+                    + "pick any name, including one already an operator.");
+        }
 
         int opened = port;
         CompletableFuture.runAsync(() -> {

@@ -7,7 +7,8 @@
     "LevelRendererMixin",
     "AvatarRendererMixin",
     "EntityRendererMixin",
-    "PauseScreenMixin"
+    "PauseScreenMixin",
+    "MinecraftServerMixin"
   ],
   "injectors": {
     "defaultRequire": 0
