@@ -6,7 +6,8 @@
     "CameraMixin",
     "LevelRendererMixin",
     "AvatarRendererMixin",
-    "EntityRendererMixin"
+    "EntityRendererMixin",
+    "PauseScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 0
