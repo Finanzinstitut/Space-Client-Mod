@@ -4,13 +4,17 @@ import gg.spaceclient.SpaceClient;
 
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.Inet4Address;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Asks the router to forward a port, using UPnP.
@@ -113,47 +117,104 @@ public final class Upnp {
     private static boolean discover() throws Exception {
         if (!controlUrl.isEmpty()) return true;
 
-        String search = "M-SEARCH * HTTP/1.1\r\n"
+        boolean anyAnswer = false;
+
+        // Asked from every network address this machine has, not just the
+        // default one. A PC with a VPN, a virtual machine adapter or two
+        // network cards will happily send the search out of the interface the
+        // router is not on, and then hear nothing back.
+        for (InetAddress source : localAddresses()) {
+            if (search(source)) return true;
+            if (!lastAnswerEmpty) anyAnswer = true;
+        }
+
+        reason = anyAnswer
+                ? "a device answered, but it cannot forward ports"
+                : "no router answered - UPnP is probably switched off";
+        return false;
+    }
+
+    /** Set while searching, so discover can tell silence from a useless answer. */
+    private static boolean lastAnswerEmpty = true;
+
+    /** Sends the search from one local address and waits for a gateway. */
+    private static boolean search(InetAddress source) {
+        lastAnswerEmpty = true;
+
+        String message = "M-SEARCH * HTTP/1.1\r\n"
                 + "HOST: " + SSDP_HOST + ":" + SSDP_PORT + "\r\n"
                 + "MAN: \"ssdp:discover\"\r\n"
                 + "MX: 2\r\n"
                 + "ST: urn:schemas-upnp-org:device:InternetGatewayDevice:1\r\n"
                 + "\r\n";
 
-        try (DatagramSocket socket = new DatagramSocket()) {
-            socket.setSoTimeout(3000);
+        // Bound to this address on purpose, so the search leaves through the
+        // matching interface and the router replies to somewhere we listen
+        try (DatagramSocket socket = new DatagramSocket(0, source)) {
+            socket.setSoTimeout(1200);
+            socket.setBroadcast(true);
 
-            byte[] out = search.getBytes("UTF-8");
-            socket.send(new DatagramPacket(out, out.length,
-                    InetAddress.getByName(SSDP_HOST), SSDP_PORT));
+            byte[] out = message.getBytes("UTF-8");
 
-            // Which address of ours the router can see. Found by asking the
-            // socket, because a machine with several adapters would otherwise
-            // hand the router an address it cannot route back to.
-            socket.connect(new InetSocketAddress(SSDP_HOST, SSDP_PORT));
-            localAddress = socket.getLocalAddress().getHostAddress();
+            // Sent more than once: SSDP is UDP, and a single lost packet
+            // would otherwise look exactly like a router with UPnP disabled
+            for (int attempt = 0; attempt < 3; attempt++) {
+                socket.send(new DatagramPacket(out, out.length,
+                        InetAddress.getByName(SSDP_HOST), SSDP_PORT));
+            }
 
             long deadline = System.currentTimeMillis() + 3000;
-            byte[] buffer = new byte[2048];
+            byte[] buffer = new byte[4096];
 
             while (System.currentTimeMillis() < deadline) {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 try {
                     socket.receive(packet);
                 } catch (Throwable timeout) {
-                    break;
+                    continue;
                 }
+
+                lastAnswerEmpty = false;
 
                 String response = new String(packet.getData(), 0, packet.getLength(), "UTF-8");
                 String location = header(response, "LOCATION");
                 if (location.isEmpty()) continue;
 
-                if (readDescription(location)) return true;
+                if (readDescription(location)) {
+                    // The address the router should forward to is the one this
+                    // socket is bound to - it is by definition on the router's
+                    // own network
+                    localAddress = source.getHostAddress();
+                    return true;
+                }
             }
-        }
 
-        reason = "no router answered - UPnP is probably switched off";
+        } catch (Throwable t) {
+            SpaceClient.LOGGER.warn("Search from {} failed: {}",
+                    source.getHostAddress(), t.getMessage());
+        }
         return false;
+    }
+
+    /** Every ordinary IPv4 address this machine has. */
+    private static List<InetAddress> localAddresses() {
+        List<InetAddress> found = new ArrayList<>();
+        try {
+            for (NetworkInterface network : Collections.list(
+                    NetworkInterface.getNetworkInterfaces())) {
+
+                if (!network.isUp() || network.isLoopback()) continue;
+
+                for (InetAddress address : Collections.list(network.getInetAddresses())) {
+                    if (address instanceof Inet4Address && !address.isLoopbackAddress()) {
+                        found.add(address);
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            SpaceClient.LOGGER.warn("Could not list network interfaces: {}", t.getMessage());
+        }
+        return found;
     }
 
     /** Pulls the control URL for the port mapping service out of the device description. */

@@ -119,8 +119,8 @@ public final class WorldHost {
                     status = Upnp.reason();
 
                     say("§7Only reachable on your local network. §f" + Upnp.reason());
-                    say("§7Friends elsewhere need a forwarded port, or something "
-                            + "like Tailscale.");
+                    say("§7Check that UPnP is enabled in your router, or forward "
+                            + "port §f" + opened + "§7 by hand. Tailscale also works.");
                     return;
                 }
 
