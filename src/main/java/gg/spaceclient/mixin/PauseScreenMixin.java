@@ -2,6 +2,7 @@ package gg.spaceclient.mixin;
 
 import gg.spaceclient.ui.FlatButton;
 import gg.spaceclient.ui.HostWorldScreen;
+import gg.spaceclient.util.Screens;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.PauseScreen;
@@ -45,7 +46,7 @@ public abstract class PauseScreenMixin extends Screen {
                     () -> gg.spaceclient.host.WorldHost.isHosting()
                             ? "Hosting" : "Host World",
                     () -> gg.spaceclient.host.WorldHost.isHosting(),
-                    () -> mc.setScreen(new HostWorldScreen(this))));
+                    () -> Screens.open(new HostWorldScreen(this))));
 
         } catch (Throwable ignored) {
             // A missing button is better than an unopenable pause menu

@@ -1,6 +1,7 @@
 package gg.spaceclient.ui;
 
 import gg.spaceclient.host.WorldHost;
+import gg.spaceclient.util.Screens;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
@@ -63,7 +64,7 @@ public class HostWorldScreen extends Screen {
                     left, y, PANEL_W, 24,
                     () -> "Manage players",
                     () -> false,
-                    () -> this.minecraft.setScreen(new HostPlayersScreen(this)))
+                    () -> Screens.open(new HostPlayersScreen(this)))
                     .asAction());
         }
 
@@ -131,6 +132,6 @@ public class HostWorldScreen extends Screen {
 
     @Override
     public void onClose() {
-        this.minecraft.setScreen(parent);
+        Screens.open(parent);
     }
 }

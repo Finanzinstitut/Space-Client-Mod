@@ -1,10 +1,10 @@
 package gg.spaceclient.host;
 
 import gg.spaceclient.SpaceClient;
+import gg.spaceclient.util.Screens;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.server.IntegratedServer;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.HttpUtil;
 import net.minecraft.world.level.GameType;
@@ -146,12 +146,7 @@ public final class WorldHost {
 
     /** Writes a line into the player's own chat. Nothing leaves this machine. */
     private static void say(String text) {
-        Minecraft mc = Minecraft.getInstance();
-        mc.execute(() -> {
-            if (mc.player != null) {
-                mc.player.displayClientMessage(Component.literal(text), false);
-            }
-        });
+        Minecraft.getInstance().execute(() -> Screens.chat(text));
     }
 
     private WorldHost() {}
