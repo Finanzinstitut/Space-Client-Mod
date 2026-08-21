@@ -5,6 +5,8 @@ import com.google.gson.JsonObject;
 
 import gg.spaceclient.SpaceClient;
 import gg.spaceclient.modules.MusicModule;
+import gg.spaceclient.music.Lyrics;
+import gg.spaceclient.music.MediaSession;
 import gg.spaceclient.music.NowPlaying;
 
 import net.minecraft.client.Minecraft;
@@ -45,6 +47,7 @@ public final class NowPlayingShare {
     private static final int MAX_LOOKUP = 100;
 
     private static final Map<UUID, String> songs = new ConcurrentHashMap<>();
+    private static final Map<UUID, String> lyricLines = new ConcurrentHashMap<>();
 
     private static volatile boolean reporting = false;
     private static volatile boolean fetching = false;
@@ -52,6 +55,7 @@ public final class NowPlayingShare {
     private static long lastReport = 0;
     private static long lastFetch = 0;
     private static String lastReported = "";
+    private static String lastLyric = "";
     private static boolean wasSharing = false;
 
     /**
@@ -116,17 +120,44 @@ public final class NowPlayingShare {
         return uuid == null ? null : songs.get(uuid);
     }
 
+    /**
+     * The lyric line for a player, or null.
+     *
+     * Both sides have to want this: the other player has to be sharing a line,
+     * and you have to have the setting on yourself. Somebody else's choice to
+     * broadcast lyrics does not put them on your screen.
+     */
+    public static String lyricFor(UUID uuid) {
+        if (uuid == null || !showsLyrics()) return null;
+        return lyricLines.get(uuid);
+    }
+
+    /** Whether this player wants lyrics at all. */
+    public static boolean showsLyrics() {
+        MusicModule module = module();
+        return module != null && module.isEnabled() && module.showsLyrics();
+    }
+
     /** Called every client tick. */
     public static void tick() {
         try {
             Minecraft mc = Minecraft.getInstance();
             if (mc.level == null || mc.player == null) {
                 songs.clear();
+                lyricLines.clear();
                 return;
             }
 
             MusicModule module = module();
             boolean sharing = module != null && module.isEnabled() && module.sharesOverName();
+
+            // Fetched for the local track whenever the setting is on, whether
+            // or not anything is being shared - the HUD wants the line too
+            if (module != null && module.isEnabled() && module.showsLyrics()) {
+                Lyrics.update(module.track());
+            } else {
+                Lyrics.clear();
+            }
 
             if (sharing) {
                 maybeReport(module);
@@ -161,18 +192,23 @@ public final class NowPlayingShare {
         NowPlaying playing = module.track();
         String line = playing.isEmpty() ? "" : playing.display();
 
-        boolean changed = !line.equals(lastReported);
+        String lyric = module.showsLyrics()
+                ? Lyrics.line(MediaSession.position())
+                : "";
+
+        boolean changed = !line.equals(lastReported) || !lyric.equals(lastLyric);
         boolean stale = now - lastReport > REPORT_KEEPALIVE_MS;
         if (!changed && !stale) return;
 
         lastReport = now;
         lastReported = line;
+        lastLyric = lyric;
         reporting = true;
 
         CompletableFuture.runAsync(() -> {
             try {
                 SpaceApi.report(playing.source(), playing.artist(),
-                        playing.title(), playing.playing());
+                        playing.title(), playing.playing(), lyric);
             } finally {
                 reporting = false;
             }
@@ -180,7 +216,7 @@ public final class NowPlayingShare {
     }
 
     private static void clearRemote() {
-        CompletableFuture.runAsync(() -> SpaceApi.report("", "", "", false));
+        CompletableFuture.runAsync(() -> SpaceApi.report("", "", "", false, ""));
     }
 
     private static void maybeFetch(Minecraft mc) {
@@ -208,6 +244,7 @@ public final class NowPlayingShare {
 
         if (wanted.isEmpty()) {
             songs.clear();
+            lyricLines.clear();
             return;
         }
 
@@ -220,11 +257,19 @@ public final class NowPlayingShare {
                 // Replaced wholesale rather than merged: someone who stopped
                 // sharing has to disappear, and a merge would keep them.
                 Map<UUID, String> fresh = new ConcurrentHashMap<>();
+                Map<UUID, String> freshLyrics = new ConcurrentHashMap<>();
+
                 for (Map.Entry<String, JsonElement> entry : answer.entrySet()) {
                     try {
                         UUID uuid = UUID.fromString(entry.getKey());
-                        String line = entry.getValue().getAsString();
+                        JsonObject value = entry.getValue().getAsJsonObject();
+
+                        String line = value.has("song") ? value.get("song").getAsString() : "";
                         if (!line.isEmpty()) fresh.put(uuid, line);
+
+                        String lyric = value.has("lyric") ? value.get("lyric").getAsString() : "";
+                        if (!lyric.isEmpty()) freshLyrics.put(uuid, lyric);
+
                     } catch (Throwable ignored) {
                         // Skip anything malformed rather than lose the batch
                     }
@@ -232,6 +277,8 @@ public final class NowPlayingShare {
 
                 songs.clear();
                 songs.putAll(fresh);
+                lyricLines.clear();
+                lyricLines.putAll(freshLyrics);
 
             } catch (Throwable t) {
                 SpaceClient.LOGGER.warn("Could not fetch tracks: {}", t.getMessage());

@@ -1,5 +1,6 @@
 package gg.spaceclient.ui;
 
+import gg.spaceclient.music.Lyrics;
 import gg.spaceclient.music.MediaSession;
 import gg.spaceclient.music.MusicWatcher;
 import gg.spaceclient.net.NowPlayingShare;
@@ -147,6 +148,7 @@ public class DiagnosticsScreen extends Screen {
                 + (SpaceApi.hasToken() ? " (token held)" : " (no token)"));
         y = line(graphics, left, y, "Reported", NowPlayingShare.reportStatus());
         y = line(graphics, left, y, "Songs known", NowPlayingShare.cacheStatus());
+        y = line(graphics, left, y, "Lyrics", Lyrics.status());
         y = line(graphics, left, y, "Name tag hook", NowPlayingShare.hookStatus());
 
         contentBottom = y + (int) scroll;

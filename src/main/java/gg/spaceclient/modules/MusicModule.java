@@ -54,7 +54,7 @@ public class MusicModule extends HudModule {
         super("music", "Now Playing", "Shows the track from Spotify or Amazon Music",
                 0.02f, 0.80f, false);
         addSettings(source, showSource, hideWhenIdle, overName, showOnSelf,
-                titleColor, artistColor);
+                lyrics, titleColor, artistColor);
     }
 
     /**
@@ -70,6 +70,23 @@ public class MusicModule extends HudModule {
     /** Whether your own track is drawn over your own head too. */
     public boolean showsOnSelf() {
         return showOnSelf.get();
+    }
+
+    /**
+     * Off by default, and the description carries the warning rather than
+     * burying it: the lyrics come from a community database, not from a
+     * licensed source, and switching this on sends a line of someone else's
+     * copyrighted words through the Space Client backend.
+     */
+    private final BooleanSetting lyrics = new BooleanSetting(
+            "lyrics", "Lyrics",
+            "Show the current line under the track. Lyrics come from LRCLIB, "
+                    + "a community database - they are not licensed, and enabling "
+                    + "this shares one line with other players. Spotify only.", false);
+
+    /** Whether the current lyric line should be shown and shared. */
+    public boolean showsLyrics() {
+        return lyrics.get();
     }
 
     /** Whether the track is being published over the name tag. */

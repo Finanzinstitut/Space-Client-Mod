@@ -136,6 +136,21 @@ public abstract class EntityRendererMixin {
                     light,
                     camera);
 
+            // Above the song rather than below, so the stack reads downward:
+            // lyric, track, name. Both sides have to have lyrics switched on
+            // before this appears at all.
+            String lyric = NowPlayingShare.lyricFor(player.getUUID());
+            if (lyric != null && !lyric.isEmpty()) {
+                collector.submitNameTag(
+                        poseStack,
+                        position.add(0.0, LINE_HEIGHT * 2, 0.0),
+                        background,
+                        Component.literal(lyric),
+                        flag,
+                        light,
+                        camera);
+            }
+
             NowPlayingShare.noteHook(longOverload, true);
 
         } catch (Throwable ignored) {

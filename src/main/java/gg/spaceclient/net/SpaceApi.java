@@ -334,7 +334,8 @@ public final class SpaceApi {
      * Reports what is playing. An empty title clears the entry instead, which
      * is what switching the setting off sends.
      */
-    public static void report(String source, String artist, String title, boolean playing) {
+    public static void report(String source, String artist, String title,
+                              boolean playing, String lyric) {
         String bearer = ensureToken();
         if (bearer.isEmpty()) return;
 
@@ -343,6 +344,7 @@ public final class SpaceApi {
         body.addProperty("artist", artist);
         body.addProperty("title", title);
         body.addProperty("playing", playing);
+        body.addProperty("lyric", lyric == null ? "" : lyric);
 
         try {
             HttpRequest request = HttpRequest.newBuilder()
