@@ -16,6 +16,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -23,42 +24,49 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * Puts a second line above the name tag with what that player is listening to.
  *
- * This rides on the vanilla name tag rather than drawing its own text pass, so
- * everything that decides whether a name is visible at all - distance, sneaking,
- * team settings, F1 - already applies without any of it being reimplemented.
- * If vanilla draws no name, this never runs at all.
+ * The first attempt called submitNameTag directly and guessed at two of its
+ * arguments - an int and a boolean whose meaning the jar dump does not spell
+ * out. The result was two small dashes and no text: something drew, but with
+ * the wrong values.
  *
- * Which overload: submitNameDisplay exists twice, with and without a trailing
- * int. The one taking the int is the one that does the work; the shorter one
- * fills in a default and calls it. Injecting into the longer one therefore
- * fires exactly once either way. If nothing ever appears, that assumption is
- * the thing to flip - drop the last parameter from the descriptor below.
+ * So this no longer calls the drawing method at all. It moves the name tag up,
+ * swaps in the song as the text, and asks vanilla to draw a name tag again.
+ * Every argument is then whatever vanilla itself passes, which removes the
+ * guessing entirely and means the line is styled exactly like a real name.
+ * The state is put back immediately, so the next frame sees no trace of it.
  *
- * Your own head is skipped unless the self setting is on - the track is
- * already in the HUD element, so it would otherwise read twice.
- *
- * Identity comes from AvatarRenderState.id, the entity id. The render state
- * carries no UUID, but the id is enough to find the player in the level and ask
- * it - which beats stamping a UUID on through a mixin interface, because the
- * field is already there and nothing has to keep it in sync.
+ * The recursion guard matters: the second call lands right back in this
+ * injection, and without the flag it would spiral until the stack ran out.
  */
 @Mixin(EntityRenderer.class)
-public class EntityRendererMixin {
+public abstract class EntityRendererMixin {
 
     /** Roughly one line of name tag text, in world units. */
     private static final double LINE_HEIGHT = 0.28;
 
-    /** The same quarter black vanilla puts behind a name tag. */
-    private static final int BACKGROUND = 0x40000000;
+    /** Set while vanilla is drawing our line, so it does not draw it again. */
+    private static boolean drawing = false;
+
+    @Shadow
+    protected abstract void submitNameDisplay(EntityRenderState state,
+                                              PoseStack poseStack,
+                                              SubmitNodeCollector collector,
+                                              CameraRenderState camera);
+
+    @Shadow
+    protected abstract void submitNameDisplay(EntityRenderState state,
+                                              PoseStack poseStack,
+                                              SubmitNodeCollector collector,
+                                              CameraRenderState camera,
+                                              int color);
 
     /**
-     * The four parameter overload, as insurance.
+     * The four parameter overload.
      *
-     * The assumption was that the short one delegates to the long one. If that
-     * holds, this fires first and does nothing, because the long one is about
-     * to do the work. If it does not hold, this is the only one that ever runs
-     * and it takes over. Either way the line is drawn exactly once, and the
-     * counters say which world we are in.
+     * Both overloads fire independently on this version - the counters showed
+     * roughly 34000 against 30500 calls, so the short one is not simply
+     * delegating. It still stands down whenever the long one is in use, so the
+     * line is drawn once rather than twice.
      */
     @Inject(
             method = "submitNameDisplay(Lnet/minecraft/client/renderer/entity/state/EntityRenderState;"
@@ -73,11 +81,13 @@ public class EntityRendererMixin {
                                                SubmitNodeCollector collector,
                                                CameraRenderState camera,
                                                CallbackInfo ci) {
+        if (drawing) return;
+
         if (NowPlayingShare.longHookSeen()) {
             NowPlayingShare.noteHook(false, false);
             return;
         }
-        boolean drew = draw(state, poseStack, collector, camera);
+        boolean drew = draw(state, poseStack, collector, camera, null);
         NowPlayingShare.noteHook(false, drew);
     }
 
@@ -95,20 +105,25 @@ public class EntityRendererMixin {
                                           CameraRenderState camera,
                                           int color,
                                           CallbackInfo ci) {
-        boolean drew = draw(state, poseStack, collector, camera);
+        if (drawing) return;
+
+        boolean drew = draw(state, poseStack, collector, camera, color);
         NowPlayingShare.noteHook(true, drew);
     }
 
     /** @return whether a line was actually drawn */
-    private static boolean draw(EntityRenderState state,
-                                PoseStack poseStack,
-                                SubmitNodeCollector collector,
-                                CameraRenderState camera) {
+    private boolean draw(EntityRenderState state,
+                         PoseStack poseStack,
+                         SubmitNodeCollector collector,
+                         CameraRenderState camera,
+                         Integer color) {
+
+        Component originalName = state.nameTag;
+        Vec3 originalAttachment = state.nameTagAttachment;
+
         try {
             if (!(state instanceof AvatarRenderState avatar)) return false;
-
-            Vec3 attachment = state.nameTagAttachment;
-            if (attachment == null) return false;
+            if (originalAttachment == null) return false;
 
             Minecraft mc = Minecraft.getInstance();
             if (mc.level == null) return false;
@@ -120,24 +135,30 @@ public class EntityRendererMixin {
             String song = NowPlayingShare.songFor(player.getUUID());
             if (song == null || song.isEmpty()) return false;
 
-            // Above the name rather than below it, and above the score line
-            // too - the score sits under the name, so one line up is clear.
-            Vec3 above = attachment.add(0.0, LINE_HEIGHT, 0.0);
+            // One line up, and the song in place of the name. Vanilla reads
+            // both of these when it draws, so changing them is enough to
+            // redirect the whole thing.
+            state.nameTag = Component.literal("\u266A " + song);
+            state.nameTagAttachment = originalAttachment.add(0.0, LINE_HEIGHT, 0.0);
 
-            collector.submitNameTag(
-                    poseStack,
-                    above,
-                    BACKGROUND,
-                    Component.literal("\u266A " + song),
-                    !state.isDiscrete,
-                    state.lightCoords,
-                    camera
-            );
+            drawing = true;
+            if (color != null) {
+                this.submitNameDisplay(state, poseStack, collector, camera, color);
+            } else {
+                this.submitNameDisplay(state, poseStack, collector, camera);
+            }
             return true;
 
         } catch (Throwable ignored) {
             // A song is never worth a broken frame
             return false;
+
+        } finally {
+            // Restored in finally, because leaving a player's name replaced by
+            // a song would outlive this frame and follow them around
+            drawing = false;
+            state.nameTag = originalName;
+            state.nameTagAttachment = originalAttachment;
         }
     }
 }
