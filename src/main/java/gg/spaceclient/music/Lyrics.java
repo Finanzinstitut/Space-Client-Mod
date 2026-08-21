@@ -4,8 +4,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
-import gg.spaceclient.SpaceClient;
-
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -15,7 +13,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The line of the song that is playing right now.
@@ -24,10 +25,11 @@ import java.util.concurrent.CompletableFuture;
  * contributed by users rather than licensed from publishers, which is worth
  * knowing before switching this on - hence the warning on the setting.
  *
- * Only one line ever leaves this class. Whole lyrics are fetched once per
- * track and stay in memory here; what gets reported and drawn is the single
- * line matching the current position. That keeps the amount of somebody else's
- * text passing through the worker down to a fragment.
+ * No lyrics pass through the Space Client backend at all. Each client fetches
+ * the words for whatever the people around it are playing and works out the
+ * current line itself, from a playback position. That is what keeps the line
+ * in step: it is computed locally every frame instead of arriving on a poll,
+ * and it also means the backend never stores anybody else's text.
  */
 public final class Lyrics {
 
@@ -37,12 +39,26 @@ public final class Lyrics {
     private static final String USER_AGENT =
             "SpaceClient/1.0 (https://github.com/Finanzinstitut)";
 
+    /** How many tracks are kept. Enough for everyone in sight, not unbounded. */
+    private static final int MAX_TRACKS = 24;
+
     private record Line(double at, String text) {}
 
-    private static volatile List<Line> lines = List.of();
-    private static volatile String loadedKey = "";
+    private record Track(List<Line> lines, String status) {}
+
+    /**
+     * Lyrics per track, not just for the local one.
+     *
+     * Every player in sight may be playing something different, and each of
+     * their lines is worked out here rather than sent over the wire - so this
+     * holds several songs at once.
+     */
+    private static final Map<String, Track> cache = new ConcurrentHashMap<>();
+
+    /** Tracks currently being fetched, so a miss does not start ten requests. */
+    private static final Set<String> pending = ConcurrentHashMap.newKeySet();
+
     private static volatile String status = "off";
-    private static volatile boolean loading = false;
 
     public static String status() { return status; }
 
@@ -53,62 +69,64 @@ public final class Lyrics {
      * position runs past the end - a song that has finished should show nothing
      * rather than freeze on its last words.
      */
-    public static String line(double position) {
-        List<Line> current = lines;
-        if (current.isEmpty() || position < 0) return "";
+    public static String line(String artist, String title, double position) {
+        if (title == null || title.isEmpty() || position < 0) return "";
+
+        String key = key(artist, title);
+        Track track = cache.get(key);
+
+        if (track == null) {
+            request(artist, title, key);
+            return "";
+        }
 
         String found = "";
-        for (Line line : current) {
+        for (Line line : track.lines()) {
             if (line.at() > position) break;
             found = line.text();
         }
         return found;
     }
 
-    /** Clears everything, for when the setting goes off. */
+    /** Drops everything, for when the setting goes off. */
     public static void clear() {
-        lines = List.of();
-        loadedKey = "";
+        cache.clear();
+        pending.clear();
         status = "off";
     }
 
-    /**
-     * Makes sure the lyrics in memory belong to the track that is playing.
-     *
-     * Keyed on artist and title, so a repeat of the same song does not fetch
-     * again, and a different song always does.
-     */
-    public static void update(NowPlaying track) {
-        if (track == null || track.isEmpty()) {
-            if (!loadedKey.isEmpty()) clear();
-            return;
-        }
+    private static String key(String artist, String title) {
+        return (artist == null ? "" : artist) + "\u0000" + title;
+    }
 
-        String key = track.artist() + "\u0000" + track.title();
-        if (key.equals(loadedKey) || loading) return;
+    /** Starts a lookup for a track nobody has fetched yet. */
+    private static void request(String artist, String title, String key) {
+        if (!pending.add(key)) return;
 
-        loadedKey = key;
-        lines = List.of();
-        loading = true;
+        // A negative result is cached like any other, so a track with no
+        // lyrics is asked about once rather than on every single frame
+        if (cache.size() >= MAX_TRACKS) cache.clear();
+
         status = "looking up...";
 
         CompletableFuture.runAsync(() -> {
             try {
-                fetch(track);
+                fetch(artist, title, key);
             } catch (Throwable t) {
+                cache.put(key, new Track(List.of(), "lookup failed"));
                 status = "lookup failed: " + t.getMessage();
             } finally {
-                loading = false;
+                pending.remove(key);
             }
         });
     }
 
     // ---------------- fetching ----------------
 
-    private static void fetch(NowPlaying track) throws Exception {
+    private static void fetch(String artist, String title, String key) throws Exception {
         String url = "https://lrclib.net/api/get"
-                + "?artist_name=" + encode(track.artist())
-                + "&track_name=" + encode(track.title());
+                + "?artist_name=" + encode(artist)
+                + "&track_name=" + encode(title);
 
         String body = get(url);
 
@@ -116,8 +134,9 @@ public final class Lyrics {
         // back to a search - which is what makes live and remastered versions
         // resolve at all
         if (body == null) {
-            body = searchFor(track);
+            body = searchFor(artist, title);
             if (body == null) {
+                cache.put(key, new Track(List.of(), "no lyrics found"));
                 status = "no lyrics found";
                 return;
             }
@@ -128,23 +147,19 @@ public final class Lyrics {
         if (!json.has("syncedLyrics") || json.get("syncedLyrics").isJsonNull()) {
             // Plain lyrics exist for many tracks but carry no timestamps, and
             // an unsynced block cannot be shown one line at a time
+            cache.put(key, new Track(List.of(), "found, but not synced"));
             status = "found, but not synced";
             return;
         }
 
         List<Line> parsed = parse(json.get("syncedLyrics").getAsString());
-        if (parsed.isEmpty()) {
-            status = "synced lyrics were empty";
-            return;
-        }
-
-        lines = parsed;
-        status = parsed.size() + " lines";
+        cache.put(key, new Track(parsed, parsed.size() + " lines"));
+        status = parsed.isEmpty() ? "synced lyrics were empty" : parsed.size() + " lines";
     }
 
-    private static String searchFor(NowPlaying track) throws Exception {
+    private static String searchFor(String artist, String title) throws Exception {
         String url = "https://lrclib.net/api/search"
-                + "?q=" + encode(track.artist() + " " + track.title());
+                + "?q=" + encode(artist + " " + title);
 
         String body = get(url);
         if (body == null) return null;

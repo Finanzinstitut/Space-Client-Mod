@@ -47,7 +47,18 @@ public final class NowPlayingShare {
     private static final int MAX_LOOKUP = 100;
 
     private static final Map<UUID, String> songs = new ConcurrentHashMap<>();
-    private static final Map<UUID, String> lyricLines = new ConcurrentHashMap<>();
+
+    /**
+     * What each visible player is playing, and where they are in it.
+     *
+     * The position is the point that matters. It arrives every ten seconds but
+     * is carried forward locally in between, so the lyric line advances every
+     * frame rather than lurching once per poll.
+     */
+    private record Remote(String artist, String title, double position,
+                          boolean playing, long receivedAt) {}
+
+    private static final Map<UUID, Remote> remotes = new ConcurrentHashMap<>();
 
     private static volatile boolean reporting = false;
     private static volatile boolean fetching = false;
@@ -55,7 +66,7 @@ public final class NowPlayingShare {
     private static long lastReport = 0;
     private static long lastFetch = 0;
     private static String lastReported = "";
-    private static String lastLyric = "";
+    private static double lastPosition = -1;
     private static boolean wasSharing = false;
 
     /**
@@ -129,7 +140,17 @@ public final class NowPlayingShare {
      */
     public static String lyricFor(UUID uuid) {
         if (uuid == null || !showsLyrics()) return null;
-        return lyricLines.get(uuid);
+
+        Remote remote = remotes.get(uuid);
+        if (remote == null || remote.title().isEmpty()) return null;
+
+        // A paused track stays where it was left; a playing one has moved on
+        // by however long ago this reading arrived
+        double position = remote.playing()
+                ? remote.position() + (System.currentTimeMillis() - remote.receivedAt()) / 1000.0
+                : remote.position();
+
+        return Lyrics.line(remote.artist(), remote.title(), position);
     }
 
     /** Whether this player wants lyrics at all. */
@@ -144,7 +165,7 @@ public final class NowPlayingShare {
             Minecraft mc = Minecraft.getInstance();
             if (mc.level == null || mc.player == null) {
                 songs.clear();
-                lyricLines.clear();
+                remotes.clear();
                 return;
             }
 
@@ -153,9 +174,7 @@ public final class NowPlayingShare {
 
             // Fetched for the local track whenever the setting is on, whether
             // or not anything is being shared - the HUD wants the line too
-            if (module != null && module.isEnabled() && module.showsLyrics()) {
-                Lyrics.update(module.track());
-            } else {
+            if (module == null || !module.isEnabled() || !module.showsLyrics()) {
                 Lyrics.clear();
             }
 
@@ -192,23 +211,28 @@ public final class NowPlayingShare {
         NowPlaying playing = module.track();
         String line = playing.isEmpty() ? "" : playing.display();
 
-        String lyric = module.showsLyrics()
-                ? Lyrics.line(MediaSession.position())
-                : "";
+        double position = MediaSession.position();
 
-        boolean changed = !line.equals(lastReported) || !lyric.equals(lastLyric);
+        // Sent when the track changes, when the keepalive is due, or when the
+        // position no longer matches what listeners would have extrapolated -
+        // which is how seeking gets corrected without reporting constantly
+        double expected = lastPosition + (now - lastReport) / 1000.0;
+        boolean seeked = position >= 0 && lastPosition >= 0
+                && Math.abs(position - expected) > 2.0;
+
+        boolean changed = !line.equals(lastReported);
         boolean stale = now - lastReport > REPORT_KEEPALIVE_MS;
-        if (!changed && !stale) return;
+        if (!changed && !stale && !seeked) return;
 
         lastReport = now;
         lastReported = line;
-        lastLyric = lyric;
+        lastPosition = position;
         reporting = true;
 
         CompletableFuture.runAsync(() -> {
             try {
                 SpaceApi.report(playing.source(), playing.artist(),
-                        playing.title(), playing.playing(), lyric);
+                        playing.title(), playing.playing(), position);
             } finally {
                 reporting = false;
             }
@@ -216,7 +240,7 @@ public final class NowPlayingShare {
     }
 
     private static void clearRemote() {
-        CompletableFuture.runAsync(() -> SpaceApi.report("", "", "", false, ""));
+        CompletableFuture.runAsync(() -> SpaceApi.report("", "", "", false, -1));
     }
 
     private static void maybeFetch(Minecraft mc) {
@@ -244,7 +268,7 @@ public final class NowPlayingShare {
 
         if (wanted.isEmpty()) {
             songs.clear();
-            lyricLines.clear();
+            remotes.clear();
             return;
         }
 
@@ -257,7 +281,8 @@ public final class NowPlayingShare {
                 // Replaced wholesale rather than merged: someone who stopped
                 // sharing has to disappear, and a merge would keep them.
                 Map<UUID, String> fresh = new ConcurrentHashMap<>();
-                Map<UUID, String> freshLyrics = new ConcurrentHashMap<>();
+                Map<UUID, Remote> freshRemotes = new ConcurrentHashMap<>();
+                long arrived = System.currentTimeMillis();
 
                 for (Map.Entry<String, JsonElement> entry : answer.entrySet()) {
                     try {
@@ -267,8 +292,26 @@ public final class NowPlayingShare {
                         String line = value.has("song") ? value.get("song").getAsString() : "";
                         if (!line.isEmpty()) fresh.put(uuid, line);
 
-                        String lyric = value.has("lyric") ? value.get("lyric").getAsString() : "";
-                        if (!lyric.isEmpty()) freshLyrics.put(uuid, lyric);
+                        String title = value.has("title") ? value.get("title").getAsString() : "";
+                        if (title.isEmpty()) continue;
+
+                        // The worker reports how long ago the position was
+                        // taken, so a reading that sat in storage for a while
+                        // is not treated as if it had just been measured
+                        double position = value.has("position")
+                                ? value.get("position").getAsDouble() : -1;
+                        double age = value.has("age") ? value.get("age").getAsDouble() : 0;
+                        boolean isPlaying = value.has("playing")
+                                && value.get("playing").getAsBoolean();
+
+                        if (position < 0) continue;
+
+                        freshRemotes.put(uuid, new Remote(
+                                value.has("artist") ? value.get("artist").getAsString() : "",
+                                title,
+                                position + age,
+                                isPlaying,
+                                arrived));
 
                     } catch (Throwable ignored) {
                         // Skip anything malformed rather than lose the batch
@@ -277,8 +320,8 @@ public final class NowPlayingShare {
 
                 songs.clear();
                 songs.putAll(fresh);
-                lyricLines.clear();
-                lyricLines.putAll(freshLyrics);
+                remotes.clear();
+                remotes.putAll(freshRemotes);
 
             } catch (Throwable t) {
                 SpaceClient.LOGGER.warn("Could not fetch tracks: {}", t.getMessage());

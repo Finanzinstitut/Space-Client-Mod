@@ -335,7 +335,7 @@ public final class SpaceApi {
      * is what switching the setting off sends.
      */
     public static void report(String source, String artist, String title,
-                              boolean playing, String lyric) {
+                              boolean playing, double position) {
         String bearer = ensureToken();
         if (bearer.isEmpty()) return;
 
@@ -344,7 +344,7 @@ public final class SpaceApi {
         body.addProperty("artist", artist);
         body.addProperty("title", title);
         body.addProperty("playing", playing);
-        body.addProperty("lyric", lyric == null ? "" : lyric);
+        body.addProperty("position", position);
 
         try {
             HttpRequest request = HttpRequest.newBuilder()
