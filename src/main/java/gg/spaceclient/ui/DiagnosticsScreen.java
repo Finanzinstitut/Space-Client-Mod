@@ -141,6 +141,7 @@ public class DiagnosticsScreen extends Screen {
 
         y = line(graphics, left, y, "Music lookup", MusicWatcher.status());
         y = line(graphics, left, y, "Media session", MediaSession.status());
+        y = line(graphics, left, y, "Playback position", MediaSession.timelineStatus());
         y = line(graphics, left, y, "Player scan", MusicWatcher.seenProcesses());
         y = line(graphics, left, y, "Sharing", SpaceApi.status()
                 + (SpaceApi.hasToken() ? " (token held)" : " (no token)"));
