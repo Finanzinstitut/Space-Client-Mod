@@ -149,6 +149,7 @@ public class DiagnosticsScreen extends Screen {
         y = line(graphics, left, y, "Reported", NowPlayingShare.reportStatus());
         y = line(graphics, left, y, "Songs known", NowPlayingShare.cacheStatus());
         y = line(graphics, left, y, "Lyrics", Lyrics.status());
+        y = line(graphics, left, y, "Lyric line", NowPlayingShare.lyricStatus());
         y = line(graphics, left, y, "Name tag hook", NowPlayingShare.hookStatus());
 
         contentBottom = y + (int) scroll;

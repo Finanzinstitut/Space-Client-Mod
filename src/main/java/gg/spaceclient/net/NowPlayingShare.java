@@ -126,6 +126,35 @@ public final class NowPlayingShare {
         return lastReported.isEmpty() ? "sent: (cleared)" : "sent: " + lastReported;
     }
 
+    /**
+     * The lyric path, step by step, for the diagnostics page.
+     *
+     * Five things have to line up for a line to appear, and from the outside
+     * they all fail the same way. This says which one gave out.
+     */
+    public static String lyricStatus() {
+        if (!showsLyrics()) return "setting is off";
+
+        Minecraft mc = Minecraft.getInstance();
+        UUID self = mc.player != null ? mc.player.getUUID() : null;
+
+        if (remotes.isEmpty()) return "no positions received (" + songs.size() + " songs)";
+
+        Remote remote = self != null ? remotes.get(self) : null;
+        if (remote == null) {
+            return remotes.size() + " with position, none of them you";
+        }
+        if (remote.position() < 0) return "your position never arrived";
+
+        double position = remote.playing()
+                ? remote.position() + (System.currentTimeMillis() - remote.receivedAt()) / 1000.0
+                : remote.position();
+
+        String line = Lyrics.line(remote.artist(), remote.title(), position);
+        return String.format("%.0fs -> %s", position,
+                line.isEmpty() ? "(no line at this point)" : line);
+    }
+
     /** What this player is playing, or null. Called from the render thread. */
     public static String songFor(UUID uuid) {
         return uuid == null ? null : songs.get(uuid);
@@ -304,7 +333,10 @@ public final class NowPlayingShare {
                         boolean isPlaying = value.has("playing")
                                 && value.get("playing").getAsBoolean();
 
-                        if (position < 0) continue;
+                        // A record written by an older worker has no usable
+                        // timestamp, and NaN would poison every sum after it
+                        if (!Double.isFinite(age)) age = 0;
+                        if (!Double.isFinite(position)) position = -1;
 
                         freshRemotes.put(uuid, new Remote(
                                 value.has("artist") ? value.get("artist").getAsString() : "",
