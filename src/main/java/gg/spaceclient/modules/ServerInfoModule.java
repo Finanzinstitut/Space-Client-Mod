@@ -55,7 +55,10 @@ public class ServerInfoModule extends HudModule {
         lastCount = now;
     }
 
-    private String text() {
+    /** Cached; see HudModule.cachedText for why. */
+    private String text() { return cachedText(this::buildText); }
+
+    private String buildText() {
         return count() + " online";
     }
 

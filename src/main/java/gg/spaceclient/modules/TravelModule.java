@@ -50,7 +50,10 @@ public class TravelModule extends HudModule {
         lastZ = mc.player.getZ();
     }
 
-    private String text() {
+    /** Cached; see HudModule.cachedText for why. */
+    private String text() { return cachedText(this::buildText); }
+
+    private String buildText() {
         String base = String.format("%.0f m", travelled);
         if (showNether.get()) {
             base += String.format("  (%.0f in Nether)", travelled / 8);

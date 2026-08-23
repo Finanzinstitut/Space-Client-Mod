@@ -20,7 +20,10 @@ public class CrosshairInfoModule extends HudModule {
         addSettings(textColor);
     }
 
-    private String text() {
+    /** Cached; see HudModule.cachedText for why. */
+    private String text() { return cachedText(this::buildText); }
+
+    private String buildText() {
         if (mc.player == null) return "--";
         float yaw = mc.player.getYRot() % 360;
         if (yaw < 0) yaw += 360;

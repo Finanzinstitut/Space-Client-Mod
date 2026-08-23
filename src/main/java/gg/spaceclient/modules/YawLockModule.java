@@ -38,7 +38,10 @@ public class YawLockModule extends HudModule {
         addSettings(includeDiagonals, textColor);
     }
 
-    private String text() {
+    /** Cached; see HudModule.cachedText for why. */
+    private String text() { return cachedText(this::buildText); }
+
+    private String buildText() {
         float off = deviation();
         return Math.abs(off) < 0.05f ? "aligned" : String.format("%+.1f°", off);
     }

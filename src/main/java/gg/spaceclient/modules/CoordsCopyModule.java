@@ -46,7 +46,10 @@ public class CoordsCopyModule extends HudModule {
         wasSneaking = sneaking && dropping;
     }
 
-    private String text() {
+    /** Cached; see HudModule.cachedText for why. */
+    private String text() { return cachedText(this::buildText); }
+
+    private String buildText() {
         if (!marked) return "sneak + drop to mark";
         if (mc.player == null) return "--";
 

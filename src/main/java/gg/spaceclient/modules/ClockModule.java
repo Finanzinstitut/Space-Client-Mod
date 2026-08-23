@@ -26,7 +26,10 @@ public class ClockModule extends HudModule {
     @Override
     public int getHeight() { return mc.font.lineHeight; }
 
-    private String text() {
+    /** Cached; see HudModule.cachedText for why. */
+    private String text() { return cachedText(this::buildText); }
+
+    private String buildText() {
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern(showSeconds.get() ? "HH:mm:ss" : "HH:mm");
         return LocalTime.now().format(fmt);
     }

@@ -37,7 +37,10 @@ public class MemoryModule extends HudModule {
         return max <= 0 ? 0 : usedMb() / (float) max;
     }
 
-    private String text() {
+    /** Cached; see HudModule.cachedText for why. */
+    private String text() { return cachedText(this::buildText); }
+
+    private String buildText() {
         return usedMb() + " / " + maxMb() + " MB";
     }
 

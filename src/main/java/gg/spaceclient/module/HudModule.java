@@ -41,6 +41,40 @@ public abstract class HudModule extends Module {
     public abstract int getHeight();
 
     /**
+     * How often this element's text is allowed to be rebuilt, in milliseconds.
+     *
+     * Overridden by anything that genuinely has to keep up with the frame rate.
+     * Everything else is read by a human eye, and a human eye cannot tell four
+     * hundred updates a second from ten.
+     */
+    protected long refreshMillis() { return 100; }
+
+    private String cachedText = null;
+    private long cachedAt = 0L;
+
+    /**
+     * The element's text, rebuilt at most once per refresh window.
+     *
+     * The HUD loop asks every module for its width and then draws it, so any
+     * text built inside those methods is built twice a frame. Twenty modules
+     * formatting strings four hundred times a second is real work and real
+     * garbage, and it is the reason a HUD can cost frames rather than just
+     * occupy pixels. The supplier runs on the tick that needs it and the answer
+     * is handed out until it goes stale.
+     */
+    protected String cachedText(java.util.function.Supplier<String> builder) {
+        long now = System.currentTimeMillis();
+        if (cachedText == null || now - cachedAt >= refreshMillis()) {
+            cachedText = builder.get();
+            cachedAt = now;
+        }
+        return cachedText;
+    }
+
+    /** Drops the cache, for when a setting changes what the text should say. */
+    protected void invalidateText() { cachedText = null; }
+
+    /**
      * Draws the plate, then the element itself. Subclasses implement render();
      * this is what the HUD loop calls.
      */

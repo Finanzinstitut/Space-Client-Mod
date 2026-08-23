@@ -37,11 +37,21 @@ public final class NowPlayingShare {
     /** How often the local track may be sent, at the very most. */
     private static final long REPORT_MIN_MS = 5_000;
 
+    /** A track change is news, so it waits far less than a routine report. */
+    private static final long REPORT_CHANGE_MS = 800;
+
     /** Sent again after this long even when nothing changed, to stay alive. */
     private static final long REPORT_KEEPALIVE_MS = 60_000;
 
     /** How often everyone else's tracks are fetched. */
     private static final long FETCH_MS = 10_000;
+
+    /** Still a floor, so a busy spawn cannot turn every arrival into a request. */
+    private static final long FETCH_NEW_MS = 1_500;
+
+    /** Who the last lookup covered, so an arrival can be told from a regular. */
+    private static final java.util.Set<UUID> asked =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     /** The worker caps this too; asking for more would be pointless. */
     private static final int MAX_LOOKUP = 100;
@@ -235,10 +245,18 @@ public final class NowPlayingShare {
         if (reporting) return;
 
         long now = System.currentTimeMillis();
-        if (now - lastReport < REPORT_MIN_MS) return;
 
         NowPlaying playing = module.track();
         String line = playing.isEmpty() ? "" : playing.display();
+
+        // The floor used to be checked before the track was even read, so a
+        // song that changed one second after the last report sat unsent for
+        // four more. A change now only waits out a much shorter floor; the
+        // long one still applies to keepalives and seek corrections, which is
+        // what it was there to hold back.
+        boolean fresh = !line.equals(lastReported);
+        long floor = fresh ? REPORT_CHANGE_MS : REPORT_MIN_MS;
+        if (now - lastReport < floor) return;
 
         double position = MediaSession.position();
 
@@ -276,8 +294,6 @@ public final class NowPlayingShare {
         if (fetching) return;
 
         long now = System.currentTimeMillis();
-        if (now - lastFetch < FETCH_MS) return;
-        lastFetch = now;
 
         List<UUID> wanted = new ArrayList<>();
 
@@ -298,8 +314,25 @@ public final class NowPlayingShare {
         if (wanted.isEmpty()) {
             songs.clear();
             remotes.clear();
+            asked.clear();
             return;
         }
+
+        // Somebody who walked into view a moment ago used to wait out the whole
+        // ten second cycle before anyone could see their song, which is most of
+        // why this looked like it simply did not work. An unfamiliar player
+        // brings the next lookup forward instead.
+        boolean newcomer = false;
+        for (UUID uuid : wanted) {
+            if (!asked.contains(uuid)) { newcomer = true; break; }
+        }
+
+        long wait = newcomer ? FETCH_NEW_MS : FETCH_MS;
+        if (now - lastFetch < wait) return;
+
+        lastFetch = now;
+        asked.clear();
+        asked.addAll(wanted);
 
         fetching = true;
         CompletableFuture.runAsync(() -> {

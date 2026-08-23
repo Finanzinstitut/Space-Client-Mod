@@ -94,7 +94,10 @@ public class TpsModule extends HudModule {
         windowStartTicks = ticks;
     }
 
-    private String text() {
+    /** Cached; see HudModule.cachedText for why. */
+    private String text() { return cachedText(this::buildText); }
+
+    private String buildText() {
         if (mc.level == null) return "-- tps";
         if (tps < 0) return "... tps";
         return String.format("%.1f tps", Math.min(tps, 20.0));

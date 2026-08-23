@@ -74,7 +74,14 @@ public class CpsModule extends HudModule {
     @Override
     public int getHeight() { return mc.font.lineHeight; }
 
-    private String text() {
+    /** clicks per second is watched during clicking */
+    @Override
+    protected long refreshMillis() { return 50; }
+
+    /** Cached; see HudModule.cachedText for why. */
+    private String text() { return cachedText(this::buildText); }
+
+    private String buildText() {
         return showRight.get()
                 ? getLeftCps() + " | " + getRightCps() + " CPS"
                 : getLeftCps() + " CPS";

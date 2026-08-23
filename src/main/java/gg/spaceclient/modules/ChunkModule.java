@@ -19,7 +19,10 @@ public class ChunkModule extends HudModule {
         addSettings(textColor);
     }
 
-    private String text() {
+    /** Cached; see HudModule.cachedText for why. */
+    private String text() { return cachedText(this::buildText); }
+
+    private String buildText() {
         if (mc.player == null) return "-- --";
         int x = (int) Math.floor(mc.player.getX());
         int z = (int) Math.floor(mc.player.getZ());
