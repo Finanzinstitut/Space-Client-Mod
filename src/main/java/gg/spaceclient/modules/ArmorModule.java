@@ -1,5 +1,6 @@
 package gg.spaceclient.modules;
 
+import gg.spaceclient.SpaceClient;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ModeSetting;
@@ -12,11 +13,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * What you are wearing, and how much of it is left.
+ * The armour you are wearing, drawn as the items themselves.
  *
- * The point of this on the HUD is the moment before a piece breaks, so the
- * numbers are coloured by how much is left rather than shown flat: a boot at
- * eight percent should catch the eye without being read.
+ * The durability bar is vanilla's own call, the same one the inventory makes,
+ * so its colours and width match what players already read at a glance. A hand
+ * drawn bar would have to imitate that and would drift the moment it changed.
  */
 public class ArmorModule extends HudModule {
 
@@ -25,149 +26,161 @@ public class ArmorModule extends HudModule {
             EquipmentSlot.LEGS, EquipmentSlot.FEET,
     };
 
-    private static final String[] LABELS = { "Helm", "Chest", "Legs", "Boots" };
+    /** One inventory slot, plus a little air between them. */
+    private static final int ICON = 16;
+    private static final int GAP = 4;
 
-    private final ModeSetting style = new ModeSetting(
-            "style", "Show as", "Percentage left, or points remaining",
-            List.of("Percent", "Points"), "Percent");
+    private final ModeSetting display = new ModeSetting(
+            "display", "Show", "Durability bar, a percentage, or both",
+            List.of("Bar", "Percent", "Both"), "Bar");
+
+    private final ModeSetting direction = new ModeSetting(
+            "direction", "Layout", "Side by side or stacked",
+            List.of("Horizontal", "Vertical"), "Horizontal");
 
     private final BooleanSetting showHeld = new BooleanSetting(
             "show_held", "Include held item",
             "Adds whatever is in your main hand", true);
 
-    private final BooleanSetting hideFull = new BooleanSetting(
-            "hide_full", "Hide undamaged",
-            "Only list pieces that have taken damage", false);
-
     private final BooleanSetting hideEmpty = new BooleanSetting(
             "hide_empty", "Hide empty slots",
             "Leave out slots with nothing in them", true);
 
+    /** Set once if the item draw call turns out not to exist on this version. */
+    private static boolean iconsBroken = false;
+
     public ArmorModule() {
-        super("armor", "Armour", "Durability of what you are wearing",
-                0.90f, 0.40f, false);
-        addSettings(style, showHeld, hideFull, hideEmpty);
+        super("armor", "Armour", "Your armour and how much of it is left",
+                0.88f, 0.40f, false);
+        addSettings(display, direction, showHeld, hideEmpty);
     }
 
-    /** One line per piece, built at most as often as the base class allows. */
-    private List<String> lines() {
-        List<String> out = new ArrayList<>();
-        if (mc.player == null) return out;
-
-        for (int i = 0; i < SLOTS.length; i++) {
-            String line = describe(LABELS[i], slot(SLOTS[i]));
-            if (line != null) out.add(line);
-        }
-
-        if (showHeld.get()) {
-            String line = describe("Hand", slot(EquipmentSlot.MAINHAND));
-            if (line != null) out.add(line);
-        }
-
-        if (out.isEmpty()) out.add("no armour");
-        return out;
-    }
+    /** Not read every frame, but a swap should not visibly lag either. */
+    @Override
+    protected long refreshMillis() { return 250; }
 
     private ItemStack slot(EquipmentSlot which) {
         try {
-            return mc.player.getItemBySlot(which);
+            return mc.player == null ? null : mc.player.getItemBySlot(which);
         } catch (Throwable ignored) {
             return null;
         }
     }
 
-    /** Null when this row should not appear at all. */
-    private String describe(String label, ItemStack stack) {
-        if (stack == null || stack.isEmpty()) {
-            return hideEmpty.get() ? null : label + "  -";
+    /** The pieces to draw, in the order they are worn. */
+    private List<ItemStack> pieces() {
+        List<ItemStack> out = new ArrayList<>();
+        if (mc.player == null) return out;
+
+        for (EquipmentSlot which : SLOTS) {
+            ItemStack stack = slot(which);
+            boolean empty = stack == null || stack.isEmpty();
+            if (empty && hideEmpty.get()) continue;
+            out.add(stack == null ? ItemStack.EMPTY : stack);
         }
 
-        int max = maxDamage(stack);
-        if (max <= 0) {
-            // Something unbreakable, or with no durability to speak of
-            return hideFull.get() ? null : label + "  ok";
-        }
-
-        int left = max - damage(stack);
-        if (left >= max && hideFull.get()) return null;
-
-        if ("Points".equals(style.get())) {
-            return label + "  " + left + "/" + max;
-        }
-        return label + "  " + Math.round(left * 100f / max) + "%";
-    }
-
-    private static int maxDamage(ItemStack stack) {
-        try { return stack.getMaxDamage(); } catch (Throwable ignored) { return 0; }
-    }
-
-    private static int damage(ItemStack stack) {
-        try { return stack.getDamageValue(); } catch (Throwable ignored) { return 0; }
-    }
-
-    /**
-     * Green while there is room to spare, amber once it is worth noticing, red
-     * when the piece is about to go. The thresholds are deliberately late: a
-     * warning that starts at half is a warning people learn to ignore.
-     */
-    private int colorFor(String line) {
-        int pct = percentIn(line);
-        if (pct < 0) return 0xFFFFFFFF;
-        if (pct <= 10) return 0xFFFF5555;
-        if (pct <= 30) return 0xFFFFAA00;
-        return 0xFF55FF55;
-    }
-
-    /** Reads the share back out of the finished line, so colour follows text. */
-    private int percentIn(String line) {
-        try {
-            if (line.endsWith("%")) {
-                int space = line.lastIndexOf(' ');
-                return Integer.parseInt(line.substring(space + 1, line.length() - 1));
+        if (showHeld.get()) {
+            ItemStack held = slot(EquipmentSlot.MAINHAND);
+            boolean empty = held == null || held.isEmpty();
+            if (!empty || !hideEmpty.get()) {
+                out.add(held == null ? ItemStack.EMPTY : held);
             }
-            int slash = line.indexOf('/');
-            if (slash < 0) return -1;
-            int space = line.lastIndexOf(' ', slash);
-            int left = Integer.parseInt(line.substring(space + 1, slash).trim());
-            int max = Integer.parseInt(line.substring(slash + 1).trim());
-            return max <= 0 ? -1 : Math.round(left * 100f / max);
+        }
+        return out;
+    }
+
+    private boolean vertical() { return "Vertical".equals(direction.get()); }
+    private boolean wantsBar() { return !"Percent".equals(display.get()); }
+    private boolean wantsPercent() { return !"Bar".equals(display.get()); }
+
+    @Override
+    public int getWidth() {
+        int count = Math.max(1, pieces().size());
+        if (vertical()) {
+            return wantsPercent() ? ICON + 4 + mc.font.width("100%") : ICON;
+        }
+        return count * ICON + (count - 1) * GAP;
+    }
+
+    @Override
+    public int getHeight() {
+        int count = Math.max(1, pieces().size());
+        if (vertical()) return count * (ICON + GAP) - GAP;
+        return ICON + (wantsPercent() ? mc.font.lineHeight : 0);
+    }
+
+    private static int percentOf(ItemStack stack) {
+        try {
+            int max = stack.getMaxDamage();
+            if (max <= 0) return -1;
+            return Math.round((max - stack.getDamageValue()) * 100f / max);
         } catch (Throwable ignored) {
             return -1;
         }
     }
 
     /**
-     * The lines, cached.
+     * White until it matters, then amber, then red.
      *
-     * Joined into one string so the base class's single text cache covers a
-     * multi-line element too, then split again for drawing - cheaper than
-     * caching a list and no different to read.
+     * Late on purpose: a warning that starts at half is one people learn to
+     * ignore, and the bar already carries the gradual story.
      */
-    private List<String> cachedLines() {
-        String joined = cachedText(() -> String.join("\n", lines()));
-        return List.of(joined.split("\n"));
-    }
-
-    @Override
-    public int getWidth() {
-        int widest = 0;
-        for (String line : cachedLines()) {
-            widest = Math.max(widest, mc.font.width(line));
-        }
-        return widest;
-    }
-
-    @Override
-    public int getHeight() {
-        return cachedLines().size() * (mc.font.lineHeight + 1);
+    private static int colorFor(int pct) {
+        if (pct < 0) return 0xFFFFFFFF;
+        if (pct <= 10) return 0xFFFF5555;
+        if (pct <= 30) return 0xFFFFAA00;
+        return 0xFFDDDDDD;
     }
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
-        int row = y;
-        for (String line : cachedLines()) {
-            graphics.text(mc.font, line, x, row, colorFor(line), true);
-            row += mc.font.lineHeight + 1;
+        List<ItemStack> pieces = pieces();
+        if (pieces.isEmpty()) return;
+
+        int cx = x;
+        int cy = y;
+
+        for (ItemStack stack : pieces) {
+            drawPiece(graphics, stack, cx, cy);
+            if (vertical()) cy += ICON + GAP;
+            else cx += ICON + GAP;
+        }
+    }
+
+    private void drawPiece(GuiGraphicsExtractor graphics, ItemStack stack, int x, int y) {
+        boolean empty = stack == null || stack.isEmpty();
+
+        if (empty) {
+            // An empty slot keeps its place, so the row does not reflow every
+            // time a piece breaks
+            graphics.fill(x, y, x + ICON, y + ICON, 0x33FFFFFF);
+        } else if (!iconsBroken) {
+            try {
+                graphics.item(mc.player, mc.level, stack, x, y, 0);
+                if (wantsBar()) graphics.itemBar(stack, x, y);
+            } catch (Throwable t) {
+                iconsBroken = true;
+                SpaceClient.LOGGER.warn("Armour icons unavailable on this version", t);
+            }
+        }
+
+        if (!empty && iconsBroken) {
+            // A plate where the icon would have gone, so the element still says
+            // something instead of turning into blank space
+            graphics.fill(x, y, x + ICON, y + ICON, 0x55FFFFFF);
+        }
+
+        if (!wantsPercent()) return;
+
+        int pct = empty ? -1 : percentOf(stack);
+        String label = pct < 0 ? "-" : pct + "%";
+
+        if (vertical()) {
+            graphics.text(mc.font, label, x + ICON + 4,
+                    y + (ICON - mc.font.lineHeight) / 2 + 1, colorFor(pct), true);
+        } else {
+            graphics.text(mc.font, label,
+                    x + (ICON - mc.font.width(label)) / 2, y + ICON, colorFor(pct), true);
         }
     }
 }

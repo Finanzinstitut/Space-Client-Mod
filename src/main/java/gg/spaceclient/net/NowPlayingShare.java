@@ -215,6 +215,16 @@ public final class NowPlayingShare {
             // or not anything is being shared - the HUD wants the line too
             if (module == null || !module.isEnabled() || !module.showsLyrics()) {
                 Lyrics.clear();
+            } else {
+                // Nothing used to start a lookup except drawing somebody's name
+                // tag, so switching lyrics on while alone did nothing at all and
+                // the diagnostics line stayed on "off". The local track is reason
+                // enough to fetch: the HUD wants the line whether or not anyone
+                // else is around to show it to.
+                NowPlaying own = module.track();
+                if (!own.isEmpty()) {
+                    Lyrics.line(own.artist(), own.title(), MediaSession.position());
+                }
             }
 
             if (sharing) {
