@@ -156,8 +156,11 @@ public class ArmorModule extends HudModule {
             graphics.fill(x, y, x + ICON, y + ICON, 0x33FFFFFF);
         } else if (!iconsBroken) {
             try {
-                graphics.item(mc.player, mc.level, stack, x, y, 0);
-                if (wantsBar()) graphics.itemBar(stack, x, y);
+                // Both calls are private on GuiGraphicsExtractor; the invoker
+                // mixin is what makes them reachable from here.
+                var gui = (gg.spaceclient.mixin.GuiItemInvoker) (Object) graphics;
+                gui.spaceclient$item(mc.player, mc.level, stack, x, y, 0);
+                if (wantsBar()) gui.spaceclient$itemBar(stack, x, y);
             } catch (Throwable t) {
                 iconsBroken = true;
                 SpaceClient.LOGGER.warn("Armour icons unavailable on this version", t);
