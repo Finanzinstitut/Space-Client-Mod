@@ -46,10 +46,7 @@ public class CoordsCopyModule extends HudModule {
         wasSneaking = sneaking && dropping;
     }
 
-    /** Cached; see HudModule.cachedText for why. */
-    private String text() { return cachedText(this::buildText); }
-
-    private String buildText() {
+    private String text() {
         if (!marked) return "sneak + drop to mark";
         if (mc.player == null) return "--";
 
@@ -69,13 +66,13 @@ public class CoordsCopyModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return mc.font.width(text()); }
+    public int getWidth() { return mc.font.width(cached(this::text)); }
 
     @Override
     public int getHeight() { return mc.font.lineHeight; }
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
-        graphics.text(mc.font, text(), x, y, textColor.get(), true);
+        graphics.text(mc.font, cached(this::text), x, y, textColor.get(), true);
     }
 }

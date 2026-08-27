@@ -55,15 +55,12 @@ public class ServerInfoModule extends HudModule {
         lastCount = now;
     }
 
-    /** Cached; see HudModule.cachedText for why. */
-    private String text() { return cachedText(this::buildText); }
-
-    private String buildText() {
+    private String text() {
         return count() + " online";
     }
 
     @Override
-    public int getWidth() { return Math.max(60, mc.font.width(text())); }
+    public int getWidth() { return Math.max(60, mc.font.width(cached(this::text))); }
 
     @Override
     public int getHeight() { return mc.font.lineHeight; }
@@ -74,6 +71,6 @@ public class ServerInfoModule extends HudModule {
         if (flagChanges.get() && System.currentTimeMillis() - changedAt < 3000) {
             color = 0xFF38E0FF;
         }
-        graphics.text(mc.font, text(), x, y, color, true);
+        graphics.text(mc.font, cached(this::text), x, y, color, true);
     }
 }

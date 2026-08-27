@@ -69,19 +69,12 @@ public class CpsModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return mc.font.width(text()); }
+    public int getWidth() { return mc.font.width(cached(this::text)); }
 
     @Override
     public int getHeight() { return mc.font.lineHeight; }
 
-    /** clicks per second is watched during clicking */
-    @Override
-    protected long refreshMillis() { return 50; }
-
-    /** Cached; see HudModule.cachedText for why. */
-    private String text() { return cachedText(this::buildText); }
-
-    private String buildText() {
+    private String text() {
         return showRight.get()
                 ? getLeftCps() + " | " + getRightCps() + " CPS"
                 : getLeftCps() + " CPS";
@@ -89,6 +82,6 @@ public class CpsModule extends HudModule {
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
-        graphics.text(mc.font, text(), x, y, textColor.get(), true);
+        graphics.text(mc.font, cached(this::text), x, y, textColor.get(), true);
     }
 }

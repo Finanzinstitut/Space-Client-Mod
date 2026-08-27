@@ -4,6 +4,7 @@ import gg.spaceclient.music.Lyrics;
 import gg.spaceclient.music.MediaSession;
 import gg.spaceclient.music.MusicWatcher;
 import gg.spaceclient.net.NowPlayingShare;
+import gg.spaceclient.net.Presence;
 import gg.spaceclient.net.SpaceApi;
 import gg.spaceclient.util.Diagnostics;
 
@@ -151,6 +152,7 @@ public class DiagnosticsScreen extends Screen {
         y = line(graphics, left, y, "Lyrics", Lyrics.status());
         y = line(graphics, left, y, "Lyric line", NowPlayingShare.lyricStatus());
         y = line(graphics, left, y, "Name tag hook", NowPlayingShare.hookStatus());
+        y = line(graphics, left, y, "Badges", Presence.status());
 
         contentBottom = y + (int) scroll;
 

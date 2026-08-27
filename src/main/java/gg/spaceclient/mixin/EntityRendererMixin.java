@@ -1,6 +1,7 @@
 package gg.spaceclient.mixin;
 
 import gg.spaceclient.net.NowPlayingShare;
+import gg.spaceclient.render.NameBadge;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 
@@ -39,6 +40,13 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  *
  * The target deliberately names no owning class, so it matches whether the
  * call site is compiled against SubmitNodeCollector or its parent interface.
+ *
+ * The same interception also puts the Space Client badge in front of the name.
+ * It goes here rather than in a draw call of its own precisely because the
+ * text is already passing through: the badge is a glyph, so prefixing the
+ * component is the entire implementation. Both overloads are handled, because
+ * they fire independently and a badge that only appears sometimes is worse
+ * than none.
  */
 @Mixin(EntityRenderer.class)
 public abstract class EntityRendererMixin {
@@ -76,7 +84,8 @@ public abstract class EntityRendererMixin {
                                           SubmitNodeCollector outerCollector,
                                           CameraRenderState outerCamera,
                                           int color) {
-        collector.submitNameTag(poseStack, position, background, text, flag, light, camera);
+        collector.submitNameTag(poseStack, position, background,
+                NameBadge.decorate(state, text), flag, light, camera);
         addSong(collector, poseStack, position, background, flag, light, camera, state, true);
     }
 
@@ -100,7 +109,8 @@ public abstract class EntityRendererMixin {
                                            PoseStack outerPose,
                                            SubmitNodeCollector outerCollector,
                                            CameraRenderState outerCamera) {
-        collector.submitNameTag(poseStack, position, background, text, flag, light, camera);
+        collector.submitNameTag(poseStack, position, background,
+                NameBadge.decorate(state, text), flag, light, camera);
         addSong(collector, poseStack, position, background, flag, light, camera, state, false);
     }
 

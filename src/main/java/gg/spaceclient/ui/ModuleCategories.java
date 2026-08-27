@@ -26,7 +26,6 @@ public final class ModuleCategories {
 
     private static final Map<String, String> BY_ID = Map.ofEntries(
             Map.entry("hitbox", COMBAT),
-            Map.entry("armor", COMBAT),
             Map.entry("reach", COMBAT),
             Map.entry("cps", COMBAT),
             Map.entry("keystrokes", COMBAT),

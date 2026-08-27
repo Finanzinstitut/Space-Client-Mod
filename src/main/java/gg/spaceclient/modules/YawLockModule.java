@@ -38,16 +38,13 @@ public class YawLockModule extends HudModule {
         addSettings(includeDiagonals, textColor);
     }
 
-    /** Cached; see HudModule.cachedText for why. */
-    private String text() { return cachedText(this::buildText); }
-
-    private String buildText() {
+    private String text() {
         float off = deviation();
         return Math.abs(off) < 0.05f ? "aligned" : String.format("%+.1f°", off);
     }
 
     @Override
-    public int getWidth() { return Math.max(50, mc.font.width(text())); }
+    public int getWidth() { return Math.max(50, mc.font.width(cached(this::text))); }
 
     @Override
     public int getHeight() { return mc.font.lineHeight; }
@@ -56,6 +53,6 @@ public class YawLockModule extends HudModule {
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
         float off = Math.abs(deviation());
         int color = off < 0.05f ? 0xFF4ADE80 : off < 2f ? 0xFFFFD9A0 : textColor.get();
-        graphics.text(mc.font, text(), x, y, color, true);
+        graphics.text(mc.font, cached(this::text), x, y, color, true);
     }
 }

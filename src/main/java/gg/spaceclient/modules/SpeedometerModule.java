@@ -49,19 +49,12 @@ public class SpeedometerModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return mc.font.width(text()); }
+    public int getWidth() { return mc.font.width(cached(this::text)); }
 
     @Override
     public int getHeight() { return mc.font.lineHeight; }
 
-    /** speed changes every step, and a lagging number reads as a bug */
-    @Override
-    protected long refreshMillis() { return 50; }
-
-    /** Cached; see HudModule.cachedText for why. */
-    private String text() { return cachedText(this::buildText); }
-
-    private String buildText() {
+    private String text() {
         String text = String.format("%.1f m/s", speed);
         if (showEfficiency.get()) {
             double pct = Math.min(999, (speed / theoreticalMax()) * 100);
@@ -72,6 +65,6 @@ public class SpeedometerModule extends HudModule {
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
-        graphics.text(mc.font, text(), x, y, textColor.get(), true);
+        graphics.text(mc.font, cached(this::text), x, y, textColor.get(), true);
     }
 }

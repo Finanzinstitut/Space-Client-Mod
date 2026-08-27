@@ -18,6 +18,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -326,6 +327,115 @@ public final class SpaceApi {
         return raw.substring(0, 8) + "-" + raw.substring(8, 12) + "-"
                 + raw.substring(12, 16) + "-" + raw.substring(16, 20) + "-"
                 + raw.substring(20);
+    }
+
+    // ---------------- presence ----------------
+
+    /**
+     * Announces that this account runs Space Client.
+     *
+     * No token and no handshake. /register is checked against Mojang's public
+     * profile lookup instead, which costs the worker nothing after the first
+     * time it sees an account and costs this client nothing ever. That check
+     * confirms the uuid and name belong together; it is not proof of ownership,
+     * and the worker's own comment says so.
+     *
+     * Returns whether the worker accepted it, so the caller knows whether to
+     * wait the full interval or retry sooner.
+     */
+    public static boolean register() {
+        Minecraft mc = Minecraft.getInstance();
+
+        String name;
+        try {
+            name = mc.getUser().getName();
+        } catch (Throwable t) {
+            status = "no account in the running game";
+            return false;
+        }
+        if (name == null || name.isEmpty()) {
+            status = "no account name";
+            return false;
+        }
+
+        Object user = Reflect.call(mc, "getUser");
+        UUID uuid = profileUuid(user, mc);
+        if (uuid == null) {
+            status = "no profile id reachable";
+            return false;
+        }
+
+        JsonObject body = new JsonObject();
+        body.addProperty("uuid", uuid.toString());
+        body.addProperty("name", name);
+        body.addProperty("version", SpaceClient.VERSION);
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(BASE + "/register"))
+                    .header("Content-Type", "application/json")
+                    .timeout(Duration.ofSeconds(10))
+                    .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
+                    .build();
+
+            HttpResponse<String> response =
+                    http().send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() != 200) {
+                status = "register refused (" + response.statusCode() + "): "
+                        + shorten(response.body());
+                return false;
+            }
+            return true;
+
+        } catch (Throwable t) {
+            status = "register failed: " + t.getMessage();
+            return false;
+        }
+    }
+
+    /**
+     * The full list of accounts carrying a badge.
+     *
+     * Everyone, not just the players in sight. The answer is identical for
+     * every client and changes only when somebody installs the mod, so the
+     * worker serves it from cache and one request replaces what would
+     * otherwise be a lookup per player per poll.
+     *
+     * Returns null if the call did not get through, which the caller must not
+     * confuse with an empty roster - the first means keep what you had, the
+     * second means everyone lost their badge.
+     */
+    public static List<String> badgeUsers() {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(BASE + "/users"))
+                    .header("Accept", "application/json")
+                    .timeout(Duration.ofSeconds(10))
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response =
+                    http().send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                status = "roster refused (" + response.statusCode() + ")";
+                return null;
+            }
+
+            JsonObject parsed = JsonParser.parseString(response.body()).getAsJsonObject();
+            if (!parsed.has("users")) return null;
+
+            JsonArray array = parsed.getAsJsonArray("users");
+            List<String> users = new ArrayList<>(array.size());
+            for (int i = 0; i < array.size(); i++) {
+                users.add(array.get(i).getAsString());
+            }
+            return users;
+
+        } catch (Throwable t) {
+            status = "roster failed: " + t.getMessage();
+            return null;
+        }
     }
 
     // ---------------- the two calls ----------------

@@ -37,15 +37,12 @@ public class MemoryModule extends HudModule {
         return max <= 0 ? 0 : usedMb() / (float) max;
     }
 
-    /** Cached; see HudModule.cachedText for why. */
-    private String text() { return cachedText(this::buildText); }
-
-    private String buildText() {
+    private String text() {
         return usedMb() + " / " + maxMb() + " MB";
     }
 
     @Override
-    public int getWidth() { return Math.max(90, mc.font.width(text())); }
+    public int getWidth() { return Math.max(90, mc.font.width(cached(this::text))); }
 
     @Override
     public int getHeight() { return mc.font.lineHeight + (showBar.get() ? 6 : 0); }
@@ -54,7 +51,7 @@ public class MemoryModule extends HudModule {
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
         float ratio = ratio();
         int color = ratio > 0.9f ? 0xFFFF6B81 : ratio > 0.75f ? 0xFFFFD9A0 : textColor.get();
-        graphics.text(mc.font, text(), x, y, color, true);
+        graphics.text(mc.font, cached(this::text), x, y, color, true);
 
         if (!showBar.get()) return;
         int barY = y + mc.font.lineHeight + 2;

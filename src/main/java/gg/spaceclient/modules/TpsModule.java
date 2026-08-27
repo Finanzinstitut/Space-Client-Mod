@@ -41,7 +41,7 @@ public class TpsModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return mc.font.width(text()); }
+    public int getWidth() { return mc.font.width(cached(this::text)); }
 
     @Override
     public int getHeight() { return mc.font.lineHeight; }
@@ -94,10 +94,7 @@ public class TpsModule extends HudModule {
         windowStartTicks = ticks;
     }
 
-    /** Cached; see HudModule.cachedText for why. */
-    private String text() { return cachedText(this::buildText); }
-
-    private String buildText() {
+    private String text() {
         if (mc.level == null) return "-- tps";
         if (tps < 0) return "... tps";
         return String.format("%.1f tps", Math.min(tps, 20.0));
@@ -112,6 +109,6 @@ public class TpsModule extends HudModule {
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
-        graphics.text(mc.font, text(), x, y, color(), true);
+        graphics.text(mc.font, cached(this::text), x, y, color(), true);
     }
 }

@@ -5,6 +5,8 @@ import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
+import java.util.function.Supplier;
+
 /**
  * A module that draws on the HUD. Position is a fraction of the screen so
  * elements keep their place when the window is resized.
@@ -31,6 +33,49 @@ public abstract class HudModule extends Module {
         addSettings(background, backgroundColor);
     }
 
+    private String cachedText = null;
+    private long cachedAt = 0;
+
+    /**
+     * How often the displayed value may be worked out again, in milliseconds.
+     *
+     * A HUD element is drawn every single frame, and at 300 frames a second
+     * that meant three hundred string builds and font measurements a second
+     * for a number that changes a few times a second at most. Worse, most
+     * elements compute their text twice per frame - once to measure the plate,
+     * once to draw - so the work was doubled on top.
+     *
+     * A quarter of a second is below what anyone can read as lag, and it cuts
+     * the work by well over a hundred times. Elements that genuinely need
+     * every frame override this and return zero.
+     */
+    protected long updateInterval() {
+        return 250;
+    }
+
+    /**
+     * The element's text, recomputed only when it is due.
+     *
+     * Callers hand in how to produce it rather than the finished string, so
+     * that the work itself is skipped - passing text() in would compute it
+     * first and cache nothing.
+     */
+    protected String cached(Supplier<String> producer) {
+        long interval = updateInterval();
+        long now = System.currentTimeMillis();
+
+        if (cachedText == null || interval <= 0 || now - cachedAt >= interval) {
+            cachedText = producer.get();
+            cachedAt = now;
+        }
+        return cachedText;
+    }
+
+    /** Throws the cached value away, for when a setting changes what it says. */
+    protected void invalidate() {
+        cachedText = null;
+    }
+
     /** Lets a module opt out of the plate when it draws its own. */
     protected void setBackgroundEnabled(boolean enabled) {
         background.set(enabled);
@@ -39,40 +84,6 @@ public abstract class HudModule extends Module {
     /** Width and height of the drawn content, used to size the plate. */
     public abstract int getWidth();
     public abstract int getHeight();
-
-    /**
-     * How often this element's text is allowed to be rebuilt, in milliseconds.
-     *
-     * Overridden by anything that genuinely has to keep up with the frame rate.
-     * Everything else is read by a human eye, and a human eye cannot tell four
-     * hundred updates a second from ten.
-     */
-    protected long refreshMillis() { return 100; }
-
-    private String cachedText = null;
-    private long cachedAt = 0L;
-
-    /**
-     * The element's text, rebuilt at most once per refresh window.
-     *
-     * The HUD loop asks every module for its width and then draws it, so any
-     * text built inside those methods is built twice a frame. Twenty modules
-     * formatting strings four hundred times a second is real work and real
-     * garbage, and it is the reason a HUD can cost frames rather than just
-     * occupy pixels. The supplier runs on the tick that needs it and the answer
-     * is handed out until it goes stale.
-     */
-    protected String cachedText(java.util.function.Supplier<String> builder) {
-        long now = System.currentTimeMillis();
-        if (cachedText == null || now - cachedAt >= refreshMillis()) {
-            cachedText = builder.get();
-            cachedAt = now;
-        }
-        return cachedText;
-    }
-
-    /** Drops the cache, for when a setting changes what the text should say. */
-    protected void invalidateText() { cachedText = null; }
 
     /**
      * Draws the plate, then the element itself. Subclasses implement render();

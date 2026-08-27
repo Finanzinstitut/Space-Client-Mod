@@ -128,6 +128,11 @@ public class SpaceClient implements ClientModInitializer {
             // down when the setting goes off.
             gg.spaceclient.net.NowPlayingShare.tick();
 
+            // Separate from the above on purpose: the badge is not a module
+            // and has no setting behind it, so it ticks whenever the game is
+            // in a world. Its own timers keep it to a couple of calls an hour.
+            gg.spaceclient.net.Presence.tick();
+
             // The window only exists once the game is running, so the hook is
             // installed on the first tick rather than during initialisation.
             gg.spaceclient.input.RawMouse.install();
