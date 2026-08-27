@@ -15,12 +15,15 @@ public class PingModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return mc.font.width(cached(this::text)); }
+    public int getWidth() { return mc.font.width(text()); }
 
     @Override
     public int getHeight() { return mc.font.lineHeight; }
 
-    private String text() {
+    /** Cached; see HudModule.cachedText for why. */
+    private String text() { return cachedText(this::buildText); }
+
+    private String buildText() {
         if (mc.player == null || mc.getConnection() == null) return "-- ms";
         PlayerInfo entry = mc.getConnection().getPlayerInfo(mc.player.getUUID());
         return entry != null ? entry.getLatency() + " ms" : "-- ms";
@@ -28,6 +31,6 @@ public class PingModule extends HudModule {
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
-        graphics.text(mc.font, cached(this::text), x, y, textColor.get(), true);
+        graphics.text(mc.font, text(), x, y, textColor.get(), true);
     }
 }

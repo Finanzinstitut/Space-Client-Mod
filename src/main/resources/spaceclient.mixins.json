@@ -6,6 +6,7 @@
     "CameraMixin",
     "LevelRendererMixin",
     "AvatarRendererMixin",
+    "GuiItemInvoker",
     "EntityRendererMixin",
     "PauseScreenMixin",
     "MinecraftServerMixin"

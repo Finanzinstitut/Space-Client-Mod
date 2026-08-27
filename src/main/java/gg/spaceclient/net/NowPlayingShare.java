@@ -37,24 +37,21 @@ public final class NowPlayingShare {
     /** How often the local track may be sent, at the very most. */
     private static final long REPORT_MIN_MS = 5_000;
 
+    /** A track change is news, so it waits far less than a routine report. */
+    private static final long REPORT_CHANGE_MS = 800;
+
     /** Sent again after this long even when nothing changed, to stay alive. */
     private static final long REPORT_KEEPALIVE_MS = 60_000;
 
     /** How often everyone else's tracks are fetched. */
     private static final long FETCH_MS = 10_000;
 
-    /**
-     * How long a known track survives without being confirmed again.
-     *
-     * The cache used to be thrown away and rebuilt on every fetch, so a single
-     * answer that came back short - a request that failed, or storage that had
-     * not caught up with a just written entry - blanked everybody until the
-     * next round ten seconds later. That is what made the line over people's
-     * heads come and go. Entries now age out on their own instead, which
-     * survives a missed answer while still forgetting anyone who really has
-     * stopped sharing.
-     */
-    private static final long ENTRY_TTL_MS = 40_000;
+    /** Still a floor, so a busy spawn cannot turn every arrival into a request. */
+    private static final long FETCH_NEW_MS = 1_500;
+
+    /** Who the last lookup covered, so an arrival can be told from a regular. */
+    private static final java.util.Set<UUID> asked =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     /** The worker caps this too; asking for more would be pointless. */
     private static final int MAX_LOOKUP = 100;
@@ -70,9 +67,6 @@ public final class NowPlayingShare {
      */
     private record Remote(String artist, String title, double position,
                           boolean playing, long receivedAt) {}
-
-    /** When each song line was last confirmed, so stale ones can be dropped. */
-    private static final Map<UUID, Long> seenAt = new ConcurrentHashMap<>();
 
     private static final Map<UUID, Remote> remotes = new ConcurrentHashMap<>();
 
@@ -211,7 +205,6 @@ public final class NowPlayingShare {
             if (mc.level == null || mc.player == null) {
                 songs.clear();
                 remotes.clear();
-                seenAt.clear();
                 return;
             }
 
@@ -222,6 +215,16 @@ public final class NowPlayingShare {
             // or not anything is being shared - the HUD wants the line too
             if (module == null || !module.isEnabled() || !module.showsLyrics()) {
                 Lyrics.clear();
+            } else {
+                // Nothing used to start a lookup except drawing somebody's name
+                // tag, so switching lyrics on while alone did nothing at all and
+                // the diagnostics line stayed on "off". The local track is reason
+                // enough to fetch: the HUD wants the line whether or not anyone
+                // else is around to show it to.
+                NowPlaying own = module.track();
+                if (!own.isEmpty()) {
+                    Lyrics.line(own.artist(), own.title(), MediaSession.position());
+                }
             }
 
             if (sharing) {
@@ -252,10 +255,18 @@ public final class NowPlayingShare {
         if (reporting) return;
 
         long now = System.currentTimeMillis();
-        if (now - lastReport < REPORT_MIN_MS) return;
 
         NowPlaying playing = module.track();
         String line = playing.isEmpty() ? "" : playing.display();
+
+        // The floor used to be checked before the track was even read, so a
+        // song that changed one second after the last report sat unsent for
+        // four more. A change now only waits out a much shorter floor; the
+        // long one still applies to keepalives and seek corrections, which is
+        // what it was there to hold back.
+        boolean fresh = !line.equals(lastReported);
+        long floor = fresh ? REPORT_CHANGE_MS : REPORT_MIN_MS;
+        if (now - lastReport < floor) return;
 
         double position = MediaSession.position();
 
@@ -293,8 +304,6 @@ public final class NowPlayingShare {
         if (fetching) return;
 
         long now = System.currentTimeMillis();
-        if (now - lastFetch < FETCH_MS) return;
-        lastFetch = now;
 
         List<UUID> wanted = new ArrayList<>();
 
@@ -315,9 +324,25 @@ public final class NowPlayingShare {
         if (wanted.isEmpty()) {
             songs.clear();
             remotes.clear();
-            seenAt.clear();
+            asked.clear();
             return;
         }
+
+        // Somebody who walked into view a moment ago used to wait out the whole
+        // ten second cycle before anyone could see their song, which is most of
+        // why this looked like it simply did not work. An unfamiliar player
+        // brings the next lookup forward instead.
+        boolean newcomer = false;
+        for (UUID uuid : wanted) {
+            if (!asked.contains(uuid)) { newcomer = true; break; }
+        }
+
+        long wait = newcomer ? FETCH_NEW_MS : FETCH_MS;
+        if (now - lastFetch < wait) return;
+
+        lastFetch = now;
+        asked.clear();
+        asked.addAll(wanted);
 
         fetching = true;
         CompletableFuture.runAsync(() -> {
@@ -368,27 +393,10 @@ public final class NowPlayingShare {
                     }
                 }
 
-                // Merged rather than swapped in: an answer that is missing
-                // somebody is far more often a hiccup than a player who
-                // stopped listening in the last ten seconds.
-                long stamp = System.currentTimeMillis();
-                for (Map.Entry<UUID, String> entry : fresh.entrySet()) {
-                    songs.put(entry.getKey(), entry.getValue());
-                    seenAt.put(entry.getKey(), stamp);
-                }
+                songs.clear();
+                songs.putAll(fresh);
+                remotes.clear();
                 remotes.putAll(freshRemotes);
-
-                // Anyone the answer has not mentioned for a while really has
-                // gone quiet, and anyone out of sight is dropped outright
-                seenAt.entrySet().removeIf(entry -> {
-                    boolean expired = stamp - entry.getValue() > ENTRY_TTL_MS;
-                    boolean gone = !wanted.contains(entry.getKey());
-                    if (expired || gone) {
-                        songs.remove(entry.getKey());
-                        remotes.remove(entry.getKey());
-                    }
-                    return expired || gone;
-                });
 
             } catch (Throwable t) {
                 SpaceClient.LOGGER.warn("Could not fetch tracks: {}", t.getMessage());

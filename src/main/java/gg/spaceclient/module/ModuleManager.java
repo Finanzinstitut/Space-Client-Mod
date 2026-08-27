@@ -34,9 +34,9 @@ public class ModuleManager {
         register(new CoordsCopyModule());
         register(new WaveyCapeModule());
         register(new TpsModule());
+        register(new ArmorModule());
         register(new MusicModule());
         register(new HitColorModule());
-        register(new ArmorModule());
     }
 
     private void register(Module module) {

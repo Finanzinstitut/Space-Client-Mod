@@ -65,7 +65,6 @@ public final class Presence {
     private static volatile long nextRegister = 0;
     private static volatile long nextFetch = 0;
 
-    private static volatile String status = "not started";
     private static volatile boolean rosterLoaded = false;
 
     /**
@@ -78,10 +77,18 @@ public final class Presence {
         return uuid != null && badged.contains(uuid);
     }
 
-    /** What the badge roster is doing, for the diagnostics page. */
+    /**
+     * What the badge roster is doing, for the diagnostics page.
+     *
+     * Reports the network side through SpaceApi rather than a local copy, so a
+     * registration that was refused says so here instead of being hidden
+     * behind a roster fetch that technically succeeded - which is exactly how
+     * an empty roster looked the first time round.
+     */
     public static String status() {
-        if (!rosterLoaded) return status;
-        return badged.size() + " with a badge (" + status + ")";
+        String detail = SpaceApi.badgeStatus();
+        if (!rosterLoaded) return detail;
+        return badged.size() + " with a badge (" + detail + ")";
     }
 
     /** Called every client tick. */
@@ -102,7 +109,20 @@ public final class Presence {
                 CompletableFuture.runAsync(() -> {
                     try {
                         if (SpaceApi.register()) {
-                            nextRegister = System.currentTimeMillis() + REGISTER_EVERY_MS;
+                            long done = System.currentTimeMillis();
+                            nextRegister = done + REGISTER_EVERY_MS;
+
+                            // Refetch straight away if the roster does not yet
+                            // list this account. Both timers start together, so
+                            // on a first run the fetch usually finishes before
+                            // the registration lands - without this the player
+                            // who just installed the mod waits out the full
+                            // half hour before their own badge appears.
+                            Minecraft self = Minecraft.getInstance();
+                            UUID mine = self.player != null ? self.player.getUUID() : null;
+                            if (mine != null && !badged.contains(mine)) {
+                                nextFetch = done;
+                            }
                         }
                     } finally {
                         registering = false;
@@ -117,10 +137,9 @@ public final class Presence {
                 CompletableFuture.runAsync(() -> {
                     try {
                         List<String> users = SpaceApi.badgeUsers();
-                        if (users == null) {
-                            status = "roster fetch failed";
-                            return;
-                        }
+                        // Null means the call did not get through, which is not
+                        // the same as an empty roster - keep what we had
+                        if (users == null) return;
 
                         // Rebuilt rather than merged. Unlike a song, an absent
                         // entry here is meaningful: it is somebody whose
@@ -137,7 +156,6 @@ public final class Presence {
                         badged.clear();
                         badged.addAll(fresh);
                         rosterLoaded = true;
-                        status = "ok";
                         nextFetch = System.currentTimeMillis() + FETCH_EVERY_MS;
 
                     } finally {

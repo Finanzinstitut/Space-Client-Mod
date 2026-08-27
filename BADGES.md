@@ -3,6 +3,23 @@
 Both zips. Client and worker, badge visible for every Space Client user with
 no way to switch it off, as asked.
 
+## Built on 0.9.0
+
+The first attempt was built on the core zip from the start of the thread, which
+turned out to be **0.1.0** — `gradle.properties` says so, and the tree is
+missing everything added since, including `GuiItemInvoker` and the icon-based
+armour HUD. Applying it replaced twenty files with older versions, which is why
+the armour readout changed back to plain text.
+
+This build is the 0.9.0 tree with the badge added and nothing else touched.
+Verified: `ArmorModule.java` is bit-identical to your 0.9.0 copy, and the only
+files that differ from 0.9.0 at all are the four listed below plus two new
+classes and the assets.
+
+Your real worker URL in `SpaceApi.BASE` is preserved — 0.9.0 already had
+`spaceclient-badges.spaceclient-finanzinstitut.workers.dev`, so there is
+nothing to fill in this time.
+
 ## The open question, answered
 
 **How do you draw your own texture beside a name tag in 26.2?**
@@ -103,20 +120,51 @@ At 1,000 users that is about 36 KB per fetch, which is fine. Past roughly
 10,000 it wants a compact format or a bloom filter instead. Worth knowing, not
 worth building yet.
 
-## Two things to be aware of
+## Fixed after the first attempt: the roster stayed empty
+
+The first build showed `0 with a badge (ok)` — worker reachable, nobody in it.
+
+`/register` verified the uuid and name against Mojang's profile API with a
+direct `fetch` to `sessionserver.mojang.com`. That call runs on Cloudflare, and
+Mojang answers Cloudflare addresses with an Akamai block page — the exact
+problem `MOJANG_PROXY` exists to solve, except the proxy relays `hasJoined`
+only. So verification always failed, `/register` always answered 403, and KV
+never received a single user.
+
+`/register` now takes identity from the `/np/session` token instead. That token
+is only issued after Mojang confirms a `hasJoined` handshake through the Deno
+proxy, so the uuid is one Mojang vouched for. No Mojang call happens in
+`/register` at all any more, and the mod already holds a token for reporting
+songs, so it costs nothing extra.
+
+This also closes the spoofing hole noted in the first version: registration
+identity now comes from the token, not from a uuid in the request body, so a
+badge cannot be registered for somebody who never installed the mod.
+
+Two smaller faults the same bug was hiding:
+
+- **An empty roster was being cached for 15 minutes.** On a fresh deployment
+  the first client asks before it has finished registering, and that empty
+  answer stuck around — hiding everyone from exactly the person trying to
+  debug it. Empty results are no longer cached, and a first registration drops
+  the cached list so a newcomer shows up immediately.
+- **Badge failures were invisible on the diagnostics page.** `SpaceApi.status`
+  is written by the now playing calls every few seconds, so a register error
+  was overwritten with `ok` almost as soon as it happened. Badge calls now
+  report through a separate `badgeStatus`, which is what the "Badges" line
+  reads.
+
+Registration and the roster fetch also start on the same timer, so on a first
+run the fetch usually finished before the registration landed. A successful
+registration now triggers an immediate refetch if the roster does not yet list
+this account, instead of leaving the new user badgeless for half an hour.
+
+## One thing to be aware of
 
 **No opt-out means a privacy notice.** Every user's UUID and name go to your
 worker automatically. LabyMod does the same, but for something distributed
 publicly from Germany that belongs in a privacy policy — and it will come up
 anyway once the Discord server is live.
-
-**`/register` is spoofable.** It checks that the UUID and name belong together
-via Mojang's public profile lookup; it does not prove the caller owns the
-account. Someone could register a stranger and give them a badge they never
-installed. Your own worker comment already says this. Closing it would mean
-routing `/register` through the `hasJoined` handshake that `/np/session`
-already uses — a small change, but it costs a Mojang round trip per new user
-and I left the cheap path in place rather than decide that for you.
 
 ## Assets
 
@@ -141,11 +189,16 @@ Client:
 - `net/SpaceApi.java` — added `register()` and `badgeUsers()`.
 - `SpaceClient.java` — `Presence.tick()` in the client tick.
 - `ui/DiagnosticsScreen.java` — a "Badges" line, since you can't debug locally.
+- `net/SpaceApi.java` — separate `badgeStatus`, so a badge failure is not
+  overwritten by the next now playing call.
 - resources — font json and eight PNGs.
 
 Worker:
 
-- `src/index.js` — edge cache on `/users`, write dedupe in `/register`.
+- `src/index.js` — `/register` runs on the token instead of the blocked
+  Mojang profile lookup; edge cache on `/users`; write dedupe in `/register`;
+  empty rosters not cached; cache dropped on a first registration.
+- `mojang-proxy.ts` — unchanged. It only ever needed to relay `hasJoined`.
 
 `spaceclient.mixins.json` is unchanged: no new mixin class was needed.
 
@@ -155,13 +208,12 @@ Worker:
 else is there; `npm install` restores it from the `package-lock.json` in the
 zip.
 
-## Before you spend a build
+## Order matters
 
-`SpaceApi.BASE` is still the placeholder:
+Deploy the worker before building the client. The new client sends a bearer
+token to `/register`; the old worker ignores it and keeps trying the blocked
+Mojang call.
 
-```java
-public static final String BASE = "https://spaceclient-badges.example.workers.dev";
 ```
-
-The badge will do nothing until that points at your deployed worker. It fails
-quietly, so the build will still succeed and you will just see no badges.
+wrangler deploy
+```

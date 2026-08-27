@@ -63,7 +63,17 @@ public final class SpaceApi {
     /** Last failure, so the diagnostics screen can say why nothing shows. */
     private static volatile String status = "not started";
 
+    /**
+     * The same, for the badge calls.
+     *
+     * Kept apart from `status` on purpose: the now playing calls run every few
+     * seconds and would overwrite a badge failure within a tick of it
+     * happening, which is exactly the message worth reading.
+     */
+    private static volatile String badgeStatus = "not started";
+
     public static String status() { return status; }
+    public static String badgeStatus() { return badgeStatus; }
     public static boolean hasToken() { return !token.isEmpty(); }
 
     private static HttpClient http() {
@@ -334,45 +344,31 @@ public final class SpaceApi {
     /**
      * Announces that this account runs Space Client.
      *
-     * No token and no handshake. /register is checked against Mojang's public
-     * profile lookup instead, which costs the worker nothing after the first
-     * time it sees an account and costs this client nothing ever. That check
-     * confirms the uuid and name belong together; it is not proof of ownership,
-     * and the worker's own comment says so.
+     * Carries the same token the now playing calls use, and nothing else. The
+     * worker reads the identity out of that token rather than believing a uuid
+     * in the body, which means a registration cannot be forged for somebody
+     * who never installed the mod.
+     *
+     * An earlier attempt sent uuid and name for the worker to check against
+     * Mojang's profile API. That check runs on Cloudflare, and Mojang answers
+     * Cloudflare with a block page - so it always failed and nobody was ever
+     * registered. The token costs nothing extra here: the mod holds one
+     * already for reporting songs.
      *
      * Returns whether the worker accepted it, so the caller knows whether to
      * wait the full interval or retry sooner.
      */
     public static boolean register() {
-        Minecraft mc = Minecraft.getInstance();
-
-        String name;
-        try {
-            name = mc.getUser().getName();
-        } catch (Throwable t) {
-            status = "no account in the running game";
-            return false;
-        }
-        if (name == null || name.isEmpty()) {
-            status = "no account name";
-            return false;
-        }
-
-        Object user = Reflect.call(mc, "getUser");
-        UUID uuid = profileUuid(user, mc);
-        if (uuid == null) {
-            status = "no profile id reachable";
-            return false;
-        }
+        String bearer = ensureToken();
+        if (bearer.isEmpty()) return false;
 
         JsonObject body = new JsonObject();
-        body.addProperty("uuid", uuid.toString());
-        body.addProperty("name", name);
         body.addProperty("version", SpaceClient.VERSION);
 
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(BASE + "/register"))
+                    .header("Authorization", "Bearer " + bearer)
                     .header("Content-Type", "application/json")
                     .timeout(Duration.ofSeconds(10))
                     .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
@@ -381,15 +377,24 @@ public final class SpaceApi {
             HttpResponse<String> response =
                     http().send(request, HttpResponse.BodyHandlers.ofString());
 
+            if (response.statusCode() == 401) {
+                // The token died early; the next attempt mints a fresh one
+                token = "";
+                tokenExpiresAt = 0;
+                badgeStatus = "token expired";
+                return false;
+            }
             if (response.statusCode() != 200) {
-                status = "register refused (" + response.statusCode() + "): "
+                badgeStatus = "register refused (" + response.statusCode() + "): "
                         + shorten(response.body());
                 return false;
             }
+
+            badgeStatus = "registered";
             return true;
 
         } catch (Throwable t) {
-            status = "register failed: " + t.getMessage();
+            badgeStatus = "register failed: " + t.getMessage();
             return false;
         }
     }
@@ -418,7 +423,7 @@ public final class SpaceApi {
             HttpResponse<String> response =
                     http().send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) {
-                status = "roster refused (" + response.statusCode() + ")";
+                badgeStatus = "roster refused (" + response.statusCode() + ")";
                 return null;
             }
 
@@ -433,7 +438,7 @@ public final class SpaceApi {
             return users;
 
         } catch (Throwable t) {
-            status = "roster failed: " + t.getMessage();
+            badgeStatus = "roster failed: " + t.getMessage();
             return null;
         }
     }

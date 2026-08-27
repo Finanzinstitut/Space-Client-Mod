@@ -14,12 +14,19 @@ public class CoordinatesModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return mc.font.width(cached(this::text)); }
+    public int getWidth() { return mc.font.width(text()); }
 
     @Override
     public int getHeight() { return mc.font.lineHeight; }
 
-    private String text() {
+    /** coordinates are watched while moving, so they must keep up */
+    @Override
+    protected long refreshMillis() { return 50; }
+
+    /** Cached; see HudModule.cachedText for why. */
+    private String text() { return cachedText(this::buildText); }
+
+    private String buildText() {
         if (mc.player == null) return "-- -- --";
         return String.format("%.0f, %.0f, %.0f",
                 mc.player.getX(), mc.player.getY(), mc.player.getZ());
@@ -27,6 +34,6 @@ public class CoordinatesModule extends HudModule {
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
-        graphics.text(mc.font, cached(this::text), x, y, textColor.get(), true);
+        graphics.text(mc.font, text(), x, y, textColor.get(), true);
     }
 }
