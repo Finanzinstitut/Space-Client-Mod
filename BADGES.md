@@ -223,3 +223,63 @@ Mojang call.
 ```
 wrangler deploy
 ```
+
+## Menu rebuild
+
+The right shift menu is a window now, not a takeover. It sits in the middle at
+between 400 and 620 wide, the world stays visible behind a veil, and opening it
+reads as pausing rather than leaving the game. The palette is unchanged —
+`Theme` was not touched, and the starfield backdrop still appears for anyone
+who has that background style selected, drawn behind the panel instead of
+instead of the game.
+
+Categories used to be the only way through the list, which made them behave
+like pages: reaching a module meant knowing its shelf first. Now there is one
+continuous scroll with a search field above it, and the categories are a filter
+you may use rather than a route you must take. Search covers name, id and
+description, so "fps" finds the module that mentions frames without carrying
+the word in its name. An `On` chip stacks with the categories rather than
+replacing them, because HUD-and-enabled is a reasonable thing to ask for.
+
+Modules are rows rather than cards. In a window a third the old size a 74 pixel
+card showed four modules out of twenty six; a 26 pixel row shows eleven. The
+row height is also what keeps the scroll safe: a row overhangs the list edge by
+at most its own height while scrolling, which lands inside the footer where a
+strip covers it. A card would have hung past the window and painted over the
+world.
+
+New file: `ui/ModRow.java`. Rewritten: `ui/SpaceMenuScreen.java`. `ModCard` is
+left in place — nothing points at it now, but it is not this change's business
+to delete it.
+
+### Search input, verified
+
+The search field is a vanilla `EditBox`, and the jar says that was the right
+call. Input in 26.2 runs on `KeyEvent`, `CharacterEvent` and
+`MouseButtonEvent` - a hand written `charTyped(char, int)` would have compiled
+into a method nothing ever calls, and the field would have sat there refusing
+to type with no error to explain why. A widget handles its own events
+internally, so the screen never touches those signatures.
+
+Checked against `EditBox.class`: the constructor
+`(Font, int, int, int, int, Component)`, `setResponder(Consumer)`,
+`setMaxLength`, `setBordered`, `setTextColor`, `setValue`, `getValue` and
+`setHint` all exist. `setHint` turned out to be available, so the placeholder
+is vanilla's rather than drawn by hand.
+
+## Badge ring
+
+The ring sat one pixel below the middle of the planet. The body was placed with
+a distance function and the ring on a fixed row, and at eight pixels those never
+agreed: the disc filled rows 0 to 6, so its centre row was 3, while the ring was
+drawn on row 4. The disc was also half a pixel left of centre, because a circle
+centred on 3.5 in an 8 wide grid rounds outward unevenly.
+
+The 8x8 glyphs are now an explicit mask, symmetric by construction about the gap
+between columns 3 and 4 and about row 3, which is where the ring runs. The tips
+are drawn in the bright ring tone rather than the shadow tone — against the dark
+outline the shadow tone disappeared, so the ring appeared to stop at the
+planet's edge instead of passing through it.
+
+The 16x16 set is untouched: its ring is centred by construction and you picked
+that version.
