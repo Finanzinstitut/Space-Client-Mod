@@ -122,8 +122,6 @@ worth building yet.
 
 ## Fixed after the first attempt: the roster stayed empty
 
-The first build showed `0 with a badge (ok)` — worker reachable, nobody in it.
-
 `/register` verified the uuid and name against Mojang's profile API with a
 direct `fetch` to `sessionserver.mojang.com`. That call runs on Cloudflare, and
 Mojang answers Cloudflare addresses with an Akamai block page — the exact
@@ -138,26 +136,34 @@ proxy, so the uuid is one Mojang vouched for. No Mojang call happens in
 songs, so it costs nothing extra.
 
 This also closes the spoofing hole noted in the first version: registration
-identity now comes from the token, not from a uuid in the request body, so a
-badge cannot be registered for somebody who never installed the mod.
+identity now comes from the token, not from a uuid in the request body.
 
 Two smaller faults the same bug was hiding:
 
-- **An empty roster was being cached for 15 minutes.** On a fresh deployment
-  the first client asks before it has finished registering, and that empty
-  answer stuck around — hiding everyone from exactly the person trying to
-  debug it. Empty results are no longer cached, and a first registration drops
-  the cached list so a newcomer shows up immediately.
+- **An empty roster was being cached for 15 minutes.** Empty results are no
+  longer cached, and a first registration drops the cached list.
 - **Badge failures were invisible on the diagnostics page.** `SpaceApi.status`
   is written by the now playing calls every few seconds, so a register error
-  was overwritten with `ok` almost as soon as it happened. Badge calls now
-  report through a separate `badgeStatus`, which is what the "Badges" line
-  reads.
+  was overwritten with `ok` almost immediately. Badge calls now report through
+  a separate `badgeStatus`.
 
-Registration and the roster fetch also start on the same timer, so on a first
-run the fetch usually finished before the registration landed. A successful
-registration now triggers an immediate refetch if the roster does not yet list
-this account, instead of leaving the new user badgeless for half an hour.
+## Fixed after the second attempt: KV list is eventually consistent
+
+The worker was then provably correct — `/users` returned the account, both
+through the cache and through the cache-bypassing `since` path — while the game
+still said `0 with a badge (registered)`.
+
+A key that has just been written does not appear in `USERS.list()` for up to
+about a minute. Registration and the first roster fetch start on the same tick,
+so the fetch reliably came back without this account in it. That empty answer
+was treated as final: `rosterLoaded` went true and the next fetch was scheduled
+half an hour out.
+
+The roster now stays on the two minute retry while this account is missing from
+it, for a bounded eight attempts. Bounded rather than open ended, because a
+client that genuinely is not registered looks identical from here and must not
+poll forever. The diagnostics line says `waiting for yours to propagate` during
+that window, so the state is visible rather than looking like a silent failure.
 
 ## One thing to be aware of
 

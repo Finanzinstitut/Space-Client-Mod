@@ -57,6 +57,23 @@ public final class Presence {
     /** Retry sooner than the full interval when a call did not get through. */
     private static final long RETRY_MS = 2 * 60 * 1000L;
 
+    /**
+     * How many quick retries a freshly registered account gets.
+     *
+     * KV list is eventually consistent: a key that was just written does not
+     * show up in a listing for up to a minute or so. Registration and the
+     * first roster fetch start on the same tick, so on a first run the fetch
+     * reliably comes back without this account in it - and settling straight
+     * into the half hour interval at that point left the person who had just
+     * installed the mod with no badge and no explanation.
+     *
+     * So while the roster is missing this account, the short interval is used
+     * instead. Bounded rather than open ended, because "not in the roster" is
+     * also what a genuinely unregistered client looks like, and that one must
+     * not poll every two minutes forever.
+     */
+    private static final int CATCHUP_ATTEMPTS = 8;
+
     private static final Set<UUID> badged = ConcurrentHashMap.newKeySet();
 
     private static volatile boolean registering = false;
@@ -66,6 +83,9 @@ public final class Presence {
     private static volatile long nextFetch = 0;
 
     private static volatile boolean rosterLoaded = false;
+
+    /** Counts down while waiting for this account to appear in the roster. */
+    private static volatile int catchUp = 0;
 
     /**
      * Whether this player runs Space Client.
@@ -88,6 +108,10 @@ public final class Presence {
     public static String status() {
         String detail = SpaceApi.badgeStatus();
         if (!rosterLoaded) return detail;
+        if (catchUp > 0) {
+            return badged.size() + " with a badge (" + detail
+                    + ", waiting for yours to propagate)";
+        }
         return badged.size() + " with a badge (" + detail + ")";
     }
 
@@ -121,6 +145,7 @@ public final class Presence {
                             Minecraft self = Minecraft.getInstance();
                             UUID mine = self.player != null ? self.player.getUUID() : null;
                             if (mine != null && !badged.contains(mine)) {
+                                catchUp = CATCHUP_ATTEMPTS;
                                 nextFetch = done;
                             }
                         }
@@ -156,7 +181,23 @@ public final class Presence {
                         badged.clear();
                         badged.addAll(fresh);
                         rosterLoaded = true;
-                        nextFetch = System.currentTimeMillis() + FETCH_EVERY_MS;
+
+                        // Settle onto the slow interval only once this account
+                        // is actually in the list. Until then the write has not
+                        // finished propagating, and half an hour is far too
+                        // long to wait to find that out.
+                        Minecraft self = Minecraft.getInstance();
+                        UUID mine = self.player != null ? self.player.getUUID() : null;
+                        boolean waitingForSelf = mine != null
+                                && !badged.contains(mine) && catchUp > 0;
+
+                        if (waitingForSelf) {
+                            catchUp--;
+                            nextFetch = System.currentTimeMillis() + RETRY_MS;
+                        } else {
+                            catchUp = 0;
+                            nextFetch = System.currentTimeMillis() + FETCH_EVERY_MS;
+                        }
 
                     } finally {
                         fetching = false;
