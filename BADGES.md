@@ -283,3 +283,40 @@ planet's edge instead of passing through it.
 
 The 16x16 set is untouched: its ring is centred by construction and you picked
 that version.
+
+
+## Menu fixes after first look
+
+Two faults, one of them mine twice over.
+
+**Rows drew across the whole screen.** The comment claimed a row overhangs the
+list by at most its own height. That is only true if only the visible rows get
+a widget, and that part was never written - `buildList` gave all twenty five
+modules one, laid out from the top of the list downward, which at 28 pixels a
+row runs seven hundred pixels past a window three hundred tall.
+
+The strips meant to hide the overflow could not have worked either: they were
+filled with `Theme.CONTENT`, whose alpha is `0xE6`. A cover that passes ten
+percent of what is behind it does not hide anything, it dims it.
+
+Both are gone rather than patched. Scrolling now counts whole rows, and only
+rows that fit are given a widget, so nothing ever sits half in the list and
+there is no overflow to cover. One wheel notch moves one row - marginally less
+fluid than pixel scrolling and worth it, because a row is now either inside the
+list or does not exist.
+
+The panel also got an opaque base under `Theme.CONTENT`, so the world no longer
+shows faintly through the menu.
+
+**The footer overlapped itself.** The module count was drawn on the left and
+the hovered description in the same place, so the two ran together into an
+unreadable smear. The count is gone, as asked - the list is right there to be
+counted - and the description now has the line to itself, trimmed with
+`Font.plainSubstrByWidth` so it can never run into the player name on the
+right. That method is verified: `EditBox` uses it in 26.2.
+
+One trap worth recording, found while fixing the above: `EditBox.setValue`
+fires the responder. Setting the value after the responder would have built the
+list once there and again when `init` reached `buildList`, stacking two widgets
+on every row - the same class of bug as the one above, arriving by a different
+door.

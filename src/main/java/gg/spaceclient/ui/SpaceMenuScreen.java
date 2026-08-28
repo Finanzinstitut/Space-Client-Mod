@@ -53,8 +53,23 @@ public class SpaceMenuScreen extends Screen {
     private String query = "";
     private EditBox search;
 
-    private int scroll = 0;
-    private int maxScroll = 0;
+    /**
+     * Scroll position in whole rows, not pixels.
+     *
+     * Pixel scrolling means rows are half in and half out of the list, which
+     * has to be hidden by drawing over the overflow. That was the previous
+     * approach and it failed twice over: every module was given a widget, not
+     * just the visible ones, so the list ran hundreds of pixels past the window
+     * in both directions; and the panel colour has an alpha of 0xE6, so the
+     * strips meant to cover the overflow were themselves see through and only
+     * dimmed it.
+     *
+     * Counting in rows removes the problem rather than papering over it. Only
+     * rows that fit are given a widget, and they always sit fully inside the
+     * list, so there is no overflow to hide and nothing can be drawn outside
+     * the window.
+     */
+    private int scrollRow = 0;
     private float scrollShown = 0f;
 
     /**
@@ -64,7 +79,6 @@ public class SpaceMenuScreen extends Screen {
     private final long openedAt = System.currentTimeMillis();
 
     private final List<ModRow> rows = new ArrayList<>();
-    private final List<Integer> rowBaseY = new ArrayList<>();
 
     public SpaceMenuScreen() {
         super(Component.literal("Space Client"));
@@ -157,10 +171,14 @@ public class SpaceMenuScreen extends Screen {
         search.setMaxLength(48);
         search.setTextColor(Theme.TEXT);
         search.setHint(Component.literal("Search modules"));
+        // Value before responder, not the other way round. setValue fires the
+        // responder, and the responder rebuilds the list - so setting it after
+        // would build the rows once here and again when init reaches buildList,
+        // leaving two widgets stacked on every line.
         search.setValue(query);
         search.setResponder(value -> {
             query = value;
-            scroll = 0;
+            scrollRow = 0;
             rebuildList();
         });
         this.addRenderableWidget(search);
@@ -227,7 +245,7 @@ public class SpaceMenuScreen extends Screen {
                     () -> onlyEnabled,
                     () -> {
                         onlyEnabled = !onlyEnabled;
-                        scroll = 0;
+                        scrollRow = 0;
                         this.rebuildWidgets();
                     }
             ));
@@ -243,29 +261,42 @@ public class SpaceMenuScreen extends Screen {
                 () -> java.util.Objects.equals(category, value),
                 () -> {
                     category = value;
-                    scroll = 0;
+                    scrollRow = 0;
                     this.rebuildWidgets();
                 }
         ));
         return w;
     }
 
+    /** How many rows fit in the list area, at least one. */
+    private int visibleRows() {
+        return Math.max(1, (listBottom() - listTop()) / (ROW_H + ROW_GAP));
+    }
+
+    private int maxScrollRow() {
+        return Math.max(0, shown().size() - visibleRows());
+    }
+
     private void buildList() {
         rows.clear();
-        rowBaseY.clear();
 
         List<Module> modules = shown();
         int left = contentLeft() + PAD;
         int width = contentRight() - PAD - left;
         int step = ROW_H + ROW_GAP;
 
-        for (int i = 0; i < modules.size(); i++) {
+        scrollRow = Math.max(0, Math.min(scrollRow, maxScrollRow()));
+
+        int first = scrollRow;
+        int last = Math.min(modules.size(), first + visibleRows());
+
+        for (int i = first; i < last; i++) {
             Module module = modules.get(i);
-            int baseY = listTop() + i * step;
+            int y = listTop() + (i - first) * step;
 
             ModRow[] holder = new ModRow[1];
             holder[0] = new ModRow(
-                    left, baseY - scroll, width, ROW_H,
+                    left, y, width, ROW_H,
                     module::getName,
                     () -> ModuleCategories.of(module),
                     module::isEnabled,
@@ -283,14 +314,7 @@ public class SpaceMenuScreen extends Screen {
             );
             this.addRenderableWidget(holder[0]);
             rows.add(holder[0]);
-            rowBaseY.add(baseY);
         }
-
-        int needed = modules.size() * step;
-        int room = listBottom() - listTop();
-        maxScroll = Math.max(0, needed - room);
-        scroll = Math.min(scroll, maxScroll);
-        reposition();
     }
 
     /**
@@ -307,19 +331,21 @@ public class SpaceMenuScreen extends Screen {
 
     // ---------------- scrolling ----------------
 
+    /**
+     * Moves the list by whole rows.
+     *
+     * One notch, one row. Slightly less fluid than pixel scrolling, and worth
+     * it: a row is either in the list or it does not exist, so the list can
+     * never spill past the window.
+     */
     private boolean scrollBy(double amount) {
-        if (maxScroll <= 0) return false;
-        int before = scroll;
-        scroll = Math.max(0, Math.min(maxScroll, scroll - (int) (amount * 22)));
-        if (scroll != before) reposition();
-        return true;
-    }
+        int max = maxScrollRow();
+        if (max <= 0) return false;
 
-    /** Slides the existing rows rather than building new ones. */
-    private void reposition() {
-        for (int i = 0; i < rows.size() && i < rowBaseY.size(); i++) {
-            rows.get(i).setY(rowBaseY.get(i) - scroll);
-        }
+        int before = scrollRow;
+        scrollRow = Math.max(0, Math.min(max, scrollRow - (int) Math.signum(amount)));
+        if (scrollRow != before) rebuildList();
+        return true;
     }
 
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
@@ -335,7 +361,7 @@ public class SpaceMenuScreen extends Screen {
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         float age = Math.min(1f, (System.currentTimeMillis() - openedAt) / 180f);
-        scrollShown += (scroll - scrollShown) * 0.35f;
+        scrollShown += (scrollRow - scrollShown) * 0.35f;
 
         int x0 = panelX();
         int y0 = panelY();
@@ -356,6 +382,10 @@ public class SpaceMenuScreen extends Screen {
         graphics.fill(x0 - 2, y0 - 2, x1 + 2, y1 + 2, 0x30000000);
         graphics.fill(x0 - 1, y0 - 1, x1 + 1, y1 + 1, 0x50000000);
 
+        // Opaque base under the panel colour. Theme.CONTENT is 0xE6 alpha, so on
+        // its own the world shows faintly through the menu - and anything drawn
+        // over it to hide something is equally see through.
+        graphics.fill(x0, y0, x1, y1, 0xFF070518);
         graphics.fill(x0, y0, x1, y1, Theme.CONTENT);
         graphics.fill(x0, y0, x0 + RAIL_W, y1, Theme.SIDEBAR);
         graphics.fill(x0 + RAIL_W, y0, x0 + RAIL_W + 1, y1, Theme.BORDER);
@@ -381,35 +411,30 @@ public class SpaceMenuScreen extends Screen {
 
         super.extractRenderState(graphics, mouseX, mouseY, delta);
 
-        // Rows are laid out past the list edges, so these strips hide the
-        // overflow. A row overhangs by at most its own height, which is why the
-        // list is rows and not cards: the overhang lands inside the footer
-        // instead of past the window and onto the world.
-        graphics.fill(x0 + RAIL_W + 1, y0 + HEADER_H - 3, x1 - 1, listTop(), Theme.CONTENT);
-        graphics.fill(x0 + RAIL_W + 1, listBottom(), x1 - 1, y1 - 1, Theme.CONTENT);
-
-        int total = shown().size();
-        if (total == 0) {
+        if (shown().isEmpty()) {
             String empty = query.isEmpty() ? "Nothing here" : "No module matches";
             graphics.text(this.font, empty,
                     contentLeft() + PAD, listTop() + 10, Theme.TEXT_DIM, false);
         }
 
-        if (maxScroll > 0) {
+        int maxRow = maxScrollRow();
+        if (maxRow > 0) {
             int trackTop = listTop();
             int trackHeight = listBottom() - trackTop;
-            int thumb = Math.max(20, trackHeight * trackHeight / (trackHeight + maxScroll));
+            int total = shown().size();
+            int thumb = Math.max(20, trackHeight * visibleRows() / Math.max(1, total));
             int travel = trackHeight - thumb;
-            int offset = Math.round(travel * (scrollShown / maxScroll));
+            int offset = Math.round(travel * (scrollShown / maxRow));
             int x = x1 - 5;
             graphics.fill(x, trackTop, x + 2, trackTop + trackHeight, Theme.CARD);
             graphics.fill(x, trackTop + offset, x + 2, trackTop + offset + thumb, Theme.accent());
         }
 
-        // Footer: count on the left, who is playing on the right
+        // Footer. The module count used to sit on the left and the hovered
+        // description was drawn in the same place, so the two overlapped into
+        // an unreadable smear. The count is gone: the list is right there to be
+        // counted, and the description is the line worth having.
         graphics.fill(x0 + RAIL_W + 1, y1 - FOOTER_H, x1 - 1, y1 - FOOTER_H + 1, Theme.BORDER);
-        graphics.text(this.font, total + (total == 1 ? " module" : " modules"),
-                contentLeft() + PAD, y1 - 19, Theme.TEXT_DIM, false);
 
         String name = Minecraft.getInstance().getUser() != null
                 ? Minecraft.getInstance().getUser().getName() : "Player";
@@ -417,19 +442,21 @@ public class SpaceMenuScreen extends Screen {
         graphics.text(this.font, right,
                 contentRight() - PAD - this.font.width(right), y1 - 19, Theme.OFF, false);
 
-        // Description of whichever row the pointer is over, along the rail foot
+        // Description of whichever row the pointer is over, trimmed so it can
+        // never run into the name on the right
         List<Module> modules = shown();
         int step = ROW_H + ROW_GAP;
-        for (int i = 0; i < modules.size(); i++) {
-            int rowY = listTop() + i * step - scroll;
+        int room = contentRight() - PAD - this.font.width(right) - 14
+                - (contentLeft() + PAD);
+        for (int i = 0; i < rows.size(); i++) {
+            int rowY = listTop() + i * step;
             if (mouseY >= rowY && mouseY < rowY + ROW_H
-                    && mouseY >= listTop() && mouseY < listBottom()
                     && mouseX >= contentLeft() && mouseX <= contentRight()) {
-                String description = modules.get(i).getDescription();
-                int room = contentRight() - PAD - (contentLeft() + PAD)
-                        - this.font.width(right) - 20;
-                if (this.font.width(description) <= room) {
-                    graphics.text(this.font, description,
+                int index = scrollRow + i;
+                if (index < modules.size()) {
+                    String description = modules.get(index).getDescription();
+                    graphics.text(this.font,
+                            this.font.plainSubstrByWidth(description, room),
                             contentLeft() + PAD, y1 - 19, Theme.TEXT_DIM, false);
                 }
                 break;
