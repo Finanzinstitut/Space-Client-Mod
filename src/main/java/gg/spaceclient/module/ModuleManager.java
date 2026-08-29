@@ -37,6 +37,7 @@ public class ModuleManager {
         register(new ArmorModule());
         register(new MusicModule());
         register(new HitColorModule());
+        register(new TwitchModule());
     }
 
     private void register(Module module) {

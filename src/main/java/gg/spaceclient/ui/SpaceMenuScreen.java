@@ -145,6 +145,7 @@ public class SpaceMenuScreen extends Screen {
         buildSearch();
         buildRail();
         buildChips();
+        buildStreamerButton();
         buildList();
     }
 
@@ -222,6 +223,28 @@ public class SpaceMenuScreen extends Screen {
                 this.rebuildWidgets();
             }
         }
+    }
+
+    /**
+     * Streamer mode, on the right of the panel.
+     *
+     * Deliberately not in the left rail with the other sections. That rail is a
+     * list of places in the menu; this is a switch that changes what the game
+     * shows other people, and putting it where a mis-click is unlikely felt
+     * worth a little asymmetry.
+     */
+    private void buildStreamerButton() {
+        int w = 96;
+        int h = 20;
+        int x = contentRight() - PAD - w;
+        int y = panelY() + panelH() - FOOTER_H + 5;
+
+        this.addRenderableWidget(new NavButton(
+                x, y, w, h, NavButton.Style.CHIP,
+                () -> StreamerMode.isOn() ? "Streamer: on" : "Streamer",
+                StreamerMode::isOn,
+                () -> Minecraft.getInstance().gui.setScreen(new StreamerScreen(this))
+        ));
     }
 
     private void buildChips() {
@@ -438,16 +461,16 @@ public class SpaceMenuScreen extends Screen {
 
         String name = Minecraft.getInstance().getUser() != null
                 ? Minecraft.getInstance().getUser().getName() : "Player";
+        // Left of the streamer button, which now owns the right hand end
         String right = name + "  v" + SpaceClient.VERSION;
-        graphics.text(this.font, right,
-                contentRight() - PAD - this.font.width(right), y1 - 19, Theme.OFF, false);
+        int rightX = contentRight() - PAD - 96 - 10 - this.font.width(right);
+        graphics.text(this.font, right, rightX, y1 - 19, Theme.OFF, false);
 
         // Description of whichever row the pointer is over, trimmed so it can
         // never run into the name on the right
         List<Module> modules = shown();
         int step = ROW_H + ROW_GAP;
-        int room = contentRight() - PAD - this.font.width(right) - 14
-                - (contentLeft() + PAD);
+        int room = rightX - 10 - (contentLeft() + PAD);
         for (int i = 0; i < rows.size(); i++) {
             int rowY = listTop() + i * step;
             if (mouseY >= rowY && mouseY < rowY + ROW_H

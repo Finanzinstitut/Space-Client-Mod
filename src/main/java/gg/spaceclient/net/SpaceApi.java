@@ -400,6 +400,94 @@ public final class SpaceApi {
     }
 
     /**
+     * The session token, for the streaming calls in Twitch.
+     *
+     * Exposed rather than duplicating the handshake there: one place mints
+     * tokens, one place holds them, and a token refreshed for a now playing
+     * report is the same token the follower poll needs.
+     */
+    public static String tokenForStreaming() {
+        try {
+            return ensureToken();
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+
+    /** The shared HTTP client, so callers do not each build their own. */
+    public static java.net.http.HttpClient client() { return http(); }
+
+    /**
+     * Heartbeat: tells the worker this account is in a world right now.
+     *
+     * The badge means "is playing with Space Client", not "installed it once",
+     * and those are different questions needing different answers. Registration
+     * records the permanent fact and is written at most twice a day; this
+     * records the temporary one and expires on its own after fifteen minutes,
+     * because a client that crashes never gets to say it left.
+     */
+    public static boolean heartbeat() {
+        String bearer = ensureToken();
+        if (bearer.isEmpty()) return false;
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(BASE + "/presence"))
+                    .header("Authorization", "Bearer " + bearer)
+                    .timeout(Duration.ofSeconds(10))
+                    .POST(HttpRequest.BodyPublishers.noBody())
+                    .build();
+
+            HttpResponse<String> response =
+                    http().send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 401) {
+                token = "";
+                tokenExpiresAt = 0;
+                badgeStatus = "token expired";
+                return false;
+            }
+            if (response.statusCode() != 200) {
+                badgeStatus = "presence refused (" + response.statusCode() + ")";
+                return false;
+            }
+
+            badgeStatus = "online";
+            return true;
+
+        } catch (Throwable t) {
+            badgeStatus = "presence failed: " + t.getMessage();
+            return false;
+        }
+    }
+
+    /**
+     * Says this account has stopped playing.
+     *
+     * Not strictly required - presence expires by itself - but without it the
+     * badge hangs around for up to a quarter of an hour after someone quits,
+     * which is exactly the wrong impression for a badge that claims to mean
+     * "playing right now".
+     */
+    public static void leave() {
+        String bearer = token;
+        if (bearer == null || bearer.isEmpty()) return;
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(BASE + "/presence"))
+                    .header("Authorization", "Bearer " + bearer)
+                    .timeout(Duration.ofSeconds(5))
+                    .method("DELETE", HttpRequest.BodyPublishers.noBody())
+                    .build();
+            http().send(request, HttpResponse.BodyHandlers.ofString());
+            badgeStatus = "offline";
+        } catch (Throwable ignored) {
+            // Leaving is best effort: the entry expires anyway
+        }
+    }
+
+    /**
      * The full list of accounts carrying a badge.
      *
      * Everyone, not just the players in sight. The answer is identical for

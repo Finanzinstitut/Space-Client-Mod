@@ -11,7 +11,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Who is running Space Client, so the name tag can say so.
+ * Who is playing with Space Client right now, so the name tag can say so.
+ *
+ * The distinction matters and was wrong at first: the roster used to be every
+ * account that had ever registered, so anyone who tried the client once kept
+ * the badge forever, including while playing vanilla. Presence is now a
+ * separate, expiring signal - a heartbeat while in a world, dropped on the way
+ * out - and the permanent record is kept only for counting installs.
  *
  * Deliberately built the opposite way round from NowPlayingShare, and the
  * reason is the free KV quota rather than taste.
@@ -46,13 +52,25 @@ public final class Presence {
     private static final long REGISTER_EVERY_MS = 12 * 60 * 60 * 1000L;
 
     /**
+     * How often this client says it is still playing.
+     *
+     * Seven minutes against a fifteen minute expiry, so one missed call never
+     * drops the badge. This is the only write that cannot be deduplicated away
+     * and so it sets the cost of the feature: roughly eight writes an hour per
+     * player, against a thousand a day on the free tier.
+     */
+    private static final long HEARTBEAT_MS = 7 * 60 * 1000L;
+
+    /**
      * How often the roster is refreshed.
      *
-     * Half an hour. Someone who installs the client mid-session waits up to
-     * that long before other people see their badge, which is a fair trade for
-     * a list operation that would otherwise run every few seconds per player.
+     * Ninety seconds, which sounds expensive and is not: the worker serves this
+     * list from its edge cache for three minutes at a time, so most of these
+     * calls never reach storage at all. It has to be this frequent now that the
+     * roster means "playing right now" - a badge that took half an hour to
+     * appear or disappear would be worse than no badge.
      */
-    private static final long FETCH_EVERY_MS = 30 * 60 * 1000L;
+    private static final long FETCH_EVERY_MS = 90 * 1000L;
 
     /** Retry sooner than the full interval when a call did not get through. */
     private static final long RETRY_MS = 2 * 60 * 1000L;
@@ -78,6 +96,10 @@ public final class Presence {
 
     private static volatile boolean registering = false;
     private static volatile boolean fetching = false;
+
+    /** Tracks the world so leaving can be announced exactly once. */
+    private static volatile boolean inWorld = false;
+    private static volatile long nextBeat = 0;
 
     private static volatile long nextRegister = 0;
     private static volatile long nextFetch = 0;
@@ -109,19 +131,53 @@ public final class Presence {
         String detail = SpaceApi.badgeStatus();
         if (!rosterLoaded) return detail;
         if (catchUp > 0) {
-            return badged.size() + " with a badge (" + detail
+            return badged.size() + " playing (" + detail
                     + ", waiting for yours to propagate)";
         }
-        return badged.size() + " with a badge (" + detail + ")";
+        return badged.size() + " playing (" + detail + ")";
     }
 
     /** Called every client tick. */
     public static void tick() {
         try {
             Minecraft mc = Minecraft.getInstance();
-            if (mc.level == null || mc.player == null) return;
+
+            if (mc.level == null || mc.player == null) {
+                // Left a world: drop the badge now rather than letting it sit
+                // there for the rest of the expiry window
+                if (inWorld) {
+                    inWorld = false;
+                    nextBeat = 0;
+                    CompletableFuture.runAsync(SpaceApi::leave);
+                }
+                return;
+            }
+            inWorld = true;
 
             long now = System.currentTimeMillis();
+
+            if (now >= nextBeat) {
+                nextBeat = now + RETRY_MS;
+                CompletableFuture.runAsync(() -> {
+                    if (!SpaceApi.heartbeat()) return;
+
+                    long done = System.currentTimeMillis();
+                    nextBeat = done + HEARTBEAT_MS;
+
+                    // The heartbeat is what puts an account on the roster, so
+                    // it is the heartbeat that has to wait for it to show up.
+                    // KV list does not see a key the instant it is written, and
+                    // the first heartbeat and the first fetch start together,
+                    // so without this a player would sit unbadged until the
+                    // next beat seven minutes later.
+                    Minecraft self = Minecraft.getInstance();
+                    UUID mine = self.player != null ? self.player.getUUID() : null;
+                    if (mine != null && !badged.contains(mine)) {
+                        catchUp = CATCHUP_ATTEMPTS;
+                        nextFetch = done;
+                    }
+                });
+            }
 
             if (!registering && now >= nextRegister) {
                 registering = true;
@@ -132,22 +188,10 @@ public final class Presence {
 
                 CompletableFuture.runAsync(() -> {
                     try {
+                        // Only the permanent "has this been installed" record.
+                        // The badge no longer depends on it.
                         if (SpaceApi.register()) {
-                            long done = System.currentTimeMillis();
-                            nextRegister = done + REGISTER_EVERY_MS;
-
-                            // Refetch straight away if the roster does not yet
-                            // list this account. Both timers start together, so
-                            // on a first run the fetch usually finishes before
-                            // the registration lands - without this the player
-                            // who just installed the mod waits out the full
-                            // half hour before their own badge appears.
-                            Minecraft self = Minecraft.getInstance();
-                            UUID mine = self.player != null ? self.player.getUUID() : null;
-                            if (mine != null && !badged.contains(mine)) {
-                                catchUp = CATCHUP_ATTEMPTS;
-                                nextFetch = done;
-                            }
+                            nextRegister = System.currentTimeMillis() + REGISTER_EVERY_MS;
                         }
                     } finally {
                         registering = false;

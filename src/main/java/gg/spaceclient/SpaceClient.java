@@ -132,6 +132,7 @@ public class SpaceClient implements ClientModInitializer {
             // and has no setting behind it, so it ticks whenever the game is
             // in a world. Its own timers keep it to a couple of calls an hour.
             gg.spaceclient.net.Presence.tick();
+            gg.spaceclient.net.Twitch.tick();
 
             // The window only exists once the game is running, so the hook is
             // installed on the first tick rather than during initialisation.

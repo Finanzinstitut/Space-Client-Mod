@@ -38,6 +38,10 @@ public class ConfigManager {
         }
         root.add("modules", modules);
 
+        JsonObject streamer = new JsonObject();
+        gg.spaceclient.ui.StreamerMode.save(streamer);
+        root.add("streamer", streamer);
+
         try {
             Files.createDirectories(file.getParent());
             Files.writeString(file, GSON.toJson(root));
@@ -57,6 +61,9 @@ public class ConfigManager {
             if (root.has("interface")) {
                 SpaceClient.getSettings().load(root.getAsJsonObject("interface"));
             }
+            if (root.has("streamer")) {
+                gg.spaceclient.ui.StreamerMode.load(root.getAsJsonObject("streamer"));
+            }
             if (!root.has("modules")) return;
             JsonObject modules = root.getAsJsonObject("modules");
 
@@ -68,6 +75,11 @@ public class ConfigManager {
                     ks.setCustomKeys(moduleJson.get("custom_keys").getAsString());
                 }
             }
+            // After the modules, not before: streamer mode is read first, so
+            // anything it switched off would be switched straight back on by
+            // the saved module states a moment later.
+            gg.spaceclient.ui.StreamerMode.reapply();
+
         } catch (Exception e) {
             // A corrupt config must not stop the game from starting
             SpaceClient.LOGGER.error("Could not read config, using defaults", e);

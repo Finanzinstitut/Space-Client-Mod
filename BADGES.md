@@ -320,3 +320,43 @@ fires the responder. Setting the value after the responder would have built the
 list once there and again when `init` reached `buildList`, stacking two widgets
 on every row - the same class of bug as the one above, arriving by a different
 door.
+
+## Badge now means "playing", not "installed"
+
+The roster used to be every account that had ever registered, so anyone who
+tried the client once kept the badge forever, including while playing vanilla.
+
+Presence is now its own signal, separate from the permanent record:
+
+- `POST /presence` — heartbeat, writes `online:<uuid>` with a fifteen minute
+  expiry. Sent every seven minutes while in a world, so one missed call never
+  drops the badge.
+- `DELETE /presence` — sent on leaving a world. Not strictly needed, since the
+  key expires anyway, but without it a badge lingers for up to a quarter of an
+  hour after someone quits, which is the wrong impression for a badge claiming
+  to mean "playing right now".
+- `GET /users` — now lists `online:` rather than `user:`.
+
+`/register` still writes the permanent `user:` record at most twice a day. It
+is what counts installs; it no longer decides who gets a badge.
+
+### What this costs
+
+The heartbeat is the one write that cannot be deduplicated away, so it sets the
+price of the feature: about eight writes an hour per player against a thousand
+a day on the free tier. A three hour session is roughly twenty five writes, so
+the quota covers something like thirty to forty players a day.
+
+That is comfortable now and is the first thing that will break if the client
+gets popular. When it does, the fix is not to stretch the interval — it is to
+move presence off Cloudflare KV entirely. Deno Deploy is already in the stack
+for the Mojang proxy and its KV has a far more generous write allowance;
+presence is a natural fit for it because the data is worthless after fifteen
+minutes and does not need to live where the durable records live.
+
+The roster cache dropped from fifteen minutes to three, and the client now
+fetches every ninety seconds instead of every half hour. That sounds more
+expensive and is not: most of those calls are served from the edge cache and
+never reach storage. It has to be this frequent now that the roster is a
+statement about the present — a badge that took half an hour to appear or
+disappear would be worse than none.
