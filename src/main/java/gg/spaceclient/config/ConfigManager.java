@@ -38,6 +38,14 @@ public class ConfigManager {
         }
         root.add("modules", modules);
 
+        JsonObject itemSizes = new JsonObject();
+        ItemSizes.save(itemSizes);
+        root.add("itemsizes", itemSizes);
+
+        JsonObject profiles = new JsonObject();
+        Profiles.saveState(profiles);
+        root.add("profiles", profiles);
+
         JsonObject streamer = new JsonObject();
         gg.spaceclient.ui.StreamerMode.save(streamer);
         root.add("streamer", streamer);
@@ -60,6 +68,12 @@ public class ConfigManager {
 
             if (root.has("interface")) {
                 SpaceClient.getSettings().load(root.getAsJsonObject("interface"));
+            }
+            if (root.has("itemsizes")) {
+                ItemSizes.load(root.getAsJsonObject("itemsizes"));
+            }
+            if (root.has("profiles")) {
+                Profiles.loadState(root.getAsJsonObject("profiles"));
             }
             if (root.has("streamer")) {
                 gg.spaceclient.ui.StreamerMode.load(root.getAsJsonObject("streamer"));

@@ -68,6 +68,11 @@ public class SpaceClient implements ClientModInitializer {
         configManager = new ConfigManager();
         configManager.load();
 
+        // Registered before anything can join a world, which is the only
+        // requirement: payload types must exist on both ends before a handler
+        // is attached.
+        gg.spaceclient.net.Handshake.register();
+
         // Key mappings now take a registered Category object rather than a
         // translation key string.
         KeyMapping.Category category = KeyMapping.Category.register(

@@ -38,6 +38,10 @@ public class ModuleManager {
         register(new MusicModule());
         register(new HitColorModule());
         register(new TwitchModule());
+        register(new DirectionModule());
+        register(new NetherPortalModule());
+        register(new ConnectionModule());
+        register(new SpacePlayersModule());
     }
 
     private void register(Module module) {

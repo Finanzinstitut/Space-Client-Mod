@@ -80,17 +80,13 @@ public class ModRow extends Button {
         return null;
     }
 
-    private static float approach(float current, float target, float speed) {
-        return current + (target - current) * speed;
+    /** Delegates to Ease so every animation in the client shares one curve. */
+    private static float approach(float current, float target, float speed, float delta) {
+        return Ease.approach(current, target, speed, delta);
     }
 
     private static int lerpColor(int from, int to, float t) {
-        t = Math.max(0f, Math.min(1f, t));
-        int a = (int) (((from >>> 24) & 0xFF) + (((to >>> 24) & 0xFF) - ((from >>> 24) & 0xFF)) * t);
-        int r = (int) (((from >> 16) & 0xFF) + (((to >> 16) & 0xFF) - ((from >> 16) & 0xFF)) * t);
-        int g = (int) (((from >> 8) & 0xFF) + (((to >> 8) & 0xFF) - ((from >> 8) & 0xFF)) * t);
-        int b = (int) ((from & 0xFF) + ((to & 0xFF) - (from & 0xFF)) * t);
-        return (a << 24) | (r << 16) | (g << 8) | b;
+        return Ease.color(from, to, t);
     }
 
     @Override
@@ -98,8 +94,8 @@ public class ModRow extends Button {
         lastMouseX = mouseX;
         lastMouseY = mouseY;
 
-        hover = approach(hover, isHovered() ? 1f : 0f, HOVER_SPEED);
-        state = approach(state, active.getAsBoolean() ? 1f : 0f, STATE_SPEED);
+        hover = approach(hover, isHovered() ? 1f : 0f, HOVER_SPEED, delta);
+        state = approach(state, active.getAsBoolean() ? 1f : 0f, STATE_SPEED, delta);
 
         int x1 = getX();
         int y1 = getY();
@@ -152,7 +148,9 @@ public class ModRow extends Button {
         graphics.fill(pillLeft, pillTop, pillLeft + PILL_W, pillTop + PILL_H,
                 lerpColor(Theme.OFF, Theme.accent(), state));
 
-        int knob = pillLeft + 1 + Math.round((PILL_W - PILL_H) * state);
+        // Eased on the way across, so the knob leaves and arrives rather than
+        // travelling at one speed
+        int knob = pillLeft + 1 + Math.round((PILL_W - PILL_H) * Ease.inOutCubic(state));
         graphics.fill(knob, pillTop + 1, knob + PILL_H - 2, pillTop + PILL_H - 1,
                 state > 0.5f ? Theme.TEXT_ON_ACCENT : Theme.TEXT_DIM);
     }

@@ -120,6 +120,16 @@ public final class Presence {
     }
 
     /**
+     * How many people are playing with Space Client right now.
+     *
+     * Negative until the first roster has arrived, so a readout can say "not
+     * known yet" instead of confidently showing a zero.
+     */
+    public static int onlineCount() {
+        return rosterLoaded ? badged.size() : -1;
+    }
+
+    /**
      * What the badge roster is doing, for the diagnostics page.
      *
      * Reports the network side through SpaceApi rather than a local copy, so a

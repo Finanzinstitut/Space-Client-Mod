@@ -360,3 +360,176 @@ expensive and is not: most of those calls are served from the edge cache and
 never reach storage. It has to be this frequent now that the roster is a
 statement about the present — a badge that took half an hour to appear or
 disappear would be worse than none.
+
+## HUD scaling and smoother animation
+
+**Elements resize.** Each HUD element carries its own scale between 0.5x and
+3x, saved with its position. Per element rather than one setting for the whole
+HUD, because they are read at different distances of attention: a coordinate
+readout is glanced at and wants to be small, a follower count during a stream is
+being shown to other people and wants to be large.
+
+In the HUD editor: click the corner grip and move the mouse, or scroll the wheel
+over any element. The pointer sits where the right edge will be, which is easier
+to aim than a multiplier that depends on where you started. The percentage shows
+next to the name while resizing.
+
+The scaling call goes through reflection, because Mojang replaced the GUI's
+PoseStack with a flat matrix stack a few versions ago and the method is either
+`pushPose` with three-argument transforms or `pushMatrix` with two. Both are
+looked up once and remembered. A version that matches neither costs the scaling
+and nothing else — elements draw at 1x, as they did before.
+
+One trap found while writing it: `Reflect.callWith` returns null for a void
+method whether it worked or not, so "did that succeed" cannot be answered after
+the call. The first version tested the return value, which would have meant
+invoking both the two- and three-argument variants every frame and trusting a
+check that was always false. The methods are now resolved before anything is
+invoked.
+
+**Animation is frame rate independent.** Every eased value in the client ran on
+a fixed fraction per frame, so the same animation took twice as long at 30 fps
+as at 60. `Ease.approach` takes the frame time; the speed numbers still mean
+what they did, so nothing had to be retuned. The menu fade is eased rather than
+linear — a fade coming off at a constant rate reads as a cut, because the eye
+notices the last few percent most and that is where linear spends the least
+time. The toggle knob eases across, and a carried HUD element trails the cursor
+slightly so it settles into place instead of stopping dead.
+
+The module list still scrolls a row at a time rather than smoothly. That is
+deliberate: animating the rows would put them half outside the list again, which
+is the bug that had them drawing across the whole screen. The scrollbar thumb
+animates instead, which gives the motion without the overflow.
+
+**New element: Direction.** Which way you are facing, as a name and an axis. The
+Compass strip answers "which way am I turning"; this answers "which way am I
+pointed", which is the question when building along an axis, and two characters
+answer it without stopping.
+
+## Three more elements, and layouts
+
+### Portal Coords
+
+Your position converted to the linked dimension: divide by eight in the
+overworld, multiply by eight in the nether. Almost every client shows
+coordinates and none show this, which is odd — the conversion is the only part
+of the number that is hard, and it is the part people get backwards.
+
+Y is not converted, because portals do not link on it; the game searches
+vertically for somewhere to put you. The dimension is read reflectively and
+matched on the text of its registry key, so a rename costs a wrong label rather
+than a crash.
+
+### Connection
+
+Ping is the number that explains the least. A steady 120 plays fine and a 40
+that swings to 200 and back does not, and only the second is what people mean
+when a server feels bad. The figure that separates them is jitter — how far the
+ping moves between samples — and essentially no client shows it.
+
+Sampled on its own half-second clock rather than per frame, because the server
+only updates latency about once a second and sampling faster would fill the
+history with copies and flatten jitter to zero, which is the one number the
+element exists for. Jitter is the mean step-to-step change, not the standard
+deviation: a slow drift from 40 to 90 is smooth to play on, and a deviation
+would call it wild.
+
+A short bar graph sits underneath, coloured green, amber or red. The shape says
+more at a glance than either figure — a sawtooth is a congested route, an
+occasional spike is something else.
+
+### Space Players
+
+How many people are on Space Client right now, and how many are in your world.
+Only this client can show it, which is why it is here: the presence roster is
+already fetched for the name tag badge, so the global figure costs nothing new
+and the nearby figure is that set intersected with the loaded players.
+
+### Layouts
+
+The way somebody wants their screen arranged is not one arrangement. Building
+wants coordinates and the portal converter; PvP wants CPS and armour;
+streaming wants the follower count and no coordinates at all. Every client
+makes you rebuild that by hand, so in practice nobody does — they settle on one
+cluttered layout that is wrong for everything.
+
+A layout stores which modules are on, where each sits, and how large it is.
+Deliberately nothing else: colours and key bindings are preferences about you
+rather than about the task, and having them jump when switching context would
+be its own annoyance.
+
+Four are built in — default, building, pvp, streaming — and the button in the
+footer cycles them. The current layout is saved automatically before switching
+away, because nobody thinks to press save first, and losing five minutes of
+dragging to one click is what makes a feature go unused. A preset only touches
+what its name is about; switching off everything it did not mention would throw
+away the rest of a setup to make a point.
+
+## Colour picking, the black screen, and Item Shower
+
+### Colours follow the pointer
+
+A click no longer sets a colour and stops. It starts tracking: the colour then
+follows the pointer, eased, until a second click keeps it. Single clicks made
+picking a shade a matter of aiming, which is the wrong gesture for a continuous
+value — you want to watch it change while you look for the one you meant.
+
+Hue is eased the short way round the wheel. Without that, moving from just above
+red to just below it sweeps the entire spectrum backwards across a boundary that
+is not really there.
+
+The cursor is not literally captured. Grabbing it needs the mouse handler, whose
+API changed in this version, and it would achieve nothing the tracking does not:
+while tracking, pointer movement is the only thing that matters and where the
+pointer sits does not. Same reasoning as the HUD editor picking up and putting
+down rather than dragging.
+
+Saving happens when tracking ends, not per frame — writing the config sixty
+times a second while somebody sweeps the wheel is a lot of disk for one
+decision.
+
+### The black screen
+
+Found it. The windowed menu called `Backdrop.draw`, which fills the *entire*
+screen with the launcher's gradient and stars. With the space background
+selected, opening the menu blacked out the whole view — correct for a screen
+that owns the display, wrong for a window, and it reads as the game blanking
+rather than a menu opening.
+
+The windowed menu now always uses a plain veil. The starfield still belongs to
+the full-screen sub-screens, where it was right all along.
+
+### Item Shower
+
+Right shift → **Item Shower**. Pick an item, set three sizes: in the hotbar, in
+your hand, on the ground.
+
+The pile is the point. When someone dies in a fight their inventory lands as
+thirty item entities on top of each other, and the one that decides the next
+thirty seconds looks exactly like the cobblestone beside it. Making one item
+type larger on the ground turns finding a totem from reading a heap into seeing
+a shape.
+
+Items are picked from your own inventory rather than a list of every item in the
+game — that list is two thousand deep and nobody scrolls it, and the item you
+want to configure is nearly always one you are holding, because you are setting
+it after losing a fight over it. Anything already configured stays listed even
+once it leaves your inventory.
+
+Sizes are keyed on the item's description id, a plain string the stack already
+carries, so this never touches the item registry.
+
+**What is not wired yet:** the sizes are stored and editable, but nothing reads
+them during rendering. Three hooks are needed — the hotbar, the held item and
+the ground entity — and all three are mixins into rendering code I have not
+verified for 26.2. That is a different risk from everything else here: a wrong
+mixin target does not fail the build, it crashes the game on launch, which costs
+more than a wasted round. Two class dumps settle it:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("D:\Space Client\versions\26.2\extracted\net\minecraft\client\renderer\entity\ItemEntityRenderer.class"))
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("D:\Space Client\versions\26.2\extracted\net\minecraft\client\renderer\ItemInHandRenderer.class"))
+```
+
+The ground one is the one that matters for the totem case, so if you only send
+one, send the first.

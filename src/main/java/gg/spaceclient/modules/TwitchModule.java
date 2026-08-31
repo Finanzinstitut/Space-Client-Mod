@@ -23,7 +23,16 @@ public class TwitchModule extends HudModule {
             Identifier.fromNamespaceAndPath("spaceclient", "textures/gui/stream/twitch.png");
 
     private static final int ICON_SIZE = 8;
-    private static final int ICON_GAP = 4;
+    private static final int ICON_GAP = 5;
+    private static final int PAD = 4;
+
+    private static final String FOLLOWERS = "followers";
+    private static final String NEWEST = "newest ";
+
+    /** Twitch purple, and a lighter tone for a name against the dark plate. */
+    private static final int BRAND = 0xFF9146FF;
+    private static final int BRAND_LIGHT = 0xFFC9A9FF;
+    private static final int PLATE = 0xB0100C1C;
 
     private final ColorSetting textColor = new ColorSetting(
             "text_color", "Text colour", "Colour of the follower count", 0xFFFFFFFF);
@@ -40,6 +49,10 @@ public class TwitchModule extends HudModule {
                 "Follower count and newest follower for your linked channel",
                 0.02f, 0.32f, false);
         addSettings(showIcon, showLast, textColor);
+
+        // This element draws its own plate, so the generic grey one behind it
+        // would only show as a border of the wrong colour
+        setBackgroundEnabled(false);
     }
 
     /**
@@ -54,49 +67,109 @@ public class TwitchModule extends HudModule {
 
     private String text() { return cachedText(this::buildText); }
 
-    private String buildText() {
-        if (!Twitch.isLinked()) return "Twitch not linked";
-
+    /** The count line: the number and nothing else. */
+    private String countLine() {
+        if (!Twitch.isLinked()) return "not linked";
         int followers = Twitch.followers();
-        if (followers < 0) return "Loading...";
+        if (followers < 0) return "...";
+        return group(followers);
+    }
+
+    /**
+     * Thousands separated with a thin gap.
+     *
+     * A streamer with four thousand followers should not have to count digits
+     * to read their own overlay, and String.format's locale grouping would put
+     * a comma there for some players and a full stop for others.
+     */
+    private static String group(int value) {
+        String digits = Integer.toString(value);
+        if (digits.length() <= 4) return digits;
 
         StringBuilder out = new StringBuilder();
-        out.append(followers == 1 ? "1 follower" : followers + " followers");
-
-        String last = Twitch.lastFollower();
-        if (showLast.get() && !last.isEmpty()) {
-            out.append("  +").append(last);
+        int lead = digits.length() % 3;
+        if (lead > 0) out.append(digits, 0, lead);
+        for (int at = lead; at < digits.length(); at += 3) {
+            if (out.length() > 0) out.append(' ');
+            out.append(digits, at, at + 3);
         }
         return out.toString();
     }
 
-    private int iconWidth() {
-        return showIcon.get() ? ICON_SIZE + ICON_GAP : 0;
+    private String buildText() {
+        // Kept for the width calculation the HUD editor uses
+        String last = Twitch.lastFollower();
+        return countLine() + (showLast.get() && !last.isEmpty() ? "  " + last : "");
     }
 
     @Override
-    public int getWidth() { return iconWidth() + mc.font.width(text()); }
+    public int getWidth() {
+        int width = iconWidth() + mc.font.width(countLine()) + 4 + mc.font.width(FOLLOWERS);
+
+        String last = Twitch.lastFollower();
+        if (showLast.get() && Twitch.isLinked() && !last.isEmpty()) {
+            width = Math.max(width, iconWidth() + mc.font.width(NEWEST + last));
+        }
+        return width + PAD * 2;
+    }
 
     @Override
-    public int getHeight() { return Math.max(ICON_SIZE, mc.font.lineHeight); }
+    public int getHeight() {
+        return PAD * 2 + mc.font.lineHeight + (secondLine() ? mc.font.lineHeight + 1 : 0);
+    }
 
+    private boolean secondLine() {
+        return showLast.get() && Twitch.isLinked() && !Twitch.lastFollower().isEmpty();
+    }
+
+    /**
+     * Two lines, not one.
+     *
+     * The count and the newest follower were run together on a single line with
+     * a plus sign between them, which made a name look like part of the number.
+     * They are different facts and now read as two.
+     */
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
-        if (showIcon.get()) {
-            // Centred against the line rather than sat on the baseline, so the
-            // mark and the text read as one row
-            int iconY = y + (mc.font.lineHeight - ICON_SIZE) / 2;
+        int width = getWidth();
+        int height = getHeight();
 
+        // Twitch purple down the left edge, the way the launcher marks a
+        // section. Cheaper than a border and it says whose numbers these are
+        // before any of the text is read.
+        graphics.fill(x, y, x + width, y + height, PLATE);
+        graphics.fill(x, y, x + 2, y + height, BRAND);
+
+        int textX = x + PAD + iconWidth();
+        int lineY = y + PAD;
+
+        if (showIcon.get()) {
+            int iconY = lineY + (mc.font.lineHeight - ICON_SIZE) / 2;
             // Through Textures rather than a direct blit: the texture call's
-            // signature on 26.2 is unverified, and that class already resolves
-            // it at runtime so a wrong guess costs a coloured square instead of
-            // a failed build.
-            if (!Textures.draw(graphics, ICON, x, iconY, ICON_SIZE, ICON_SIZE)) {
-                graphics.fill(x, iconY, x + ICON_SIZE, iconY + ICON_SIZE, 0xFF9146FF);
+            // signature on 26.2 is unverified, and that class resolves it at
+            // runtime, so a wrong guess costs a coloured square rather than a
+            // failed build.
+            if (!Textures.draw(graphics, ICON, x + PAD, iconY, ICON_SIZE, ICON_SIZE)) {
+                graphics.fill(x + PAD, iconY, x + PAD + ICON_SIZE, iconY + ICON_SIZE, BRAND);
             }
         }
 
-        int color = Twitch.isLinked() ? textColor.get() : Theme.TEXT_DIM;
-        graphics.text(mc.font, text(), x + iconWidth(), y, color, true);
+        String count = countLine();
+        int color = Twitch.isLinked() ? textColor.get() : Theme.OFF;
+        graphics.text(mc.font, count, textX, lineY, color, false);
+
+        // The word sits dimmer and after the number, so the eye lands on the
+        // figure first
+        if (Twitch.isLinked()) {
+            graphics.text(mc.font, FOLLOWERS,
+                    textX + mc.font.width(count) + 4, lineY, Theme.OFF, false);
+        }
+
+        if (secondLine()) {
+            int secondY = lineY + mc.font.lineHeight + 1;
+            graphics.text(mc.font, NEWEST, x + PAD, secondY, Theme.OFF, false);
+            graphics.text(mc.font, Twitch.lastFollower(),
+                    x + PAD + mc.font.width(NEWEST), secondY, BRAND_LIGHT, false);
+        }
     }
 }

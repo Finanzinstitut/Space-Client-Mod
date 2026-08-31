@@ -1,6 +1,7 @@
 package gg.spaceclient.ui;
 
 import gg.spaceclient.SpaceClient;
+import gg.spaceclient.config.Profiles;
 import gg.spaceclient.module.Module;
 
 import net.minecraft.client.Minecraft;
@@ -146,6 +147,7 @@ public class SpaceMenuScreen extends Screen {
         buildRail();
         buildChips();
         buildStreamerButton();
+        buildProfileButton();
         buildList();
     }
 
@@ -191,6 +193,7 @@ public class SpaceMenuScreen extends Screen {
         String[][] entries = {
                 {"Mods", ""},
                 {"Move HUD", "hud"},
+                {"Item Shower", "itemshower"},
                 {"Accounts", "accounts"},
                 {"Cosmetica", "cosmetica"},
                 {"Appearance", "appearance"},
@@ -214,6 +217,7 @@ public class SpaceMenuScreen extends Screen {
         Minecraft mc = Minecraft.getInstance();
         switch (opens) {
             case "hud" -> mc.gui.setScreen(new HudEditorScreen(this));
+            case "itemshower" -> mc.gui.setScreen(new ItemShowerScreen(this));
             case "accounts" -> mc.gui.setScreen(new AccountsScreen(this));
             case "cosmetica" -> mc.gui.setScreen(new CosmeticsScreen(this));
             case "appearance" -> mc.gui.setScreen(new AppearanceScreen(this));
@@ -244,6 +248,33 @@ public class SpaceMenuScreen extends Screen {
                 () -> StreamerMode.isOn() ? "Streamer: on" : "Streamer",
                 StreamerMode::isOn,
                 () -> Minecraft.getInstance().gui.setScreen(new StreamerScreen(this))
+        ));
+    }
+
+    /**
+     * The profile switcher, on the footer's left.
+     *
+     * One button that cycles rather than a list that opens: there are rarely
+     * more than a handful of profiles, and switching is something done between
+     * activities rather than browsed. A menu would be three clicks where one
+     * does.
+     */
+    private void buildProfileButton() {
+        int w = 104;
+        int h = 20;
+        int x = contentLeft() + PAD;
+        int y = panelY() + panelH() - FOOTER_H + 5;
+
+        this.addRenderableWidget(new NavButton(
+                x, y, w, h, NavButton.Style.CHIP,
+                () -> "Layout: " + Profiles.active(),
+                () -> false,
+                () -> {
+                    java.util.List<String> all = Profiles.list();
+                    int at = all.indexOf(Profiles.active());
+                    Profiles.switchTo(all.get((at + 1) % all.size()));
+                    this.rebuildWidgets();
+                }
         ));
     }
 
@@ -384,21 +415,23 @@ public class SpaceMenuScreen extends Screen {
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         float age = Math.min(1f, (System.currentTimeMillis() - openedAt) / 180f);
-        scrollShown += (scrollRow - scrollShown) * 0.35f;
+        // Frame rate independent, so the thumb takes the same time to settle
+        // at 30 frames a second as at 240
+        scrollShown = Ease.approach(scrollShown, scrollRow, 0.35f, delta);
 
         int x0 = panelX();
         int y0 = panelY();
         int x1 = x0 + panelW();
         int y1 = y0 + panelH();
 
-        // The world stays visible behind a veil rather than being painted over.
-        // The starfield backdrop is still available for anyone who wants it and
-        // is drawn behind the panel, not instead of the game.
-        if (Theme.spaceBackdrop()) {
-            Backdrop.draw(graphics, this.width, this.height);
-        } else {
-            graphics.fill(0, 0, this.width, this.height, 0x99000000);
-        }
+        // Always a veil, never the starfield.
+        //
+        // Backdrop.draw fills the entire screen with the launcher's gradient
+        // and stars, which is right for a screen that owns the display and
+        // wrong for a window: with the space background selected the whole view
+        // went dark, which reads as the game blanking out rather than as a menu
+        // opening. The starfield still belongs to the full screen sub-screens.
+        graphics.fill(0, 0, this.width, this.height, 0x99000000);
 
         // A soft edge around the panel, drawn as two rings rather than a blur,
         // which this renderer has no cheap way to do
@@ -466,11 +499,13 @@ public class SpaceMenuScreen extends Screen {
         int rightX = contentRight() - PAD - 96 - 10 - this.font.width(right);
         graphics.text(this.font, right, rightX, y1 - 19, Theme.OFF, false);
 
-        // Description of whichever row the pointer is over, trimmed so it can
-        // never run into the name on the right
+        // Description of whichever row the pointer is over. Above the footer
+        // rather than inside it: the profile button took that line, and a
+        // description that appeared over a button would be unreadable and make
+        // the button look broken.
         List<Module> modules = shown();
         int step = ROW_H + ROW_GAP;
-        int room = rightX - 10 - (contentLeft() + PAD);
+        int room = contentRight() - PAD - (contentLeft() + PAD);
         for (int i = 0; i < rows.size(); i++) {
             int rowY = listTop() + i * step;
             if (mouseY >= rowY && mouseY < rowY + ROW_H
@@ -480,14 +515,17 @@ public class SpaceMenuScreen extends Screen {
                     String description = modules.get(index).getDescription();
                     graphics.text(this.font,
                             this.font.plainSubstrByWidth(description, room),
-                            contentLeft() + PAD, y1 - 19, Theme.TEXT_DIM, false);
+                            contentLeft() + PAD, y1 - FOOTER_H - 11, Theme.TEXT_DIM, false);
                 }
                 break;
             }
         }
 
         if (age < 1f) {
-            int veil = (int) ((1f - age) * 255) << 24;
+            // Eased rather than linear: a fade that comes off at a constant
+            // rate reads as a cut, because the eye notices the last few percent
+            // most and that is exactly where linear spends the least time
+            int veil = (int) ((1f - Ease.outCubic(age)) * 255) << 24;
             graphics.fill(0, 0, this.width, this.height, veil);
         }
     }

@@ -14,6 +14,19 @@ public abstract class HudModule extends Module {
     private float yPercent;
 
     /**
+     * How large this element draws, 1 being its natural size.
+     *
+     * Per element rather than one setting for the whole HUD, because the
+     * elements are read at different distances of attention: a coordinate
+     * readout is glanced at and wants to be small, a follower count during a
+     * stream is being shown to other people and wants to be large.
+     */
+    private float scale = 1.0f;
+
+    public static final float MIN_SCALE = 0.5f;
+    public static final float MAX_SCALE = 3.0f;
+
+    /**
      * HUD elements get their own look, separate from the menu: a plain grey
      * plate behind the content so the readout stays legible over any terrain.
      */
@@ -79,20 +92,54 @@ public abstract class HudModule extends Module {
      * this is what the HUD loop calls.
      */
     public void draw(GuiGraphicsExtractor graphics, int x, int y) {
-        if (background.get()) {
-            int padding = 3;
-            graphics.fill(
-                    x - padding, y - padding,
-                    x + getWidth() + padding, y + getHeight() + padding,
-                    backgroundColor.get());
+        // When scaling works the matrix has already moved to the element's
+        // corner, so everything below draws from the origin instead
+        boolean scaled = scale != 1.0f && gg.spaceclient.ui.Scale.push(graphics, x, y, scale);
+        int drawX = scaled ? 0 : x;
+        int drawY = scaled ? 0 : y;
+
+        try {
+            if (background.get()) {
+                int padding = 3;
+                graphics.fill(
+                        drawX - padding, drawY - padding,
+                        drawX + getWidth() + padding, drawY + getHeight() + padding,
+                        backgroundColor.get());
+            }
+            render(graphics, drawX, drawY);
+        } finally {
+            // In a finally block because a module that throws mid-draw would
+            // otherwise leave the matrix pushed and skew everything drawn after
+            // it for the rest of the frame
+            if (scaled) gg.spaceclient.ui.Scale.pop(graphics);
         }
-        render(graphics, x, y);
     }
+
+    public float getScale() { return scale; }
+
+    public void setScale(float value) {
+        this.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, value));
+    }
+
+    /**
+     * The size this element occupies on screen.
+     *
+     * getWidth and getHeight are the content's own measurements and stay
+     * unscaled, because the module draws in its own coordinates. Anything
+     * asking where the element *is* - the editor's outline, its grab area -
+     * wants these instead.
+     */
+    public int getScaledWidth() { return Math.round(getWidth() * scale); }
+    public int getScaledHeight() { return Math.round(getHeight() * scale); }
 
     public void setPosition(float x, float y) {
         this.xPercent = Math.max(0f, Math.min(1f, x));
         this.yPercent = Math.max(0f, Math.min(1f, y));
     }
+
+    /** The stored fractions, for anything saving a layout of its own. */
+    public float getXPercent() { return xPercent; }
+    public float getYPercent() { return yPercent; }
 
     public int getX(int screenWidth) { return (int) (xPercent * screenWidth); }
     public int getY(int screenHeight) { return (int) (yPercent * screenHeight); }
@@ -104,6 +151,7 @@ public abstract class HudModule extends Module {
         super.save(json);
         json.addProperty("x", xPercent);
         json.addProperty("y", yPercent);
+        json.addProperty("scale", scale);
     }
 
     @Override
@@ -111,5 +159,6 @@ public abstract class HudModule extends Module {
         super.load(json);
         if (json.has("x")) xPercent = json.get("x").getAsFloat();
         if (json.has("y")) yPercent = json.get("y").getAsFloat();
+        if (json.has("scale")) setScale(json.get("scale").getAsFloat());
     }
 }
