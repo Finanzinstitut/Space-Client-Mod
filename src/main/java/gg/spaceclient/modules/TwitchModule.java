@@ -67,6 +67,11 @@ public class TwitchModule extends HudModule {
 
     private String text() { return cachedText(this::buildText); }
 
+    /** Space reserved for the icon, or none when it's hidden. */
+    private int iconWidth() {
+        return showIcon.get() ? ICON_SIZE + ICON_GAP : 0;
+    }
+
     /** The count line: the number and nothing else. */
     private String countLine() {
         if (!Twitch.isLinked()) return "not linked";
