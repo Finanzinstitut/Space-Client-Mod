@@ -115,6 +115,19 @@ public abstract class HudModule extends Module {
         }
     }
 
+    /**
+     * Whether the editor refuses to move or resize this element.
+     *
+     * Exists because of what the HUD is for: once something sits exactly where
+     * you want it, the next visit to the editor is about a different element,
+     * and nudging the settled one by two pixels on the way past is the most
+     * annoying thing the editor can do.
+     */
+    private boolean locked = false;
+
+    public boolean isLocked() { return locked; }
+    public void setLocked(boolean value) { this.locked = value; }
+
     public float getScale() { return scale; }
 
     public void setScale(float value) {
@@ -152,6 +165,7 @@ public abstract class HudModule extends Module {
         json.addProperty("x", xPercent);
         json.addProperty("y", yPercent);
         json.addProperty("scale", scale);
+        json.addProperty("locked", locked);
     }
 
     @Override
@@ -160,5 +174,6 @@ public abstract class HudModule extends Module {
         if (json.has("x")) xPercent = json.get("x").getAsFloat();
         if (json.has("y")) yPercent = json.get("y").getAsFloat();
         if (json.has("scale")) setScale(json.get("scale").getAsFloat());
+        if (json.has("locked")) locked = json.get("locked").getAsBoolean();
     }
 }

@@ -124,6 +124,25 @@ public final class Scale {
         }
     }
 
+    /**
+     * Translates without scaling.
+     *
+     * Needed by the hotbar case: drawing there uses absolute screen
+     * coordinates, so after scaling around an icon's centre the origin has to
+     * be moved back or the item lands somewhere else entirely.
+     */
+    public static void translate(GuiGraphicsExtractor graphics, int x, int y) {
+        if (graphics == null || !usable) return;
+        Object pose = gg.spaceclient.util.Reflect.call(graphics, "pose");
+        if (pose == null) return;
+        try {
+            if (flat) translate.invoke(pose, (float) x, (float) y);
+            else translate.invoke(pose, (double) x, (double) y, 0.0d);
+        } catch (Throwable ignored) {
+            // The item draws unscaled, which is the same as before
+        }
+    }
+
     public static void pop(GuiGraphicsExtractor graphics) {
         if (graphics == null || pop == null) return;
         Object pose = gg.spaceclient.util.Reflect.call(graphics, "pose");

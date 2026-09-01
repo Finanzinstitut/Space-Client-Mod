@@ -23,6 +23,25 @@ public class AppearanceScreen extends Screen {
 
     private int panelLeft() { return (this.width - PANEL_W) / 2; }
 
+    /**
+     * Turns a stored style name into something readable.
+     *
+     * The names are stored as they are so an old config keeps working, but
+     * BLACK_HOLE is not what anybody wants to read on a button.
+     */
+    private static String prettyStyle(String style) {
+        return switch (style) {
+            case "SPACE" -> "Starfield";
+            case "DARK" -> "Dark";
+            case "SOLID_BLACK" -> "Black";
+            case "TRANSPARENT" -> "Transparent";
+            case "NEBULA" -> "Nebula";
+            case "BLACK_HOLE" -> "Black hole";
+            case "GALAXY" -> "Galaxy";
+            default -> style;
+        };
+    }
+
     @Override
     protected void init() {
         ClientSettings settings = SpaceClient.getSettings();
@@ -31,7 +50,7 @@ public class AppearanceScreen extends Screen {
 
         this.addRenderableWidget(new FlatButton(
                 left, y, PANEL_W, ROW_H,
-                () -> "Background: " + settings.backgroundStyle(),
+                () -> "Background: " + prettyStyle(settings.backgroundStyle()),
                 () -> false,
                 () -> {
                     settings.cycleBackground();

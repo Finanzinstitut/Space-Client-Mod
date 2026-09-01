@@ -1,12 +1,16 @@
 package gg.spaceclient.ui;
 
+import gg.spaceclient.SpaceClient;
+
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.resources.Identifier;
 
 import java.util.Random;
 
 /**
- * The launcher's background: a deep violet gradient, a scattering of stars and
- * a glowing planet in the top right corner.
+ * The menu background: either one of the photographs, or the launcher's own
+ * drawn look - a deep violet gradient, a scattering of stars and a glowing
+ * planet in the top right corner.
  *
  * Star positions come from a fixed seed so they stay put between frames instead
  * of flickering, and are only recomputed when the window size changes.
@@ -39,7 +43,47 @@ public final class Backdrop {
         cachedHeight = height;
     }
 
+    /**
+     * The photographic backgrounds, by style name.
+     *
+     * Held as identifiers rather than loaded eagerly: only the selected one is
+     * ever drawn, and the game loads a texture the first time it is asked for.
+     * Three full screen images resident at once would be a lot of video memory
+     * for two of them to be invisible.
+     */
+    private static Identifier photoFor(String style) {
+        String file = switch (style) {
+            case "NEBULA" -> "nebula";
+            case "BLACK_HOLE" -> "black_hole";
+            case "GALAXY" -> "galaxy";
+            default -> null;
+        };
+        if (file == null) return null;
+        return Identifier.fromNamespaceAndPath(SpaceClient.MOD_ID,
+                "textures/gui/backdrop/" + file + ".png");
+    }
+
     public static void draw(GuiGraphicsExtractor graphics, int width, int height) {
+        String style = SpaceClient.getSettings().backgroundStyle();
+
+        Identifier photo = photoFor(style);
+        if (photo != null) {
+            // Filled black first: if the texture cannot be drawn on this
+            // version the screen stays readable instead of showing the world
+            // through it
+            graphics.fill(0, 0, width, height, 0xFF05040E);
+
+            if (Textures.draw(graphics, photo, 0, 0, width, height)) {
+                // A veil over the photograph. These are bright images and the
+                // menu is white text; without it the text sits on whatever
+                // happens to be behind it and half of it disappears.
+                graphics.fill(0, 0, width, height, 0x99000000);
+                return;
+            }
+
+            // Falls through to the drawn starfield, which always works
+        }
+
         if (!Theme.spaceBackdrop()) {
             graphics.fill(0, 0, width, height, Theme.backdrop());
             return;

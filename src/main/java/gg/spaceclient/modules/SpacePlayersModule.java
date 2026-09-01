@@ -6,24 +6,20 @@ import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.world.entity.player.Player;
 
 /**
- * How many people are playing with Space Client, and how many are next to you.
+ * How many people are playing with Space Client right now.
  *
- * Only this client can show this, which is the reason it exists. The presence
- * roster is already fetched for the name tag badge, so the global figure costs
- * nothing that was not already being paid, and the nearby figure is the same
- * set intersected with the players in the world.
+ * A global figure and nothing else. It used to also count the ones in your own
+ * world, which was the more interesting number and the reason it had to go: it
+ * reported players you cannot see, including through walls and behind you. A
+ * count is less than a position, but it is still information about people the
+ * game was not showing you, and that is the line this client does not cross.
  *
- * The nearby count is the interesting one. On a shared server it answers a
- * question no other overlay can - whether the people around you are running the
- * same thing you are.
+ * The roster is already fetched for the name tag badge, so this costs nothing
+ * that was not already being paid.
  */
 public class SpacePlayersModule extends HudModule {
-
-    private final BooleanSetting showNearby = new BooleanSetting(
-            "show_nearby", "Show nearby", "Include how many are in this world", true);
 
     private final BooleanSetting compact = new BooleanSetting(
             "compact", "Compact", "Numbers only, without the words", false);
@@ -33,57 +29,27 @@ public class SpacePlayersModule extends HudModule {
 
     public SpacePlayersModule() {
         super("spaceplayers", "Space Players",
-                "Space Client players online, and how many are near you",
+                "How many people are on Space Client right now",
                 0.85f, 0.32f, false);
-        addSettings(showNearby, compact, textColor);
+        addSettings(compact, textColor);
     }
 
     /**
      * Twice a second.
      *
      * The roster itself only refreshes every ninety seconds, so this is really
-     * about the nearby count, and that only changes as people walk in and out
-     * of range.
+     * about keeping the readout responsive after a refresh, not about the
+     * figure itself changing.
      */
     @Override
     protected long refreshMillis() { return 500; }
-
-    /**
-     * Players in the loaded world who carry a badge.
-     *
-     * Counts everyone the client knows about rather than only those on screen -
-     * someone standing behind you is still nearby, and a figure that changed
-     * when you turned around would be a worse answer than a slightly generous
-     * one.
-     */
-    private int nearby() {
-        try {
-            if (mc.level == null) return 0;
-            int count = 0;
-            for (Player player : mc.level.players()) {
-                if (Presence.hasBadge(player.getUUID())) count++;
-            }
-            return count;
-        } catch (Throwable ignored) {
-            // The player list is not worth a broken frame
-            return 0;
-        }
-    }
 
     private String text() { return cachedText(this::buildText); }
 
     private String buildText() {
         int online = Presence.onlineCount();
         if (online < 0) return compact.get() ? "--" : "Space: --";
-
-        if (!showNearby.get()) {
-            return compact.get() ? String.valueOf(online) : online + " on Space Client";
-        }
-
-        int here = nearby();
-        return compact.get()
-                ? online + " / " + here
-                : online + " online, " + here + " here";
+        return compact.get() ? String.valueOf(online) : online + " on Space Client";
     }
 
     @Override

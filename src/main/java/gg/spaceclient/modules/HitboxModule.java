@@ -14,7 +14,9 @@ import net.minecraft.world.entity.Entity;
  * Hitboxes with per-category control.
  *
  * Four categories, each with its own on/off switch, colour and line width:
- * yourself, other players, mobs and items. On top of that the look-direction
+ * yourself, other players, mobs and items. Every box is line-of-sight only and
+ * invisible entities are always skipped - both were settings once and are now
+ * fixed, because either of them turned this from a debug overlay into ESP. On top of that the look-direction
  * arrows can be turned off separately, since they are useful on players and
  * mostly clutter on dropped items.
  *
@@ -66,23 +68,33 @@ public class HitboxModule extends Module {
     private final IntSetting range = new IntSetting(
             "range", "Range", "Only draw within this many blocks", 48, 8, 128);
 
-    private final BooleanSetting hideBehindWalls = new BooleanSetting(
-            "hide_behind_walls", "Hide behind blocks",
-            "Only draw boxes for entities you can actually see", false);
+    /**
+     * Line of sight is not optional any more.
+     *
+     * This used to be a setting that defaulted to off, which meant the client
+     * shipped with boxes drawn through walls - and the render type it uses,
+     * debugQuads, has no depth test, so "through walls" was literal. That is
+     * ESP however it is labelled, and it is the difference between a debug
+     * overlay and a bannable client.
+     *
+     * With it fixed on, this shows what vanilla's own F3+B shows: boxes around
+     * things you can already see. Nothing is revealed that the game was hiding.
+     */
+    private static final boolean HIDE_BEHIND_WALLS = true;
 
     /**
-     * An invisible entity is one the game has deliberately hidden, so drawing a
-     * box around it hands you information the game meant to withhold - and on a
-     * server that is the sort of thing that gets a client called a cheat.
+     * Invisible entities stay invisible, also not optional.
+     *
+     * An invisible entity is one the game has deliberately hidden. Drawing a
+     * box around it hands over information that was withheld on purpose, which
+     * is the same problem in a smaller package.
      */
-    private final BooleanSetting showInvisible = new BooleanSetting(
-            "show_invisible", "Draw invisible entities",
-            "Keep drawing boxes for entities the game has hidden", false);
+    private static final boolean SHOW_INVISIBLE = false;
 
     public HitboxModule() {
         super("hitbox", "Hitbox", "Draws entity hitboxes with per-category control", false);
 
-        addSettings(showArrows, arrowsPlayersOnly, range, hideBehindWalls, showInvisible);
+        addSettings(showArrows, arrowsPlayersOnly, range);
         addGroups(
                 SettingGroup.of("Yourself", "Your own hitbox in third person",
                         selfOn, selfColor, selfWidth),
@@ -139,9 +151,9 @@ public class HitboxModule extends Module {
 
     public int getRange() { return range.get(); }
 
-    public boolean hideBehindWalls() { return hideBehindWalls.get(); }
+    public boolean hideBehindWalls() { return HIDE_BEHIND_WALLS; }
 
-    public boolean showInvisible() { return showInvisible.get(); }
+    public boolean showInvisible() { return SHOW_INVISIBLE; }
 
     // --- fallback ---------------------------------------------------------
     // When the world render event is unavailable, custom boxes cannot be drawn.

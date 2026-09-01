@@ -42,6 +42,11 @@ public class ModuleManager {
         register(new NetherPortalModule());
         register(new ConnectionModule());
         register(new SpacePlayersModule());
+        register(new DayTimeModule());
+        register(new InventoryModule());
+        register(new SuppliesModule());
+        register(new HealthModule());
+        register(new DurabilityModule());
     }
 
     private void register(Module module) {

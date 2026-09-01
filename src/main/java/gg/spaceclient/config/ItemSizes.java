@@ -47,6 +47,23 @@ public final class ItemSizes {
      */
     private static final Map<String, Sizes> overrides = new LinkedHashMap<>();
 
+    /**
+     * The key an item is stored under.
+     *
+     * In one place, because the settings screen and the three renderers have to
+     * agree exactly - a key computed two ways is a setting that silently never
+     * matches. `ItemStack.getDescriptionId()` does not exist on 26.2; the id
+     * lives on the Item, not the stack.
+     */
+    public static String keyFor(net.minecraft.world.item.ItemStack stack) {
+        try {
+            if (stack == null || stack.isEmpty()) return null;
+            return stack.getItem().getDescriptionId();
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
     public static Sizes get(String itemId) {
         if (itemId == null) return Sizes.DEFAULT;
         return overrides.getOrDefault(itemId, Sizes.DEFAULT);

@@ -35,7 +35,27 @@ import org.slf4j.LoggerFactory;
 
 public class SpaceClient implements ClientModInitializer {
     public static final String MOD_ID = "spaceclient";
-    public static final String VERSION = "0.1.0";
+    /**
+     * Read from the jar's own metadata rather than typed in here.
+     *
+     * It was a hardcoded "0.1.0" through every release since, so the menu
+     * footer reported the same number no matter which build was running - which
+     * makes the one question worth asking when something is missing ("am I even
+     * running the new jar?") impossible to answer from inside the game.
+     */
+    public static final String VERSION = resolveVersion();
+
+    private static String resolveVersion() {
+        try {
+            return net.fabricmc.loader.api.FabricLoader.getInstance()
+                    .getModContainer(MOD_ID)
+                    .map(container -> container.getMetadata().getVersion().getFriendlyString())
+                    .orElse("dev");
+        } catch (Throwable ignored) {
+            // A wrong version string is never worth failing to start over
+            return "dev";
+        }
+    }
     public static final Logger LOGGER = LoggerFactory.getLogger("Space Client");
 
     private static ModuleManager moduleManager;

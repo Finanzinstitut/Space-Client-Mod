@@ -67,7 +67,7 @@ public class ItemShowerScreen extends Screen {
                 for (int slot = 0; slot < 41; slot++) {
                     ItemStack stack = mc.player.getInventory().getItem(slot);
                     if (stack == null || stack.isEmpty()) continue;
-                    known.putIfAbsent(stack.getItem().getDescriptionId(), stack);
+                    known.putIfAbsent(ItemSizes.keyFor(stack), stack);
                 }
             }
         } catch (Throwable ignored) {

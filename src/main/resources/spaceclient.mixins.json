@@ -9,7 +9,11 @@
     "GuiItemInvoker",
     "EntityRendererMixin",
     "PauseScreenMixin",
-    "MinecraftServerMixin"
+    "MinecraftServerMixin",
+    "ItemEntityRenderStateMixin",
+    "ItemEntityRendererMixin",
+    "ItemInHandRendererMixin",
+    "GuiItemScaleMixin"
   ],
   "injectors": {
     "defaultRequire": 0

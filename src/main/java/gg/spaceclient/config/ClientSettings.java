@@ -11,8 +11,15 @@ import java.util.List;
  * apply to the menu itself rather than to anything in the world.
  */
 public class ClientSettings {
+    /**
+     * The photographs come after the drawn styles on purpose.
+     *
+     * Cycling starts at the cheap ones, so somebody who just wants a plain
+     * background never has to page through three images to reach it.
+     */
     public static final List<String> BACKGROUND_STYLES =
-            Arrays.asList("SPACE", "DARK", "SOLID_BLACK", "TRANSPARENT");
+            Arrays.asList("SPACE", "DARK", "SOLID_BLACK", "TRANSPARENT",
+                    "NEBULA", "BLACK_HOLE", "GALAXY");
 
     private String backgroundStyle = "SPACE";
 
