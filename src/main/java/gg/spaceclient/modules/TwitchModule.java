@@ -4,6 +4,7 @@ import gg.spaceclient.module.HudModule;
 import gg.spaceclient.net.Twitch;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
+import gg.spaceclient.ui.Pulse;
 import gg.spaceclient.ui.Textures;
 import gg.spaceclient.ui.Theme;
 
@@ -43,6 +44,14 @@ public class TwitchModule extends HudModule {
 
     private final BooleanSetting showIcon = new BooleanSetting(
             "show_icon", "Show icon", "Draw the Twitch mark in front", true);
+
+    /**
+     * Lights up when the follower count goes up.
+     *
+     * The one number here where the rise is the event. Somebody following you
+     * mid-stream is exactly what you would want to glance down and catch.
+     */
+    private final Pulse gained = new Pulse();
 
     public TwitchModule() {
         super("twitch", "Twitch Followers",
@@ -160,7 +169,10 @@ public class TwitchModule extends HudModule {
         }
 
         String count = countLine();
-        int color = Twitch.isLinked() ? textColor.get() : Theme.OFF;
+        gained.watchRise(Twitch.followers());
+
+        int color = Twitch.isLinked()
+                ? gained.tint(textColor.get(), BRAND_LIGHT) : Theme.OFF;
         graphics.text(mc.font, count, textX, lineY, color, false);
 
         // The word sits dimmer and after the number, so the eye lands on the

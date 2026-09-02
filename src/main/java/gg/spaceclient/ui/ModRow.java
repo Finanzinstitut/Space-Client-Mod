@@ -108,7 +108,10 @@ public class ModRow extends Button {
         // line is a filled box is heavier to read than one where the lines are
         // just text until you reach for them.
         if (hover > 0.01f) {
-            graphics.fill(x1, y1, x2, y2, lerpColor(0x00000000, Theme.CARD_HOVER, hover));
+            // Glass under the pointer rather than a flat block: the row lifts
+            // toward you instead of merely changing colour
+            Glass.panel(graphics, x1, y1, x2 - x1, y2 - y1,
+                    lerpColor(0x00000000, Theme.CARD_HOVER, hover), 4);
         }
 
         // A bar on the left edge marks what is on, readable in one sweep down

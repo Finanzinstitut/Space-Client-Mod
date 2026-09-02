@@ -3,6 +3,7 @@ package gg.spaceclient.modules;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
+import gg.spaceclient.ui.Pulse;
 import gg.spaceclient.util.Reflect;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -36,6 +37,14 @@ public class HealthModule extends HudModule {
 
     private final ColorSetting textColor = new ColorSetting(
             "text_color", "Text colour", "Colour when health is not low", 0xFFFFFFFF);
+
+    /**
+     * Fires when health drops, not when it rises.
+     *
+     * Regenerating is not news. Being hit is, and it is the moment you are
+     * least able to read a number - so the number reaches out instead.
+     */
+    private final Pulse hurt = new Pulse();
 
     public HealthModule() {
         super("health", "Health",
@@ -108,10 +117,12 @@ public class HealthModule extends HudModule {
      */
     private int colour() {
         float value = health();
+        hurt.watchDrop(value);
         if (value < 0) return 0xFF808080;
-        if (value <= 5f) return 0xFFE86A6A;
-        if (value <= 10f) return 0xFFE8C46A;
-        return textColor.get();
+        int base = value <= 5f ? 0xFFE86A6A
+                : value <= 10f ? 0xFFE8C46A
+                : textColor.get();
+        return hurt.tint(base, 0xFFFF4F6D);
     }
 
     @Override

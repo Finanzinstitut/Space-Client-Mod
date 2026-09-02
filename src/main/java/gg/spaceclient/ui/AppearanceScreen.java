@@ -35,6 +35,7 @@ public class AppearanceScreen extends Screen {
             case "DARK" -> "Dark";
             case "SOLID_BLACK" -> "Black";
             case "TRANSPARENT" -> "Transparent";
+            case "AURORA" -> "Aurora";
             case "NEBULA" -> "Nebula";
             case "BLACK_HOLE" -> "Black hole";
             case "GALAXY" -> "Galaxy";

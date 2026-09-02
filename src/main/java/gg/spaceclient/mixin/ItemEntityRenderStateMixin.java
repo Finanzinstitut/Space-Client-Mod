@@ -1,5 +1,7 @@
 package gg.spaceclient.mixin;
 
+import gg.spaceclient.access.ItemIdHolder;
+
 import net.minecraft.client.renderer.entity.state.ItemEntityRenderState;
 
 import org.spongepowered.asm.mixin.Mixin;

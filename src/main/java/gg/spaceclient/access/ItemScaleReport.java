@@ -1,4 +1,4 @@
-package gg.spaceclient.mixin;
+package gg.spaceclient.access;
 
 /**
  * Records whether each item scaling hook is actually running.
@@ -10,6 +10,9 @@ package gg.spaceclient.mixin;
  *
  * Each hook reports the first time it fires. The diagnostics page then answers
  * the question directly instead of leaving it to guesswork over a log.
+ *
+ * Outside the mixin package, because the diagnostics screen reads it and
+ * ordinary code cannot touch a class the mixin config owns.
  */
 public final class ItemScaleReport {
 

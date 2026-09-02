@@ -51,6 +51,61 @@ public final class Backdrop {
      * Three full screen images resident at once would be a lot of video memory
      * for two of them to be invisible.
      */
+    /**
+     * Slow drifting colour, drawn rather than photographed.
+     *
+     * The one background that actually moves. Three broad bands of colour slide
+     * across each other on different periods, so the pattern never repeats
+     * where anyone would notice, and each is drawn as a handful of wide
+     * translucent columns - overlapping transparency is what makes the edges
+     * soft without a blur being available.
+     *
+     * Deliberately slow. A background that draws attention to itself is a
+     * background competing with the menu in front of it.
+     */
+    private static void drawAurora(GuiGraphicsExtractor graphics, int width, int height) {
+        graphics.fill(0, 0, width, height, 0xFF06041A);
+
+        long now = System.currentTimeMillis();
+        int columns = Math.max(24, width / 24);
+        int columnWidth = (int) Math.ceil(width / (float) columns);
+
+        // Three bands: the accent, a cool counterpoint, and a warm one
+        int[] colours = { Theme.accent() & 0xFFFFFF, 0x2E6BFF, 0xFF4FA8 };
+        float[] periods = { 17000f, 23000f, 31000f };
+        float[] heights = { 0.55f, 0.70f, 0.40f };
+
+        for (int band = 0; band < colours.length; band++) {
+            float phase = (now % (long) periods[band]) / periods[band] * (float) (Math.PI * 2);
+
+            for (int column = 0; column < columns; column++) {
+                float across = column / (float) columns;
+
+                // Two waves of different wavelength per band, so the crest
+                // wanders instead of marching
+                float wave = (float) (Math.sin(across * 3.1f + phase)
+                        + Math.sin(across * 1.3f - phase * 0.6f)) * 0.5f;
+
+                int centre = Math.round(height * (0.5f + wave * 0.22f));
+                int thickness = Math.round(height * heights[band] * 0.5f);
+
+                int top = Math.max(0, centre - thickness);
+                int bottom = Math.min(height, centre + thickness);
+                if (bottom <= top) continue;
+
+                int alpha = Math.round(26 + 22 * (wave * 0.5f + 0.5f));
+                int colour = (alpha << 24) | colours[band];
+
+                graphics.fill(column * columnWidth, top,
+                        column * columnWidth + columnWidth, bottom, colour);
+            }
+        }
+
+        // A darker floor and ceiling, so the middle reads as the lit part
+        graphics.fill(0, 0, width, height / 6, 0x66000000);
+        graphics.fill(0, height - height / 5, width, height, 0x66000000);
+    }
+
     private static Identifier photoFor(String style) {
         String file = switch (style) {
             case "NEBULA" -> "nebula";
@@ -82,6 +137,11 @@ public final class Backdrop {
             }
 
             // Falls through to the drawn starfield, which always works
+        }
+
+        if ("AURORA".equals(style)) {
+            drawAurora(graphics, width, height);
+            return;
         }
 
         if (!Theme.spaceBackdrop()) {

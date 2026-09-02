@@ -1,0 +1,34 @@
+{
+  "_comment": [
+    "Replaces Minecraft's pixel font everywhere: menus, chat, signs, books,",
+    "item names, and this mod's own screens.",
+    "",
+    "Order matters. Providers listed later win, so the vanilla includes stay",
+    "first as a fallback and the TrueType entry sits last to take priority.",
+    "Keeping include/default is what stops Chinese, Japanese and Korean text",
+    "from turning into boxes - Inter has no glyphs for them, and without a",
+    "fallback those characters would simply vanish from chat.",
+    "",
+    "If the text sits too high or too low, change shift. If it looks too big",
+    "or too small next to the interface, change size. Those two numbers are",
+    "the only ones worth touching."
+  ],
+  "providers": [
+    {
+      "type": "reference",
+      "id": "minecraft:include/space"
+    },
+    {
+      "type": "reference",
+      "id": "minecraft:include/default"
+    },
+    {
+      "type": "ttf",
+      "file": "spaceclient:inter.ttf",
+      "size": 10.5,
+      "oversample": 3.0,
+      "shift": [0.0, -1.0],
+      "skip": []
+    }
+  ]
+}

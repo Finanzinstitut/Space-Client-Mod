@@ -351,3 +351,148 @@ Bildschirmgröße gezeichnet wird.
 
 Deshalb liegen 1080p bei. Wenn du 4K trotzdem willst, sag Bescheid — die
 Dateien sind fertig, das ist ein Austausch von drei PNGs.
+
+---
+
+# 1.5.1 — Blackscreen behoben
+
+```
+gg.spaceclient.mixin.ItemIdHolder is in a defined mixin package
+gg.spaceclient.mixin.* owned by spaceclient.mixins.json
+and cannot be referenced directly
+```
+
+Mein Fehler. Alles unter `gg.spaceclient.mixin` gehört der Mixin-Konfiguration
+und wird beim Laden transformiert. Eine gewöhnliche Klasse dort kann von
+normalem Code nicht geladen werden — der Versuch lässt die Transformation
+scheitern, das reißt das Ressourcenladen mit, und das Ergebnis ist ein
+schwarzer Bildschirm.
+
+`ItemIdHolder` und `ItemScaleReport` sind keine Mixins. Sie liegen jetzt unter
+`gg.spaceclient.access`.
+
+Dass `GuiItemInvoker` im selben Paket funktioniert, hatte mich in die Irre
+geführt: Das *ist* ein Mixin und steht in der `mixins.json`. Genau dieser
+Unterschied ist mir durchgerutscht — ich habe im Kopf abgehakt "liegt neben
+etwas, das geht, also geht es auch".
+
+Als Absicherung habe ich gegengeprüft, dass jede Klasse im Mixin-Paket auch in
+der `mixins.json` steht und umgekehrt. Beide Listen decken sich jetzt genau.
+Wenn dort künftig etwas Neues hinzukommt, ist das der Test, der diesen Fehler
+sofort findet.
+
+Interessant am Log ist noch, dass das Spiel nicht abgestürzt ist — es hat
+stattdessen gemeldet, dass es alle Ressourcenpakete entfernt. Deshalb kein
+Crash-Report, nur schwarz.
+
+---
+
+# 1.6.0 — Schriftart und zählende Zahlen
+
+## Schrift
+
+**Inter** liegt jetzt bei und ersetzt Minecrafts Pixelschrift überall: Menüs,
+Chat, Schilder, Bücher, Itemnamen, Hauptmenü und die Screens dieses Mods. Sie
+kommt der Schrift aus deinem Screenshot sehr nahe und steht unter der SIL Open
+Font License — die darf mitgeliefert werden, die Lizenzdatei liegt daneben im
+Jar.
+
+Umgesetzt über `assets/minecraft/font/default.json`. Die Reihenfolge dort ist
+kein Zufall: Spätere Einträge gewinnen, deshalb steht die TrueType-Schrift
+zuletzt und die vanilla-Einträge davor. Das ist wichtiger als es klingt — Inter
+hat keine chinesischen, japanischen oder koreanischen Zeichen, und ohne den
+vanilla-Eintrag als Rückfall würden die im Chat einfach verschwinden.
+
+**Das kann ich nicht testen, und zwei Zahlen werden vermutlich nachjustiert
+werden müssen.** In der `default.json` stehen `size` (10.5) und `shift`
+([0, -1]). Sitzt der Text zu hoch oder zu tief, ist es `shift`; wirkt er neben
+der Oberfläche zu groß oder zu klein, ist es `size`. Alles andere dort würde ich
+in Ruhe lassen.
+
+Und eine Nebenwirkung, die du kennen solltest: Das betrifft wirklich *alles*.
+Der Vanilla-Look ist damit weg, auch auf Schildern und in Büchern. Es gibt
+keinen Schalter dafür — eine Schriftart lässt sich im laufenden Spiel nicht
+umhängen. Wenn du es doch abschaltbar willst, wäre der Weg ein eigenes
+Ressourcenpaket statt fester Assets; sag Bescheid.
+
+## Zählende Zahlen
+
+Neu: `ui/Rolling`. Angewendet auf **FPS**, **Ping** und **Speicher**.
+
+Der Grund ist nicht Zierde. FPS ändert sich jeden Frame, und eine roh
+gedruckte Zahl ist dadurch ein Flackern statt einer Zahl — das Auge folgt der
+Bewegung und landet nie auf einem Wert. Das Einlaufenlassen beruhigt die
+letzten Stellen und macht die Zahl *während* sie sich ändert lesbarer, nicht
+weniger.
+
+Zwei Dinge tut es bewusst nicht. Es animiert nie den ersten Wert, sonst zählt
+jeder Menüaufruf von null hoch wie ein Ladebalken. Und bei großen Sprüngen
+springt es: Ein Ping von 40 auf 900 ist ein Ereignis, und eine halbe Sekunde
+sanft dorthin zu gleiten würde genau den Moment verstecken, der auffallen soll.
+
+Beim Ping musste dafür `cachedText` weichen. Das baut den Text auf einem Timer
+neu, was die Zahl in Stufen springen ließe und die Animation aufhöbe — die
+braucht jeden Frame einen Wert. Der Messwert selbst ändert sich weiterhin nur,
+wenn der Server etwas Neues sagt.
+
+Beim Speicher läuft nur der belegte Teil, nicht das Maximum. Das ist für die
+Laufzeit des Prozesses konstant, da wäre eine Animation eine Animation von
+nichts.
+
+---
+
+# 1.7.0 — Glas und Bewegung
+
+## Zuerst das Ehrliche über „Liquid Glass"
+
+Echtes Frosted Glass heißt: das Bild hinter der Fläche auslesen und
+verwischen. Das braucht einen Shader über dem Framebuffer, und so etwas würde
+ich hier auf gut Glück schreiben und beim nächsten Versionswechsel wieder
+verlieren. Das habe ich nicht gemacht.
+
+Was stattdessen da ist, trägt den Look mit den Mitteln, die sicher sind:
+abgerundete Kanten, eine helle Linie dort wo Licht auf die Oberkante fällt,
+eine dunkle darunter, und ein Körper der oben heller ist als unten. Diese eine
+helle Zeile macht mehr aus als der ganze Verlauf.
+
+Neu: `ui/Glass`. Jedes HUD-Element mit Hintergrund bekommt jetzt so eine
+Platte — dieselbe Farbe und Deckkraft wie vorher, nur nicht mehr als flaches
+Rechteck. Ebenso die Modulzeilen im Menü: unter dem Zeiger hebt sich die Zeile
+an, statt nur die Farbe zu wechseln.
+
+Die Rundung entsteht dadurch, dass jede Zeile am Rand ein Stück eingerückt
+wird. Bei den kleinen Radien einer Oberfläche ist das von einer echten Kurve
+nicht zu unterscheiden und kostet eine Handvoll Füllungen.
+
+## Jedes Modul reagiert auf etwas anderes
+
+Neu: `ui/Pulse` — ein kurzes Aufleuchten bei Veränderung, das hält und dann
+weich ausläuft. Sofort zu verblassen wirkt wie ein Flackern statt wie eine
+Meldung.
+
+Entscheidend ist, dass jedes Modul auf *seine* Sache reagiert und nicht alle
+auf dasselbe:
+
+- **Supplies** blitzt nur nach unten. Ein Totem aufzuheben ist keine Nachricht;
+  eines zu verlieren ist das, was du bemerken musst während dich etwas anderes
+  beschäftigt.
+- **Health** blitzt bei Schaden, nicht bei Regeneration. Der Moment, in dem du
+  am wenigsten in der Lage bist, eine Zahl zu lesen — also kommt die Zahl dir
+  entgegen.
+- **Twitch** leuchtet nach *oben*. Die eine Zahl hier, bei der der Anstieg das
+  Ereignis ist.
+- **FPS, Ping, Speicher** laufen weiterhin in ihre Werte ein statt zu springen.
+
+## Aurora
+
+Ein neuer Hintergrund, und der einzige der sich wirklich bewegt. Drei breite
+Farbbänder gleiten mit unterschiedlichen Perioden übereinander, jedes aus
+vielen schmalen durchscheinenden Spalten — überlappende Transparenz ist das,
+was die Ränder weich macht, wenn kein Blur zur Verfügung steht. Die Perioden
+sind teilerfremd gewählt, damit sich das Muster nirgends sichtbar wiederholt.
+
+Bewusst langsam. Ein Hintergrund, der Aufmerksamkeit auf sich zieht, ist ein
+Hintergrund, der mit dem Menü davor konkurriert.
+
+Das erste Band nimmt deine Akzentfarbe auf, die beiden anderen setzen kühl und
+warm dagegen.

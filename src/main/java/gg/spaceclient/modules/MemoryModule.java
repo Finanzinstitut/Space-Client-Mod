@@ -1,6 +1,7 @@
 package gg.spaceclient.modules;
 
 import gg.spaceclient.module.HudModule;
+import gg.spaceclient.ui.Rolling;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -37,11 +38,18 @@ public class MemoryModule extends HudModule {
         return max <= 0 ? 0 : usedMb() / (float) max;
     }
 
-    /** Cached; see HudModule.cachedText for why. */
-    private String text() { return cachedText(this::buildText); }
+    /**
+     * Only the used figure moves.
+     *
+     * The maximum is fixed for the life of the process, so animating it would
+     * be animating a constant. The used figure sawtooths as the collector runs,
+     * and easing it turns that into something you can read at a glance instead
+     * of a number that is never the same twice.
+     */
+    private final Rolling shownUsed = new Rolling();
 
-    private String buildText() {
-        return usedMb() + " / " + maxMb() + " MB";
+    private String text() {
+        return shownUsed.update(usedMb()) + " / " + maxMb() + " MB";
     }
 
     @Override

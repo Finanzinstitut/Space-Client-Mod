@@ -1,5 +1,6 @@
 package gg.spaceclient.mixin;
 
+import gg.spaceclient.access.ItemScaleReport;
 import gg.spaceclient.config.ItemSizes;
 import gg.spaceclient.ui.Scale;
 

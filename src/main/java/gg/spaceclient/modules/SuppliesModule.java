@@ -3,6 +3,7 @@ package gg.spaceclient.modules;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
+import gg.spaceclient.ui.Pulse;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.world.item.ItemStack;
@@ -61,6 +62,15 @@ public class SuppliesModule extends HudModule {
      */
     private static Method countMethod;
     private static boolean countResolved = false;
+
+    /**
+     * One highlight per line, fired when that count drops.
+     *
+     * Only on the way down. Picking a totem up is good news and needs no
+     * announcement; losing one is the thing you must notice while something
+     * else has your attention.
+     */
+    private final java.util.Map<String, Pulse> pulses = new java.util.HashMap<>();
 
     public SuppliesModule() {
         super("supplies", "Supplies",
@@ -141,7 +151,11 @@ public class SuppliesModule extends HudModule {
         for (Entry entry : entries()) {
             int lineY = y + line * (mc.font.lineHeight + 1);
 
-            graphics.text(mc.font, entry.label(), x, lineY, 0xFFAAAAAA, true);
+            Pulse pulse = pulses.computeIfAbsent(entry.label(), key -> new Pulse());
+            pulse.watchDrop(entry.count());
+
+            graphics.text(mc.font, entry.label(), x, lineY,
+                    pulse.tint(0xFFAAAAAA, 0xFFFFFFFF), true);
 
             // Red at one, amber at nothing: running out and being out are
             // different problems, and the first is the one worth catching
@@ -150,6 +164,10 @@ public class SuppliesModule extends HudModule {
                 if (entry.count() == 0) color = 0xFFE86A6A;
                 else if (entry.count() == 1) color = 0xFFE8C46A;
             }
+
+            // The flash sits on top of whatever the warning colour already is,
+            // so a count that drops to one is both red and briefly bright
+            color = pulse.tint(color, 0xFFFFFFFF);
 
             String count = Integer.toString(entry.count());
             graphics.text(mc.font, count,

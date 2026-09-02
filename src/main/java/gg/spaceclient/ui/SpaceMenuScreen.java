@@ -443,6 +443,12 @@ public class SpaceMenuScreen extends Screen {
         // over it to hide something is equally see through.
         graphics.fill(x0, y0, x1, y1, 0xFF070518);
         graphics.fill(x0, y0, x1, y1, Theme.CONTENT);
+
+        // A light line just inside the top edge and a shadow under the bottom,
+        // the same two strokes the HUD plates use. It is a small thing and it
+        // is most of what separates a panel from a rectangle.
+        graphics.fill(x0 + 2, y0 + 1, x1 - 2, y0 + 2, 0x30FFFFFF);
+        graphics.fill(x0 + 2, y1 - 2, x1 - 2, y1 - 1, 0x40000000);
         graphics.fill(x0, y0, x0 + RAIL_W, y1, Theme.SIDEBAR);
         graphics.fill(x0 + RAIL_W, y0, x0 + RAIL_W + 1, y1, Theme.BORDER);
 

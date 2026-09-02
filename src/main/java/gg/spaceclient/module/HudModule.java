@@ -100,11 +100,15 @@ public abstract class HudModule extends Module {
 
         try {
             if (background.get()) {
-                int padding = 3;
-                graphics.fill(
+                // A glass plate rather than a flat rectangle. Same colour and
+                // the same alpha the setting has always carried; what changed
+                // is the rounded edge, the light line along the top and the
+                // body being brighter at the top than the bottom.
+                int padding = 4;
+                gg.spaceclient.ui.Glass.panel(graphics,
                         drawX - padding, drawY - padding,
-                        drawX + getWidth() + padding, drawY + getHeight() + padding,
-                        backgroundColor.get());
+                        getWidth() + padding * 2, getHeight() + padding * 2,
+                        backgroundColor.get(), 4);
             }
             render(graphics, drawX, drawY);
         } finally {

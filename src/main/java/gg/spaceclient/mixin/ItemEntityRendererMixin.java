@@ -1,5 +1,7 @@
 package gg.spaceclient.mixin;
 
+import gg.spaceclient.access.ItemIdHolder;
+import gg.spaceclient.access.ItemScaleReport;
 import gg.spaceclient.config.ItemSizes;
 
 import com.mojang.blaze3d.vertex.PoseStack;

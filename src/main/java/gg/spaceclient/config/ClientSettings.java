@@ -19,7 +19,7 @@ public class ClientSettings {
      */
     public static final List<String> BACKGROUND_STYLES =
             Arrays.asList("SPACE", "DARK", "SOLID_BLACK", "TRANSPARENT",
-                    "NEBULA", "BLACK_HOLE", "GALAXY");
+                    "AURORA", "NEBULA", "BLACK_HOLE", "GALAXY");
 
     private String backgroundStyle = "SPACE";
 

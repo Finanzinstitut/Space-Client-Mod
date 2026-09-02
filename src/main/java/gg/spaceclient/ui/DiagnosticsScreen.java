@@ -154,7 +154,7 @@ public class DiagnosticsScreen extends Screen {
         y = line(graphics, left, y, "Name tag hook", NowPlayingShare.hookStatus());
         y = line(graphics, left, y, "Badges", Presence.status());
         y = line(graphics, left, y, "Item scaling",
-                gg.spaceclient.mixin.ItemScaleReport.status());
+                gg.spaceclient.access.ItemScaleReport.status());
 
         contentBottom = y + (int) scroll;
 
