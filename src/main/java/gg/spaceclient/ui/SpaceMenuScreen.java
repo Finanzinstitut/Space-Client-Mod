@@ -424,14 +424,20 @@ public class SpaceMenuScreen extends Screen {
         int x1 = x0 + panelW();
         int y1 = y0 + panelH();
 
-        // Always a veil, never the starfield.
+        // The chosen background, the same one every other screen draws.
         //
-        // Backdrop.draw fills the entire screen with the launcher's gradient
-        // and stars, which is right for a screen that owns the display and
-        // wrong for a window: with the space background selected the whole view
-        // went dark, which reads as the game blanking out rather than as a menu
-        // opening. The starfield still belongs to the full screen sub-screens.
-        graphics.fill(0, 0, this.width, this.height, 0x99000000);
+        // This screen used to draw a plain veil instead, on the reasoning that
+        // a full screen starfield behind a window looked like the game blanking
+        // out. That was solving the wrong problem: the result was a background
+        // setting that visibly did nothing anywhere except the Appearance
+        // screen where you changed it. Consistency is worth more than that
+        // judgement was, and the photographs and Aurora look right behind a
+        // window in a way the starfield did not.
+        Backdrop.draw(graphics, this.width, this.height);
+
+        // A little extra shade so the panel still separates from a bright
+        // photograph behind it
+        graphics.fill(0, 0, this.width, this.height, 0x44000000);
 
         // A soft edge around the panel, drawn as two rings rather than a blur,
         // which this renderer has no cheap way to do

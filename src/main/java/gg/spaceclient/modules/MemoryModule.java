@@ -39,12 +39,15 @@ public class MemoryModule extends HudModule {
     }
 
     /**
-     * Only the used figure moves.
+     * Eased, not rolled - the one place where counting is the right effect.
      *
-     * The maximum is fixed for the life of the process, so animating it would
-     * be animating a constant. The used figure sawtooths as the collector runs,
-     * and easing it turns that into something you can read at a glance instead
-     * of a number that is never the same twice.
+     * FPS and ping arrive as discrete readings about once a second, so their
+     * digits roll once per reading. Memory does not: it drifts continuously and
+     * then drops when the collector runs, and rolling every unit would be a
+     * permanent blur. Easing follows the drift and reads as one moving figure.
+     *
+     * Only the used part moves. The maximum is fixed for the life of the
+     * process, so animating it would be animating a constant.
      */
     private final Rolling shownUsed = new Rolling();
 

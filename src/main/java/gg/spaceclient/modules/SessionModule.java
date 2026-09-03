@@ -3,6 +3,7 @@ package gg.spaceclient.modules;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
+import gg.spaceclient.ui.Odometer;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
@@ -32,12 +33,24 @@ public class SessionModule extends HudModule {
     public int getHeight() { return mc.font.lineHeight * 2 + 2; }
 
     @Override
+    /**
+     * The clock this was always meant to be.
+     *
+     * A session timer changes exactly once a second, in the last digit, which
+     * is the cleanest case there is for a roll - the seconds flip like a
+     * departure board and the minutes only move when they should.
+     */
+    private final Odometer clock = new Odometer();
+
+    @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
         long elapsedMs = System.currentTimeMillis() - startedAt;
         long elapsed = elapsedMs / 1000;
         String text = String.format("%d:%02d:%02d",
                 elapsed / 3600, (elapsed % 3600) / 60, elapsed % 60);
-        graphics.text(mc.font, text, x, y, textColor.get(), true);
+
+        clock.set(text);
+        clock.draw(graphics, mc.font, x, y, textColor.get(), true);
 
         if (breakReminder.get() && elapsedMs > REMINDER_AFTER_MS) {
             long hours = elapsedMs / (60 * 60 * 1000);

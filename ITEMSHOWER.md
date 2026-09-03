@@ -496,3 +496,126 @@ Hintergrund, der mit dem Menü davor konkurriert.
 
 Das erste Band nimmt deine Akzentfarbe auf, die beiden anderen setzen kühl und
 warm dagegen.
+
+---
+
+# 1.7.1 — drei Fehler aus 1.7.0
+
+## Die Schrift wurde still verworfen
+
+Inter wird nur als **Variable Font** veröffentlicht (`fvar`/`gvar` in der
+Datei). Minecrafts Font-Loader liest die nicht — er lässt den Provider
+kommentarlos fallen, und genau deshalb hat sich nichts geändert.
+
+Jetzt liegt **Barlow** bei: statisch, mit gewöhnlichen `glyf`-Umrissen, die der
+Loader erwartet. Nebenbei 101 KB statt 856. Ebenfalls SIL Open Font License,
+Lizenzdatei liegt daneben.
+
+Das hätte mir auffallen müssen. Ich habe die Datei heruntergeladen, ihre Größe
+geprüft und nicht, was für ein Format sie ist.
+
+## Der graue Strich
+
+Mein Fehler, und ein lehrreicher. Ich habe die Glanzkante fest auf 55 % Weiß
+gesetzt — unabhängig davon, wie deckend die Fläche darunter ist. Bei einer
+dunklen, halbtransparenten HUD-Platte verschwindet der Körper im dunklen
+Hintergrund, und übrig bleibt eine helle Linie, unter der nichts liegt.
+
+Ein Glanzlicht kann nicht heller sein als die Oberfläche, auf der es liegen
+soll. Alle Kanten leiten sich jetzt aus der Deckkraft der Platte ab und sind
+gedeckelt: bei der Standard-HUD-Platte 38 statt 70, bei einer sehr
+transparenten 14 statt 26.
+
+Zusätzlich wird der Verlauf nicht mehr über die Transparenz gemacht, sondern
+über die Farbe. Nach oben hin transparenter zu werden war der erste Versuch und
+war falsch — auf dunklem Grund löste sich die Platte damit oben einfach auf.
+
+## Hintergrund nur im Appearance-Menü
+
+Das war eine bewusste Entscheidung von mir, und eine schlechte. Ich hatte im
+Hauptmenü `Backdrop.draw` durch einen einfachen Schleier ersetzt, weil ein
+bildschirmfüllendes Sternenfeld hinter einem Fenster wie ein Blackout wirkte.
+
+Damit habe ich das falsche Problem gelöst: Das Ergebnis war eine Einstellung,
+die sichtbar nirgends etwas tut außer auf dem Screen, auf dem man sie ändert.
+Das Hauptmenü zeichnet jetzt denselben Hintergrund wie alle anderen Screens,
+mit etwas zusätzlichem Schatten darüber, damit sich das Panel auch vor einem
+hellen Foto noch abhebt.
+
+---
+
+# 1.8.0 — Open Sans und ein echter Odometer
+
+## Schrift
+
+**Open Sans**, statisch, 144 KB. Nicht aus `google/fonts` — dort liegt die
+Familie inzwischen nur noch als Variable Font, und genau daran ist Inter
+gescheitert. Diese Datei kommt aus `googlefonts/opensans` und hat gewöhnliche
+`glyf`-Umrisse, die Minecrafts Loader liest. SIL Open Font License, Lizenz
+liegt daneben.
+
+Ich prüfe die Schrift jetzt vor dem Einbauen auf `fvar` in der Tabellenliste.
+Das ist der Test, der bei Inter gefehlt hat.
+
+## Der Zähler war der falsche Effekt
+
+Du hast recht, und der Framer-Baustein zeigt genau, woran es lag.
+
+Mein erster Versuch hat den **Wert** animiert: von 40 auf 47 zählte er durch
+41, 42, 43. Das ist etwas anderes als das, was du wolltest, und schlechter — es
+erfindet Messwerte, die es nie gab, und lässt eine stabile Bildrate unruhig
+aussehen.
+
+Der Framer-Effekt animiert die **Ziffern**. Wenn aus 47 eine 52 wird, rutscht
+die 4 nach oben hinaus und die 5 kommt von unten nach; die 7 und die 2 folgen
+einen Moment später. Die Zahl ist immer nur 47 oder 52 — was sich bewegt, ist
+die Type.
+
+Neu: `ui/Odometer`. Der Versatz läuft von rechts nach links, so wie ein
+mechanisches Zählwerk arbeitet: Das letzte Rad dreht zuerst und nimmt das
+nächste mit. Verglichen wird ebenfalls von rechts, damit bei 99 → 100 nur die
+Ziffern rollen, die sich wirklich geändert haben.
+
+Ein Detail, das die Umsetzung geprägt hat: Ohne Beschneidungsrechteck bleibt
+eine Ziffer, die eine volle Zeilenhöhe wandert, auf dem Weg lesbar — und zwei
+lesbare Ziffern in einem Feld sind schlimmer als eine kurze Bewegung. Deshalb
+sind es 60 % der Zeilenhöhe plus Ausblenden.
+
+Angewendet auf **FPS** und **Ping**. Beide bekommen ihre Werte etwa einmal pro
+Sekunde, es rollt also einmal pro Messung.
+
+**Speicher** behält das Einlaufen, und das ist Absicht: Der Wert driftet
+laufend und fällt dann ab, wenn der Collector läuft. Jede Einheit einzeln zu
+rollen wäre ein Dauerflimmern. Hier ist Zählen der richtige Effekt, dort
+Rollen.
+
+---
+
+# 1.8.1 — Zählwerk auch bei Supplies, Health und Session
+
+## Session
+
+Der sauberste Fall von allen: Ein Sitzungstimer ändert sich exakt einmal pro
+Sekunde und nur in der letzten Ziffer. Die Sekunden klappen um wie auf einer
+Anzeigetafel, die Minuten bewegen sich erst, wenn sie sollen.
+
+## Supplies
+
+Ein eigenes Zählwerk pro Zeile, abgelegt unter dem Namen der Zeile statt unter
+ihrer Position. Das ist wichtiger, als es klingt: Schaltet man Pfeile dazu,
+rutschen alle Zeilen darunter eine Stelle weiter — ein an die Position
+gebundenes Zählwerk würde dann vom alten Wert dieser Zeile auf den neuen
+rollen, als hätte sich der Bestand geändert.
+
+Das Aufblitzen bleibt zusätzlich erhalten. Ein Totem, das von 2 auf 1 fällt,
+rollt und leuchtet gleichzeitig.
+
+## Health
+
+Rollt die ganze Anzeige, nicht nur die Lebenszahl. Da nur veränderte Zeichen
+sich bewegen, dreht sich beim Regenerieren die letzte Ziffer und der Rest steht
+still; ein echter Treffer ändert mehrere Stellen auf einmal und die Anzeige
+kippt komplett um. Genau der Unterschied ist der, den man sehen will.
+
+Die Farbe wird vor dem Rollen bestimmt, damit der Schadens-Blitz im selben
+Frame beginnt wie die Bewegung, statt einen Frame hinterherzuhinken.

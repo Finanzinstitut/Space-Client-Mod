@@ -3,6 +3,7 @@ package gg.spaceclient.modules;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
+import gg.spaceclient.ui.Odometer;
 import gg.spaceclient.ui.Pulse;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -71,6 +72,16 @@ public class SuppliesModule extends HudModule {
      * else has your attention.
      */
     private final java.util.Map<String, Pulse> pulses = new java.util.HashMap<>();
+
+    /**
+     * And one counter per line.
+     *
+     * Keyed by label rather than by row, because the rows move: switching
+     * arrows on shifts everything below it, and a counter tied to a position
+     * would roll from the old row's value to the new one as if the count had
+     * changed.
+     */
+    private final java.util.Map<String, Odometer> counters = new java.util.HashMap<>();
 
     public SuppliesModule() {
         super("supplies", "Supplies",
@@ -169,9 +180,11 @@ public class SuppliesModule extends HudModule {
             // so a count that drops to one is both red and briefly bright
             color = pulse.tint(color, 0xFFFFFFFF);
 
-            String count = Integer.toString(entry.count());
-            graphics.text(mc.font, count,
-                    x + getWidth() - mc.font.width(count), lineY, color, true);
+            Odometer counter = counters.computeIfAbsent(entry.label(), key -> new Odometer());
+            counter.set(Integer.toString(entry.count()));
+
+            counter.draw(graphics, mc.font,
+                    x + getWidth() - counter.width(mc.font), lineY, color, true);
             line++;
         }
     }

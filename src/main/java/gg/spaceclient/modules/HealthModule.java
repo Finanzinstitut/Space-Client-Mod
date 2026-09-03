@@ -3,6 +3,7 @@ package gg.spaceclient.modules;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
+import gg.spaceclient.ui.Odometer;
 import gg.spaceclient.ui.Pulse;
 import gg.spaceclient.util.Reflect;
 
@@ -45,6 +46,16 @@ public class HealthModule extends HudModule {
      * least able to read a number - so the number reaches out instead.
      */
     private final Pulse hurt = new Pulse();
+
+    /**
+     * Rolls the whole readout, not just the health figure.
+     *
+     * Only characters that changed move, so a heart of regeneration rolls the
+     * last digit and leaves the rest still. Taking real damage changes several
+     * at once and the whole thing turns over, which is the difference worth
+     * seeing.
+     */
+    private final Odometer shown = new Odometer();
 
     public HealthModule() {
         super("health", "Health",
@@ -133,6 +144,10 @@ public class HealthModule extends HudModule {
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
-        graphics.text(mc.font, text(), x, y, colour(), true);
+        // Colour first: it reads health and fires the damage highlight, and the
+        // roll should start in the same frame that highlight does
+        int colour = colour();
+        shown.set(text());
+        shown.draw(graphics, mc.font, x, y, colour, true);
     }
 }

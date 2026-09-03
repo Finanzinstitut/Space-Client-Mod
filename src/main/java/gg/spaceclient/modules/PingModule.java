@@ -2,7 +2,7 @@ package gg.spaceclient.modules;
 
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.ColorSetting;
-import gg.spaceclient.ui.Rolling;
+import gg.spaceclient.ui.Odometer;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.multiplayer.PlayerInfo;
 
@@ -24,11 +24,12 @@ public class PingModule extends HudModule {
     /**
      * Not cached any more, and not for style.
      *
-     * cachedText rebuilds on a timer, which would step the number in jumps and
-     * undo the easing. The animation needs a value every frame; the reading it
-     * animates toward still only changes when the server says so.
+     * cachedText rebuilds on a timer, which would make the roll start at
+     * whatever moment the timer happened to fire rather than when the reading
+     * changed. The server updates latency about once a second, so each new
+     * reading gets exactly one roll.
      */
-    private final Rolling shown = new Rolling();
+    private final Odometer shown = new Odometer();
 
     private int latency() {
         if (mc.player == null || mc.getConnection() == null) return -1;
@@ -38,15 +39,12 @@ public class PingModule extends HudModule {
 
     private String text() {
         int ping = latency();
-        if (ping < 0) {
-            shown.reset();
-            return "-- ms";
-        }
-        return shown.update(ping) + " ms";
+        return ping < 0 ? "-- ms" : ping + " ms";
     }
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
-        graphics.text(mc.font, text(), x, y, textColor.get(), true);
+        shown.set(text());
+        shown.draw(graphics, mc.font, x, y, textColor.get(), true);
     }
 }
