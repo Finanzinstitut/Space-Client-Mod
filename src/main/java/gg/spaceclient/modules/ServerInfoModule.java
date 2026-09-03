@@ -74,6 +74,6 @@ public class ServerInfoModule extends HudModule {
         if (flagChanges.get() && System.currentTimeMillis() - changedAt < 3000) {
             color = 0xFF38E0FF;
         }
-        graphics.text(mc.font, text(), x, y, color, true);
+        rollingText(graphics, "main", text(), x, y, color, true);
     }
 }

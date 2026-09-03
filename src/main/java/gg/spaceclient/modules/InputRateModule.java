@@ -76,7 +76,7 @@ public class InputRateModule extends HudModule {
         }
 
         if (showPeak.get()) {
-            graphics.text(mc.font, "peak " + peak, x, y, 0xFF9A95C9, true);
+            rollingText(graphics, "peak", "peak " + peak, x, y, 0xFF9A95C9, true);
         }
     }
 }

@@ -36,6 +36,6 @@ public class ClockModule extends HudModule {
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
-        graphics.text(mc.font, text(), x, y, textColor.get(), true);
+        rollingText(graphics, "main", text(), x, y, textColor.get(), true);
     }
 }

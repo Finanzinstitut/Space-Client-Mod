@@ -658,3 +658,71 @@ vier sind seit deiner laufenden 1.3.0 unverändert.
 Die Lehre für mich: Diese Klammerprüfung findet grobe Schnitzer, ist aber kein
 Compiler-Ersatz. Ich habe mich hier zu sehr darauf verlassen und deshalb eine
 Annotation an der falschen Stelle stehen lassen.
+
+---
+
+# 1.9.0 — Zähler überall, und die Wahrheit über die Schrift
+
+## Die Schrift wird von einem deiner Ressourcenpakete überschrieben
+
+Dein Log sagt es direkt:
+
+```
+Resource pack file/VanFin.zip is not compatible with font atlas resizing.
+```
+
+Und in der Ladereihenfolge steht `spaceclient` bei den Mods, während **sieben
+Ressourcenpakete danach kommen** — `Better-Leaves`, `Blue Netherite`,
+`VanillaPlus`, **`VanFin.zip`**, `Low Fire One Pixel`, `small_totem_pop`,
+`Hyper Realistic Sky`, dazu `Essential Assets`.
+
+Benutzerpakete stehen in Minecraft grundsätzlich über allen Mods. `VanFin` ist
+ein Schriftpaket und liefert seine eigene `assets/minecraft/font/default.json`
+mit — die gewinnt gegen meine, und zwar unabhängig davon, was ich in den Mod
+schreibe.
+
+**Der Test dauert zehn Sekunden:** Optionen → Ressourcenpakete → `VanFin.zip`
+nach links schieben. Wenn Open Sans danach da ist, war es das.
+
+Was ich *nicht* gemacht habe, obwohl du darum gebeten hast, es über die anderen
+Pakete zu legen: Von der Mod-Seite geht das nicht durch Priorität. Es gäbe zwei
+Wege, und beide wollte ich nicht auf Verdacht bauen:
+
+- Ein **eingebautes Ressourcenpaket** über Fabrics `ResourceManagerHelper`
+  anmelden, das du dann in der Liste selbst nach oben schieben kannst. Ich habe
+  die API gegen deinen Fabric-Tag geprüft und die Pfade haben sich verschoben —
+  ohne verifizierte Signatur schreibe ich das nicht.
+- Ein **eigener Font-Bezeichner** nur für die Mod-Screens, den kein Paket
+  überschreiben kann. Das verlangt, jeden Text im Mod über ein `Component` mit
+  gesetztem Style zu zeichnen statt über einen String, also einen Umbau
+  sämtlicher Screens.
+
+Sag mir nach dem Test, welchen der beiden du willst — oder ob dir das
+Abschalten von VanFin reicht.
+
+## Zähler in jedem Modul mit Zahlen
+
+Neu in `HudModule`: `rollingText(...)`. Gleiche Argumente wie ein
+`graphics.text`, plus ein Name, der ein Anzeigefeld vom anderen unterscheidet.
+
+Umgestellt wurden: Chunk, Clock, Coordinates, Coords Copy, CPS, Crosshair Info,
+Day & Time, Portal Coords, Server Info, Space Players, Speedometer, TPS,
+Travelled, Yaw Lock, Connection, Durability, Input Rate, Mouse Tracker, Armor,
+Keystrokes, Twitch und Inventory — dazu die aus 1.8.x: FPS, Ping, Session,
+Supplies, Health.
+
+Drei Entscheidungen dabei:
+
+**Schlüssel nach Bedeutung, nicht nach Position.** Rüstungsteile heißen
+`slot0`–`slot3`, Inventarfelder nach ihrer Slot-Nummer, Supplies nach dem Namen
+der Zeile. Sonst rollt beim Ausblenden einer Zeile die darunterliegende vom
+alten Wert der verschwundenen auf ihren eigenen, als hätte sich etwas geändert.
+
+**Keystrokes rollt nur die Klickzahlen.** Ein Feld namens WASD ist ein Name,
+keine Zahl — rollende Buchstaben wären Bewegung ohne Bedeutung.
+
+**Memory bleibt beim Einlaufen**, wie du gesagt hast. Passt auch inhaltlich: Der
+Wert driftet laufend, statt in Sprüngen anzukommen.
+
+Ohne Zähler bleiben nur Compass (ein laufendes Band), Direction (Himmelsrichtung
+ohne Zahl) und Music (Songtitel).

@@ -110,7 +110,9 @@ public class DurabilityModule extends HudModule {
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
         int line = 0;
         for (Reading reading : readings()) {
-            graphics.text(mc.font, reading.label(),
+            // Keyed by line, which is safe here: the main hand is always first
+            // and the offhand only ever appears below it
+            rollingText(graphics, "hand" + line, reading.label(),
                     x, y + line * (mc.font.lineHeight + 1), colourFor(reading), true);
             line++;
         }

@@ -251,7 +251,16 @@ public class KeystrokesModule extends HudModule {
 
             int textX = cellX + (cellW - mc.font.width(label)) / 2;
             int textY = cellY + (UNIT - mc.font.lineHeight) / 2;
-            graphics.text(mc.font, label, textX, textY, color, false);
+            // Only the click counters roll. A key called WASD is a name, not a
+            // number, and rolling letters would be movement without meaning.
+            boolean isCount = cps != null
+                    && (cell.label().equals("LMB") || cell.label().equals("RMB"));
+
+            if (isCount) {
+                rollingText(graphics, cell.label(), label, textX, textY, color, false);
+            } else {
+                graphics.text(mc.font, label, textX, textY, color, false);
+            }
         }
     }
 }

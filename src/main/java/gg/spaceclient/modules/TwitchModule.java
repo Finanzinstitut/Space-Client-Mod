@@ -173,7 +173,7 @@ public class TwitchModule extends HudModule {
 
         int color = Twitch.isLinked()
                 ? gained.tint(textColor.get(), BRAND_LIGHT) : Theme.OFF;
-        graphics.text(mc.font, count, textX, lineY, color, false);
+        rollingText(graphics, "followers", count, textX, lineY, color, false);
 
         // The word sits dimmer and after the number, so the eye lands on the
         // figure first

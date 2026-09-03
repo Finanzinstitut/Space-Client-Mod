@@ -132,6 +132,34 @@ public abstract class HudModule extends Module {
     public boolean isLocked() { return locked; }
     public void setLocked(boolean value) { this.locked = value; }
 
+    /**
+     * One rolling counter per named slot in this element.
+     *
+     * Named rather than numbered because rows move: an element that hides a
+     * line when a setting is off would otherwise have the counter below it roll
+     * from the vanished row's value to its own, as though something had
+     * changed.
+     */
+    private final java.util.Map<String, gg.spaceclient.ui.Odometer> rolls =
+            new java.util.HashMap<>();
+
+    protected gg.spaceclient.ui.Odometer roll(String key) {
+        return rolls.computeIfAbsent(key, ignored -> new gg.spaceclient.ui.Odometer());
+    }
+
+    /**
+     * Draws text whose digits roll when they change.
+     *
+     * A drop-in replacement for a graphics.text call: same arguments plus a key
+     * to tell one readout in this element from another.
+     */
+    protected void rollingText(GuiGraphicsExtractor graphics, String key, String value,
+                               int x, int y, int color, boolean shadow) {
+        gg.spaceclient.ui.Odometer odometer = roll(key);
+        odometer.set(value);
+        odometer.draw(graphics, mc.font, x, y, color, shadow);
+    }
+
     public float getScale() { return scale; }
 
     public void setScale(float value) {

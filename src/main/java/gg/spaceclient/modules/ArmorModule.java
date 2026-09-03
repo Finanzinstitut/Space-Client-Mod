@@ -140,14 +140,15 @@ public class ArmorModule extends HudModule {
         int cx = x;
         int cy = y;
 
+        int slot = 0;
         for (ItemStack stack : pieces) {
-            drawPiece(graphics, stack, cx, cy);
+            drawPiece(graphics, stack, cx, cy, slot++);
             if (vertical()) cy += ICON + GAP;
             else cx += ICON + GAP;
         }
     }
 
-    private void drawPiece(GuiGraphicsExtractor graphics, ItemStack stack, int x, int y) {
+    private void drawPiece(GuiGraphicsExtractor graphics, ItemStack stack, int x, int y, int slot) {
         boolean empty = stack == null || stack.isEmpty();
 
         if (empty) {
@@ -178,11 +179,15 @@ public class ArmorModule extends HudModule {
         int pct = empty ? -1 : percentOf(stack);
         String label = pct < 0 ? "-" : pct + "%";
 
+        // Keyed by slot, so helmet and boots keep their own counters even
+        // though both are drawn by this one method
+        String key = "slot" + slot;
+
         if (vertical()) {
-            graphics.text(mc.font, label, x + ICON + 4,
+            rollingText(graphics, key, label, x + ICON + 4,
                     y + (ICON - mc.font.lineHeight) / 2 + 1, colorFor(pct), true);
         } else {
-            graphics.text(mc.font, label,
+            rollingText(graphics, key, label,
                     x + (ICON - mc.font.width(label)) / 2, y + ICON, colorFor(pct), true);
         }
     }

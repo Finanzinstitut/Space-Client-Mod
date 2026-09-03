@@ -111,13 +111,13 @@ public class InventoryModule extends HudModule {
             int column = offset % COLUMNS;
             row = offset / COLUMNS;
             drawSlot(graphics, slot(index),
-                    x + column * CELL, y + row * CELL);
+                    x + column * CELL, y + row * CELL, index);
         }
         row++;
 
         if (showHotbar.get()) {
             for (int index = 0; index < COLUMNS; index++) {
-                drawSlot(graphics, slot(index), x + index * CELL, y + row * CELL);
+                drawSlot(graphics, slot(index), x + index * CELL, y + row * CELL, index);
             }
             row++;
         }
@@ -125,11 +125,11 @@ public class InventoryModule extends HudModule {
         if (showOffhand.get()) {
             // Alone on its row and at the left, so it does not read as part of
             // a nine wide line it is not part of
-            drawSlot(graphics, slot(OFFHAND_SLOT), x, y + row * CELL);
+            drawSlot(graphics, slot(OFFHAND_SLOT), x, y + row * CELL, OFFHAND_SLOT);
         }
     }
 
-    private void drawSlot(GuiGraphicsExtractor graphics, ItemStack stack, int x, int y) {
+    private void drawSlot(GuiGraphicsExtractor graphics, ItemStack stack, int x, int y, int slot) {
         boolean empty = stack == null || stack.isEmpty();
 
         if (empty) {
@@ -167,8 +167,11 @@ public class InventoryModule extends HudModule {
         // Drawn here rather than by the game: the invoker exposes the item and
         // the damage bar, and the count belongs to a decorations call that is
         // not among them
+        // Keyed by slot number, which is what the inventory itself uses, so a
+        // stack that moves between slots rolls in its new place rather than the
+        // two slots swapping digits at each other
         String label = Integer.toString(count);
         int labelX = x + ICON - mc.font.width(label);
-        graphics.text(mc.font, label, labelX, y + ICON - 7, 0xFFFFFFFF, true);
+        rollingText(graphics, "slot" + slot, label, labelX, y + ICON - 7, 0xFFFFFFFF, true);
     }
 }
