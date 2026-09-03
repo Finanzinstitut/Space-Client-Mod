@@ -619,3 +619,42 @@ kippt komplett um. Genau der Unterschied ist der, den man sehen will.
 
 Die Farbe wird vor dem Rollen bestimmt, damit der Schadens-Blitz im selben
 Frame beginnt wie die Bewegung, statt einen Frame hinterherzuhinken.
+
+---
+
+# 1.8.2 — Buildfehler in SessionModule
+
+```
+SessionModule.java:35: error: annotation interface not applicable
+to this kind of declaration
+    @Override
+```
+
+Beim Einfügen des Zählwerks habe ich Feld und Doku-Kommentar **zwischen** das
+vorhandene `@Override` und die `render`-Methode geschoben. Die Annotation hing
+danach am Feld.
+
+Meine eigene Aufräum-Prüfung hat das übersehen, weil sie nach `@Override`
+direkt vor dem Feld gesucht hat — dazwischen lag aber der Kommentar. Ein Muster,
+das nur den unmittelbar nächsten Zeilenanfang betrachtet, findet genau diesen
+Fall nicht.
+
+Der Prüfer sucht jetzt die nächste *bedeutungstragende* Zeile und überspringt
+dabei Leerzeilen und weitere Annotationen. Über das ganze Projekt laufen
+gelassen: keine weitere Fundstelle.
+
+## Was ich dabei über meine eigene Prüfung gelernt habe
+
+Der zweite Durchlauf meldete zunächst siebzehn Dateien als kaputt, darunter
+welche, die ich nie angefasst habe. Ursache war die Reihenfolge im Prüfer: Er
+entfernte Zeichenliterale vor den Kommentaren, und ein Apostroph in Prosa
+("the sun's position") wurde als Literalbeginn gelesen und verschluckte den
+halben Quelltext.
+
+Nach der Korrektur blieben vier Dateien übrig — ebenfalls falsch positiv:
+`SessionManager` benutzt Java-Textblöcke, die das Muster nicht kennt, und alle
+vier sind seit deiner laufenden 1.3.0 unverändert.
+
+Die Lehre für mich: Diese Klammerprüfung findet grobe Schnitzer, ist aber kein
+Compiler-Ersatz. Ich habe mich hier zu sehr darauf verlassen und deshalb eine
+Annotation an der falschen Stelle stehen lassen.

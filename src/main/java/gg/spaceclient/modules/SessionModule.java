@@ -32,7 +32,6 @@ public class SessionModule extends HudModule {
     @Override
     public int getHeight() { return mc.font.lineHeight * 2 + 2; }
 
-    @Override
     /**
      * The clock this was always meant to be.
      *
