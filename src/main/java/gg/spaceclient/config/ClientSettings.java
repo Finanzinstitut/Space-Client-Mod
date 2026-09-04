@@ -24,6 +24,19 @@ public class ClientSettings {
     private String backgroundStyle = "SPACE";
 
     /**
+     * Which typeface this client's own screens use.
+     *
+     * Matches the game-wide font by default, so the client is of a piece with
+     * what default.json already did. "MINECRAFT" here means the original pixel
+     * font, which is otherwise no longer reachable once that override is in
+     * place.
+     */
+    public static final List<String> FONT_STYLES =
+            Arrays.asList("MINECRAFT", "OPEN_SANS", "BARLOW");
+
+    private String fontStyle = "OPEN_SANS";
+
+    /**
      * The accent lives in a ColorSetting so the same colour wheel widget the
      * modules use can drive it too.
      */
@@ -31,8 +44,17 @@ public class ClientSettings {
             "accent", "Accent colour", "Colour used across the interface", 0xFF7C5CFF);
     // The launcher's violet, so the in-game menu matches it out of the box.
     public String backgroundStyle() { return backgroundStyle; }
+    public String fontStyle() { return fontStyle; }
     public int accentColor() { return accent.get(); }
     public ColorSetting accentSetting() { return accent; }
+
+    public void cycleFont() {
+        int index = FONT_STYLES.indexOf(fontStyle);
+        fontStyle = FONT_STYLES.get((index + 1) % FONT_STYLES.size());
+        // The built fonts are cached, so the new choice has to clear them or
+        // the screen keeps drawing in the old one until the game restarts
+        gg.spaceclient.ui.Fonts.invalidate();
+    }
 
     public void cycleBackground() {
         int index = BACKGROUND_STYLES.indexOf(backgroundStyle);
@@ -49,6 +71,7 @@ public class ClientSettings {
 
     public void save(JsonObject json) {
         json.addProperty("background_style", backgroundStyle);
+        json.addProperty("font_style", fontStyle);
         json.addProperty("accent_color", accent.get());
     }
 
@@ -56,6 +79,10 @@ public class ClientSettings {
         if (json.has("background_style")) {
             String value = json.get("background_style").getAsString();
             if (BACKGROUND_STYLES.contains(value)) backgroundStyle = value;
+        }
+        if (json.has("font_style")) {
+            String value = json.get("font_style").getAsString();
+            if (FONT_STYLES.contains(value)) fontStyle = value;
         }
         if (json.has("accent_color")) {
             accent.set(json.get("accent_color").getAsInt());

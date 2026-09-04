@@ -265,8 +265,7 @@ public class ColorWheel extends Button {
             graphics.fill(wheelX - 3, wheelY - 3, wheelX - 2, bottom + 1, accent);
             graphics.fill(right, wheelY - 3, right + 1, bottom + 1, accent);
 
-            Minecraft mc = Minecraft.getInstance();
-            graphics.text(mc.font, "move to pick, click to keep",
+            graphics.text(Fonts.ui(), "move to pick, click to keep",
                     wheelX - 3, bottom + 4, Theme.TEXT_DIM, false);
         }
     }

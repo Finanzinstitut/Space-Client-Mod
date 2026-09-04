@@ -769,3 +769,98 @@ Der `_comment`-Block ist raus. Bei den meisten Minecraft-Dateien ist so etwas
 harmlos, aber wenn der Font-Parser in 26.2 strenger geworden ist, verwirft er
 die Datei still — was zum Beobachteten passen würde. Zwei mögliche Ursachen auf
 einmal zu beseitigen ist hier die Runde wert.
+
+---
+
+# 1.10.0 — Schrift umschaltbar, und nicht mehr überall
+
+## Die Ursache für "alles sieht komisch aus"
+
+Sie war eingebaut, nicht zufällig: `assets/minecraft/font/default.json` hat
+Minecrafts Schrift **überall** ersetzt — Schilder, Bücher, Chat, jedes fremde
+Menü. Das war deine ursprüngliche Bitte, aber es ist zu viel. Ein Client hat
+nichts damit zu tun, wie ein Buch im Spiel aussieht.
+
+Das Override ist weg. Die Schrift gilt jetzt nur noch für Space Clients eigene
+Screens und das HUD.
+
+## Umschaltbar, mit Minecraft als Standard
+
+**Appearance → Font**, drei Möglichkeiten:
+
+- **Minecraft** (Standard) — nichts ändert sich, bis du es willst
+- **Open Sans** — die humanistische, gut lesbare
+- **Barlow** — schmaler und technischer, spart Platz im HUD
+
+Warum das nicht über Ressourcen geht: Ein Ressourcenpaket wird beim Laden
+ausgewählt, und `minecraft:default` steht danach fest. Umschalten im laufenden
+Spiel verlangt, das Font-Objekt selbst zu bauen — genau das macht jetzt
+`ui/Fonts`.
+
+Ein Font ist im Kern eine Funktion von einer Font-Kennung auf einen Satz
+Glyphen. Statt an den Font-Manager zu gehen, der privat ist und zwischen
+Versionen gewandert ist, borgt sich `Fonts` diese Funktion aus dem Font des
+Spiels und verpackt sie so, dass sie immer unsere Kennung liefert. Alles
+reflektiv, mit Rückfall auf Minecrafts Schrift: Eine Oberfläche in der falschen
+Schrift ist eine Enttäuschung, eine Oberfläche die wirft ist ein schwarzer
+Bildschirm.
+
+## Kleiner und schärfer
+
+Vorher `size 10.5` bei `oversample 3` — daher wirkte alles zu groß. Jetzt
+`size 9.0` bei `oversample 4.0` und ohne Verschiebung. Höheres Oversampling
+heißt: Die Glyphen werden in vierfacher Auflösung gerastert und dann
+verkleinert, also feinere Kanten bei kleinerer Schrift. Das ist der Teil, der
+"4K" tatsächlich bewirkt — die Zahl in der Datei, nicht die Größe des Textes.
+
+Alle Zeichenaufrufe im Mod laufen jetzt über `Fonts.ui()`: 32 Module und 11
+Screens umgestellt, keine direkten Zugriffe mehr auf Minecrafts Font außerhalb
+von `Fonts` selbst.
+
+---
+
+# 1.10.1 — global zurück, aber mit richtigen Maßen
+
+Ich hatte deine Rückmeldung falsch gedeutet und die Schrift auf die
+Mod-Screens beschränkt. Das war nicht gemeint: Sie soll überall gelten, sie sah
+nur falsch aus.
+
+`assets/minecraft/font/default.json` ist also wieder da — Menüs, Chat,
+Schilder, Bücher, Itemnamen. Diesmal mit den korrigierten Werten:
+
+| | vorher | jetzt |
+|---|---|---|
+| size | 10.5 | **9.0** |
+| oversample | 3.0 | **4.0** |
+| shift | [0, -1] | **[0, 0]** |
+
+Die 10.5 waren zu groß und die Verschiebung um -1 hat den Text gegenüber allem
+anderen verrutschen lassen — zusammen ergibt das genau den Eindruck, dass etwas
+nicht stimmt, ohne dass man benennen könnte was.
+
+Das höhere Oversampling ist der Teil, der "4K" tatsächlich leistet: Die Glyphen
+werden in vierfacher Auflösung gerastert und dann verkleinert, also feinere
+Kanten bei kleinerer Schrift. Es betrifft die Schärfe, nicht die Größe.
+
+## Der Umschalter bleibt, mit einer Wendung
+
+**Appearance → Font** wirkt jetzt auf Space Clients eigene Screens und das HUD.
+Standard ist Open Sans, damit der Client zum Rest passt.
+
+Die Wendung: "Minecraft" gibt dir dort die ursprüngliche Pixelschrift zurück.
+Sobald `default.json` das Spiel umstellt, ist die nämlich über
+`minecraft:default` nicht mehr erreichbar — deshalb gibt es
+`spaceclient:vanilla_ui`, das die vanilla-Provider direkt anspricht. Wer die
+Pixelschrift im HUD lieber mag, bekommt sie so zurück, ohne die globale
+Umstellung aufzugeben.
+
+## Falls es noch nicht sitzt
+
+Zwei Zahlen in `src/main/resources/assets/minecraft/font/default.json`:
+
+- **`size`** — zu groß oder zu klein
+- **`shift`** — zweiter Wert; negativ hebt den Text, positiv senkt ihn
+
+Beide kannst du auf GitHub in einer halben Minute ändern und neu bauen. Ich
+kann das ohne laufendes Spiel nicht treffen, aber du siehst sofort, in welche
+Richtung es muss.

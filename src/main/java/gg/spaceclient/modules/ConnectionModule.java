@@ -3,6 +3,7 @@ package gg.spaceclient.modules;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
+import gg.spaceclient.ui.Fonts;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.multiplayer.PlayerInfo;
@@ -134,12 +135,12 @@ public class ConnectionModule extends HudModule {
 
     @Override
     public int getWidth() {
-        return Math.max(mc.font.width(text()), showGraph.get() ? SAMPLES * 2 : 0);
+        return Math.max(Fonts.ui().width(text()), showGraph.get() ? SAMPLES * 2 : 0);
     }
 
     @Override
     public int getHeight() {
-        return mc.font.lineHeight + (showGraph.get() ? BAR_HEIGHT + 2 : 0);
+        return Fonts.ui().lineHeight + (showGraph.get() ? BAR_HEIGHT + 2 : 0);
     }
 
     @Override
@@ -149,7 +150,7 @@ public class ConnectionModule extends HudModule {
         rollingText(graphics, "main", text(), x, y, textColor.get(), true);
         if (!showGraph.get()) return;
 
-        int top = y + mc.font.lineHeight + 2;
+        int top = y + Fonts.ui().lineHeight + 2;
         int max = peak();
         int color = qualityColor();
 

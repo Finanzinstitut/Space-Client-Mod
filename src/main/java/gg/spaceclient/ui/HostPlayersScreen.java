@@ -106,8 +106,8 @@ public class HostPlayersScreen extends Screen {
         graphics.fill(left - 18, 20, left + PANEL_W + 18, 21, Theme.BORDER);
 
         JupiterIcon.draw(graphics, left, 34, 24);
-        graphics.text(this.font, "PLAYERS", left + 34, 38, Theme.CYAN, false);
-        graphics.text(this.font, players.size() + " connected",
+        graphics.text(Fonts.ui(), "PLAYERS", left + 34, 38, Theme.CYAN, false);
+        graphics.text(Fonts.ui(), players.size() + " connected",
                 left + 34, 50, Theme.TEXT_DIM, false);
         graphics.fill(left, 74, left + PANEL_W, 75, Theme.BORDER);
 
@@ -118,14 +118,14 @@ public class HostPlayersScreen extends Screen {
             boolean host = HostAdmin.isHost(player);
             String name = player.getName().getString();
 
-            graphics.text(this.font, name, left, y + 6,
+            graphics.text(Fonts.ui(), name, left, y + 6,
                     host ? Theme.CYAN : Theme.TEXT, false);
 
             if (host) {
-                graphics.text(this.font, "host", left + this.font.width(name) + 8, y + 6,
+                graphics.text(Fonts.ui(), "host", left + Fonts.ui().width(name) + 8, y + 6,
                         Theme.TEXT_DIM, false);
             } else if (HostAdmin.isOp(player)) {
-                graphics.text(this.font, "op", left + this.font.width(name) + 8, y + 6,
+                graphics.text(Fonts.ui(), "op", left + Fonts.ui().width(name) + 8, y + 6,
                         Theme.TEXT_DIM, false);
             }
 
@@ -134,7 +134,7 @@ public class HostPlayersScreen extends Screen {
 
         String status = HostAdmin.status();
         if (!status.isEmpty()) {
-            graphics.text(this.font, status, left, this.height - 62, Theme.TEXT_DIM, false);
+            graphics.text(Fonts.ui(), status, left, this.height - 62, Theme.TEXT_DIM, false);
         }
 
         super.extractRenderState(graphics, mouseX, mouseY, delta);

@@ -4,6 +4,7 @@ import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
 import gg.spaceclient.setting.IntSetting;
+import gg.spaceclient.ui.Fonts;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -97,13 +98,13 @@ public class DurabilityModule extends HudModule {
     @Override
     public int getWidth() {
         int width = 0;
-        for (Reading reading : readings()) width = Math.max(width, mc.font.width(reading.label()));
+        for (Reading reading : readings()) width = Math.max(width, Fonts.ui().width(reading.label()));
         return Math.max(width, 24);
     }
 
     @Override
     public int getHeight() {
-        return Math.max(1, readings().size()) * (mc.font.lineHeight + 1);
+        return Math.max(1, readings().size()) * (Fonts.ui().lineHeight + 1);
     }
 
     @Override
@@ -113,7 +114,7 @@ public class DurabilityModule extends HudModule {
             // Keyed by line, which is safe here: the main hand is always first
             // and the offhand only ever appears below it
             rollingText(graphics, "hand" + line, reading.label(),
-                    x, y + line * (mc.font.lineHeight + 1), colourFor(reading), true);
+                    x, y + line * (Fonts.ui().lineHeight + 1), colourFor(reading), true);
             line++;
         }
     }

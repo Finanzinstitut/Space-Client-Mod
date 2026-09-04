@@ -4,6 +4,7 @@ import gg.spaceclient.module.HudModule;
 import gg.spaceclient.util.Reflect;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
+import gg.spaceclient.ui.Fonts;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
@@ -63,10 +64,10 @@ public class ServerInfoModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return Math.max(60, mc.font.width(text())); }
+    public int getWidth() { return Math.max(60, Fonts.ui().width(text())); }
 
     @Override
-    public int getHeight() { return mc.font.lineHeight; }
+    public int getHeight() { return Fonts.ui().lineHeight; }
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {

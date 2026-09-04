@@ -3,6 +3,7 @@ package gg.spaceclient.modules;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.ColorSetting;
 import gg.spaceclient.ui.Odometer;
+import gg.spaceclient.ui.Fonts;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.multiplayer.PlayerInfo;
 
@@ -16,10 +17,10 @@ public class PingModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return mc.font.width(text()); }
+    public int getWidth() { return Fonts.ui().width(text()); }
 
     @Override
-    public int getHeight() { return mc.font.lineHeight; }
+    public int getHeight() { return Fonts.ui().lineHeight; }
 
     /**
      * Not cached any more, and not for style.
@@ -45,6 +46,6 @@ public class PingModule extends HudModule {
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
         shown.set(text());
-        shown.draw(graphics, mc.font, x, y, textColor.get(), true);
+        shown.draw(graphics, Fonts.ui(), x, y, textColor.get(), true);
     }
 }

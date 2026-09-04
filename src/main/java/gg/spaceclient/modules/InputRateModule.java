@@ -4,6 +4,7 @@ import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
 import gg.spaceclient.setting.IntSetting;
+import gg.spaceclient.ui.Fonts;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 import java.util.ArrayDeque;
@@ -56,12 +57,12 @@ public class InputRateModule extends HudModule {
     public int getWidth() { return HISTORY * 2; }
 
     @Override
-    public int getHeight() { return height.get() + (showPeak.get() ? mc.font.lineHeight + 2 : 0); }
+    public int getHeight() { return height.get() + (showPeak.get() ? Fonts.ui().lineHeight + 2 : 0); }
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
         int graphHeight = height.get();
-        int top = y + (showPeak.get() ? mc.font.lineHeight + 2 : 0);
+        int top = y + (showPeak.get() ? Fonts.ui().lineHeight + 2 : 0);
 
         // A scale that grows with the peak, so the graph always fills the box
         int scale = Math.max(8, peak);

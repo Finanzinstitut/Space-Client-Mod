@@ -4,6 +4,7 @@ import gg.spaceclient.module.HudModule;
 import gg.spaceclient.ui.Rolling;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
+import gg.spaceclient.ui.Fonts;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
@@ -56,19 +57,19 @@ public class MemoryModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return Math.max(90, mc.font.width(text())); }
+    public int getWidth() { return Math.max(90, Fonts.ui().width(text())); }
 
     @Override
-    public int getHeight() { return mc.font.lineHeight + (showBar.get() ? 6 : 0); }
+    public int getHeight() { return Fonts.ui().lineHeight + (showBar.get() ? 6 : 0); }
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
         float ratio = ratio();
         int color = ratio > 0.9f ? 0xFFFF6B81 : ratio > 0.75f ? 0xFFFFD9A0 : textColor.get();
-        graphics.text(mc.font, text(), x, y, color, true);
+        graphics.text(Fonts.ui(), text(), x, y, color, true);
 
         if (!showBar.get()) return;
-        int barY = y + mc.font.lineHeight + 2;
+        int barY = y + Fonts.ui().lineHeight + 2;
         int width = getWidth();
         graphics.fill(x, barY, x + width, barY + 3, 0x60000000);
         graphics.fill(x, barY, x + (int) (width * ratio), barY + 3, color);

@@ -2,6 +2,7 @@ package gg.spaceclient.modules;
 
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.ColorSetting;
+import gg.spaceclient.ui.Fonts;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 public class CoordinatesModule extends HudModule {
@@ -14,10 +15,10 @@ public class CoordinatesModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return mc.font.width(text()); }
+    public int getWidth() { return Fonts.ui().width(text()); }
 
     @Override
-    public int getHeight() { return mc.font.lineHeight; }
+    public int getHeight() { return Fonts.ui().lineHeight; }
 
     /** coordinates are watched while moving, so they must keep up */
     @Override

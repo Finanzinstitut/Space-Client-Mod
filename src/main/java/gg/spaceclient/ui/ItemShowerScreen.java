@@ -190,8 +190,8 @@ public class ItemShowerScreen extends Screen {
         graphics.fill(left - 18, 24, left + PANEL_W + 18, this.height - 24, Theme.PANEL);
 
         JupiterIcon.draw(graphics, left, 38, 22);
-        graphics.text(this.font, "ITEM SHOWER", left + 32, 40, Theme.CYAN, false);
-        graphics.text(this.font, "Make an item bigger so you can find it in a pile",
+        graphics.text(Fonts.ui(), "ITEM SHOWER", left + 32, 40, Theme.CYAN, false);
+        graphics.text(Fonts.ui(), "Make an item bigger so you can find it in a pile",
                 left + 32, 52, Theme.TEXT_DIM, false);
         graphics.fill(left, 84, left + PANEL_W, 85, Theme.BORDER);
 
@@ -208,17 +208,17 @@ public class ItemShowerScreen extends Screen {
 
         if (selected != null) {
             int right = left + LIST_W + 20;
-            graphics.text(this.font, labelFor(selected, known.get(selected)),
+            graphics.text(Fonts.ui(), labelFor(selected, known.get(selected)),
                     right, listTop(), Theme.TEXT, false);
 
             ItemSizes.Sizes sizes = ItemSizes.get(selected);
             String summary = Math.round(sizes.hotbar() * 100) + "%  "
                     + Math.round(sizes.hand() * 100) + "%  "
                     + Math.round(sizes.ground() * 100) + "%";
-            graphics.text(this.font, summary, right, this.height - 92, Theme.OFF, false);
+            graphics.text(Fonts.ui(), summary, right, this.height - 92, Theme.OFF, false);
         }
 
-        graphics.text(this.font,
+        graphics.text(Fonts.ui(),
                 ItemSizes.all().size() + " item(s) configured",
                 left, this.height - 92, Theme.TEXT_DIM, false);
     }

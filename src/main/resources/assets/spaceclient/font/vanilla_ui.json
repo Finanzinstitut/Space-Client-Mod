@@ -1,14 +1,6 @@
 {
   "providers": [
     {
-      "type": "ttf",
-      "file": "spaceclient:opensans.ttf",
-      "size": 9.0,
-      "oversample": 4.0,
-      "shift": [0.0, 0.0],
-      "skip": []
-    },
-    {
       "type": "reference",
       "id": "minecraft:include/space"
     },

@@ -6,6 +6,7 @@ import gg.spaceclient.music.NowPlaying;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
 import gg.spaceclient.setting.ModeSetting;
+import gg.spaceclient.ui.Fonts;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
@@ -139,14 +140,14 @@ public class MusicModule extends HudModule {
         title = trim(title, WIDTH - ART - 20);
         subtitle = trim(subtitle, WIDTH - ART - 20);
 
-        graphics.text(mc.font, title, textX, y + 6, titleColor.get(), true);
-        graphics.text(mc.font, subtitle, textX, y + 6 + mc.font.lineHeight + 1,
+        graphics.text(Fonts.ui(), title, textX, y + 6, titleColor.get(), true);
+        graphics.text(Fonts.ui(), subtitle, textX, y + 6 + Fonts.ui().lineHeight + 1,
                 artistColor.get(), true);
 
         if (showSource.get() && !idle) {
             String label = playing.source().equals("Spotify") ? "SPOTIFY" : "AMAZON";
-            int labelWidth = mc.font.width(label);
-            graphics.text(mc.font, label, x + WIDTH - labelWidth - 6, y + 4, 0xFF4ADE80, false);
+            int labelWidth = Fonts.ui().width(label);
+            graphics.text(Fonts.ui(), label, x + WIDTH - labelWidth - 6, y + 4, 0xFF4ADE80, false);
         }
     }
 
@@ -172,8 +173,8 @@ public class MusicModule extends HudModule {
     }
 
     private String trim(String text, int room) {
-        if (mc.font.width(text) <= room) return text;
-        while (text.length() > 1 && mc.font.width(text + "..") > room) {
+        if (Fonts.ui().width(text) <= room) return text;
+        while (text.length() > 1 && Fonts.ui().width(text + "..") > room) {
             text = text.substring(0, text.length() - 1);
         }
         return text + "..";

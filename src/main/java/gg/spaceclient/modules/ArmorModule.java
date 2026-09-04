@@ -4,6 +4,7 @@ import gg.spaceclient.SpaceClient;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ModeSetting;
+import gg.spaceclient.ui.Fonts;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -97,7 +98,7 @@ public class ArmorModule extends HudModule {
     public int getWidth() {
         int count = Math.max(1, pieces().size());
         if (vertical()) {
-            return wantsPercent() ? ICON + 4 + mc.font.width("100%") : ICON;
+            return wantsPercent() ? ICON + 4 + Fonts.ui().width("100%") : ICON;
         }
         return count * ICON + (count - 1) * GAP;
     }
@@ -106,7 +107,7 @@ public class ArmorModule extends HudModule {
     public int getHeight() {
         int count = Math.max(1, pieces().size());
         if (vertical()) return count * (ICON + GAP) - GAP;
-        return ICON + (wantsPercent() ? mc.font.lineHeight : 0);
+        return ICON + (wantsPercent() ? Fonts.ui().lineHeight : 0);
     }
 
     private static int percentOf(ItemStack stack) {
@@ -185,10 +186,10 @@ public class ArmorModule extends HudModule {
 
         if (vertical()) {
             rollingText(graphics, key, label, x + ICON + 4,
-                    y + (ICON - mc.font.lineHeight) / 2 + 1, colorFor(pct), true);
+                    y + (ICON - Fonts.ui().lineHeight) / 2 + 1, colorFor(pct), true);
         } else {
             rollingText(graphics, key, label,
-                    x + (ICON - mc.font.width(label)) / 2, y + ICON, colorFor(pct), true);
+                    x + (ICON - Fonts.ui().width(label)) / 2, y + ICON, colorFor(pct), true);
         }
     }
 }

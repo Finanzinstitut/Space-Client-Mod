@@ -3,6 +3,7 @@ package gg.spaceclient.module;
 import com.google.gson.JsonObject;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
+import gg.spaceclient.ui.Fonts;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
@@ -157,7 +158,7 @@ public abstract class HudModule extends Module {
                                int x, int y, int color, boolean shadow) {
         gg.spaceclient.ui.Odometer odometer = roll(key);
         odometer.set(value);
-        odometer.draw(graphics, mc.font, x, y, color, shadow);
+        odometer.draw(graphics, Fonts.ui(), x, y, color, shadow);
     }
 
     public float getScale() { return scale; }

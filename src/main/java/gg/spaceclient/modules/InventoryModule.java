@@ -4,6 +4,7 @@ import gg.spaceclient.SpaceClient;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
+import gg.spaceclient.ui.Fonts;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.world.item.ItemStack;
@@ -171,7 +172,7 @@ public class InventoryModule extends HudModule {
         // stack that moves between slots rolls in its new place rather than the
         // two slots swapping digits at each other
         String label = Integer.toString(count);
-        int labelX = x + ICON - mc.font.width(label);
+        int labelX = x + ICON - Fonts.ui().width(label);
         rollingText(graphics, "slot" + slot, label, labelX, y + ICON - 7, 0xFFFFFFFF, true);
     }
 }

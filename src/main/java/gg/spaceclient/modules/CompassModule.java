@@ -3,6 +3,7 @@ package gg.spaceclient.modules;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
+import gg.spaceclient.ui.Fonts;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
@@ -39,7 +40,7 @@ public class CompassModule extends HudModule {
     public int getWidth() { return WIDTH; }
 
     @Override
-    public int getHeight() { return mc.font.lineHeight * (showDegrees.get() ? 2 : 1) + 4; }
+    public int getHeight() { return Fonts.ui().lineHeight * (showDegrees.get() ? 2 : 1) + 4; }
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
@@ -54,9 +55,9 @@ public class CompassModule extends HudModule {
 
             int px = centre + (int) (difference * (WIDTH / 160f));
             String label = POINTS[i];
-            int labelX = px - mc.font.width(label) / 2;
+            int labelX = px - Fonts.ui().width(label) / 2;
             boolean cardinal = i % 2 == 0;
-            graphics.text(mc.font, label, labelX, y + 4,
+            graphics.text(Fonts.ui(), label, labelX, y + 4,
                     cardinal ? textColor.get() : 0xFF9A95C9, true);
         }
 
@@ -65,8 +66,8 @@ public class CompassModule extends HudModule {
 
         if (showDegrees.get()) {
             String degrees = String.format("%.0f°", heading);
-            graphics.text(mc.font, degrees,
-                    centre - mc.font.width(degrees) / 2, y + mc.font.lineHeight + 4,
+            graphics.text(Fonts.ui(), degrees,
+                    centre - Fonts.ui().width(degrees) / 2, y + Fonts.ui().lineHeight + 4,
                     textColor.get(), true);
         }
     }

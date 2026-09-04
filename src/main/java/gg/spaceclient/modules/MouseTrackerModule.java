@@ -5,6 +5,7 @@ import gg.spaceclient.input.RawKeyboard;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
+import gg.spaceclient.ui.Fonts;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
@@ -127,7 +128,7 @@ public class MouseTrackerModule extends HudModule {
             String text = cps != null
                     ? cps.getLeftCps() + " | " + cps.getRightCps() + " CPS"
                     : "0 | 0 CPS";
-            int textX = x + (BODY_W - mc.font.width(text)) / 2;
+            int textX = x + (BODY_W - Fonts.ui().width(text)) / 2;
             rollingText(graphics, "cps", text, textX, y + BODY_H + 3, 0xFFFFFFFF, true);
         }
     }
