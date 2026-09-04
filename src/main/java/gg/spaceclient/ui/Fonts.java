@@ -129,16 +129,18 @@ public final class Fonts {
     /**
      * Builds a Font that draws from one particular definition.
      *
-     * A Font turned out to be far simpler than I had assumed. It is a wrapper
-     * around a single Provider, which maps a font description to a set of
-     * glyphs, and its constructor is public and takes exactly that. So a second
-     * Font is one line: borrow the provider, and hand it our description
-     * instead of whatever it was asked for.
+     * A Font is a wrapper around a single Provider, and its constructor is
+     * public and takes exactly that. The redirection is therefore only: hand it
+     * a Provider that answers with our definition rather than the one asked
+     * for.
      *
-     * The earlier version searched for a field of type Function and a
-     * constructor taking one. Neither exists - the field is `provider` and the
-     * type is Font.Provider - so it found nothing and reported "could not
-     * build", which is exactly what the diagnostics page showed.
+     * The Provider is built as a dynamic proxy rather than a lambda, and that
+     * is not decoration. `Font.Provider` has more than one abstract method, so
+     * it is not a functional interface and a lambda does not compile - which is
+     * exactly how the last build failed. A proxy forwards everything to the
+     * real provider untouched and intercepts the one call that matters, without
+     * this code having to know what the other methods are or growing a new bug
+     * every time Mojang adds one.
      */
     private static Font build(Minecraft mc, Identifier id) {
         try {
@@ -149,9 +151,20 @@ public final class Fonts {
 
             FontDescription description = new FontDescription.Resource(id);
 
-            // Whatever description is asked for, ours is answered. That is the
-            // whole of the redirection.
-            return new Font(ignored -> provider.glyphs(description));
+            Font.Provider redirected = (Font.Provider) java.lang.reflect.Proxy.newProxyInstance(
+                    Font.Provider.class.getClassLoader(),
+                    new Class<?>[]{ Font.Provider.class },
+                    (proxy, method, args) -> {
+                        // One argument, and it is a font description: this is
+                        // the glyph lookup, so answer for ours instead
+                        if (args != null && args.length == 1
+                                && args[0] instanceof FontDescription) {
+                            return method.invoke(provider, description);
+                        }
+                        return method.invoke(provider, args);
+                    });
+
+            return new Font(redirected);
 
         } catch (Throwable t) {
             SpaceClient.LOGGER.warn("Could not build a font for {}: {}", id, t.getMessage());

@@ -952,3 +952,26 @@ in diesem Projekt.
 
 Die Zeile **Font** auf der Diagnostics-Seite bleibt. Sie sollte jetzt
 `open_sans applied` oder `barlow applied` zeigen.
+
+---
+
+# 1.11.3 — Provider ist kein funktionales Interface
+
+```
+error: incompatible types: Provider is not a functional interface
+    multiple non-overriding abstract methods found in interface Provider
+```
+
+Ich hatte aus dem Klassendump gelesen, dass `Font.Provider` eine Methode
+`glyphs(FontDescription)` hat, und daraus geschlossen, es sei die einzige. Der
+Dump zeigte nur die Methoden von `Font` selbst — was in `Font$Provider` steht,
+habe ich nie angesehen und trotzdem ein Lambda geschrieben.
+
+Statt dich jetzt noch einen Dump schicken zu lassen, kommt der neue Weg ohne
+dieses Wissen aus: Der Provider wird als **dynamischer Proxy** gebaut. Der
+reicht jeden Aufruf unverändert an den echten Provider weiter und fängt nur den
+einen ab, auf den es ankommt — erkennbar daran, dass er genau ein Argument vom
+Typ `FontDescription` bekommt. Dort wird unsere Beschreibung eingesetzt.
+
+Der Vorteil ist nicht nur, dass es jetzt kompiliert: Egal wie viele Methoden
+`Font.Provider` hat oder künftig bekommt, dieser Code muss sie nicht kennen.
