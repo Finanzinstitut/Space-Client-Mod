@@ -4,13 +4,11 @@ import gg.spaceclient.SpaceClient;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
+import net.minecraft.network.chat.FontDescription;
 import net.minecraft.resources.Identifier;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
 
 /**
  * The typeface this client draws itself in.
@@ -129,55 +127,34 @@ public final class Fonts {
     private static String status = "not applied yet";
 
     /**
-     * Builds a Font that resolves every lookup to one particular definition.
+     * Builds a Font that draws from one particular definition.
      *
-     * A Font is little more than a function from a font id to a set of glyphs.
-     * Rather than reach for the font manager - which is private and has moved
-     * between versions - this borrows that function out of the game's own Font
-     * and wraps it so that whatever id is asked for, ours is returned.
+     * A Font turned out to be far simpler than I had assumed. It is a wrapper
+     * around a single Provider, which maps a font description to a set of
+     * glyphs, and its constructor is public and takes exactly that. So a second
+     * Font is one line: borrow the provider, and hand it our description
+     * instead of whatever it was asked for.
      *
-     * Entirely reflective, because none of it is public API. A miss costs the
-     * custom font and nothing else.
+     * The earlier version searched for a field of type Function and a
+     * constructor taking one. Neither exists - the field is `provider` and the
+     * type is Font.Provider - so it found nothing and reported "could not
+     * build", which is exactly what the diagnostics page showed.
      */
-    @SuppressWarnings("unchecked")
     private static Font build(Minecraft mc, Identifier id) {
         try {
-            Function<Identifier, Object> lookup = null;
+            Font source = original != null ? original : mc.font;
+            Font.Provider provider =
+                    ((gg.spaceclient.mixin.FontAccessor) (Object) source).spaceclient$provider();
+            if (provider == null) return null;
 
-            for (Field field : Font.class.getDeclaredFields()) {
-                if (!Function.class.isAssignableFrom(field.getType())) continue;
-                field.setAccessible(true);
-                Object value = field.get(original != null ? original : mc.font);
-                if (value instanceof Function<?, ?> function) {
-                    lookup = (Function<Identifier, Object>) function;
-                    break;
-                }
-            }
-            if (lookup == null) return null;
+            FontDescription description = new FontDescription.Resource(id);
 
-            final Function<Identifier, Object> resolved = lookup;
-
-            for (Constructor<?> constructor : Font.class.getDeclaredConstructors()) {
-                Class<?>[] parameters = constructor.getParameterTypes();
-                if (parameters.length == 0) continue;
-                if (!Function.class.isAssignableFrom(parameters[0])) continue;
-
-                constructor.setAccessible(true);
-                Function<Identifier, Object> always = ignored -> resolved.apply(id);
-
-                // Later parameters are flags such as "filter fishy glyphs";
-                // false is the ordinary setting for all of them
-                Object[] args = new Object[parameters.length];
-                args[0] = always;
-                for (int i = 1; i < parameters.length; i++) {
-                    args[i] = parameters[i] == boolean.class ? Boolean.FALSE : null;
-                }
-
-                return (Font) constructor.newInstance(args);
-            }
-            return null;
+            // Whatever description is asked for, ours is answered. That is the
+            // whole of the redirection.
+            return new Font(ignored -> provider.glyphs(description));
 
         } catch (Throwable t) {
+            SpaceClient.LOGGER.warn("Could not build a font for {}: {}", id, t.getMessage());
             return null;
         }
     }

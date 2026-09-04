@@ -906,3 +906,49 @@ sinnvoll ist; darüber wächst nur der Speicher für den Glyphen-Atlas.
 Die Größe bleibt bei 9.0. Falls der Text danach immer noch zu groß oder zu
 klein wirkt, ist das die eine Zahl in
 `assets/minecraft/font/default.json`, die du dafür ändern musst.
+
+---
+
+# 1.11.2 — der Umschalter, richtig gebaut
+
+Die Diagnostics-Zeile hat geliefert, wonach ich gefragt hatte:
+
+```
+Font: could not build BARLOW
+```
+
+Damit war sauber getrennt: Die globale Umstellung greift — im Menü stand Open
+Sans, nicht die Pixelschrift. Gescheitert ist nur das Erzeugen einer *zweiten*
+Schrift zum Umschalten.
+
+## Was ich falsch angenommen hatte
+
+Ich hatte in `Font` nach einem Feld vom Typ `Function` und einem Konstruktor
+gesucht, der eine `Function` nimmt. **Beides gibt es nicht.** Der Dump aus
+`Font.class` zeigt:
+
+```
+public <init> (Lnet/minecraft/client/gui/Font$Provider;)V
+private provider  Lnet/minecraft/client/gui/Font$Provider;
+Font$Provider.glyphs(FontDescription) -> GlyphSource
+```
+
+Ein Font ist also viel einfacher, als ich dachte: eine Hülle um genau einen
+`Provider`, und der Konstruktor ist **öffentlich** und nimmt genau diesen. Eine
+zweite Schrift ist damit eine Zeile — den Provider ausleihen und ihm unsere
+Beschreibung geben statt der, nach der er gefragt wird.
+
+Meine Suche fand nichts, meldete `could not build`, und genau das stand auf dem
+Bildschirm. Ich hätte die Klasse vorher lesen sollen, so wie bei allem anderen
+in diesem Projekt.
+
+## Was jetzt drin ist
+
+- `mixin/FontAccessor` — kommt an das private `provider`-Feld
+- `mixin/MinecraftFontAccessor` — schreibt das finale `Minecraft.font`, was
+  Reflection seit Java 17 nicht mehr darf
+- `Fonts.build()` ohne jede Reflection: geliehener Provider, feste Beschreibung,
+  öffentlicher Konstruktor
+
+Die Zeile **Font** auf der Diagnostics-Seite bleibt. Sie sollte jetzt
+`open_sans applied` oder `barlow applied` zeigen.
