@@ -726,3 +726,46 @@ Wert driftet laufend, statt in Sprüngen anzukommen.
 
 Ohne Zähler bleiben nur Compass (ein laufendes Band), Direction (Himmelsrichtung
 ohne Zahl) und Music (Songtitel).
+
+---
+
+# 1.9.1 — Schrift: Reihenfolge umgedreht
+
+## Was ausgeschlossen ist
+
+Ich habe die gebaute Jar geöffnet, statt weiter zu vermuten:
+
+- `assets/minecraft/font/default.json` ist drin und gültig
+- `assets/spaceclient/font/opensans.ttf` ist drin, 147.528 Bytes, statisch,
+  mit `glyf`-Umrissen — bitidentisch mit der Datei, die ich ausgeliefert habe
+- Im Repo ebenfalls unversehrt, der Upload hat nichts beschädigt
+- Alle Ressourcenpakete waren beim letzten Start deaktiviert, `VanFin` kann es
+  also auch nicht gewesen sein
+
+Damit ist alles ausgeschlossen außer der Datei selbst — und die war formal
+korrekt.
+
+## Was übrig bleibt
+
+Ich hatte den TrueType-Eintrag ans **Ende** gesetzt, mit der Begründung
+"spätere Provider gewinnen". Genau diese Annahme habe ich nie geprüft, und dass
+es so nicht funktioniert, ist der beste vorhandene Hinweis darauf, dass sie
+falsch ist: Bei Minecrafts Font-Auflösung gewinnt offenbar der **erste**
+Provider, der ein Zeichen kennt. Am Ende stehend hätte Open Sans dann nur
+Zeichen geliefert, die vanilla nicht hat — also keine — und genau das sieht man:
+keine Änderung, kein Fehler, keine Logzeile.
+
+Der TrueType-Eintrag steht jetzt an erster Stelle, die vanilla-Einträge
+dahinter. Der Rückfall für Chinesisch, Japanisch und Koreanisch bleibt damit
+erhalten: Open Sans hat diese Zeichen nicht, also greift der Eintrag darunter.
+
+Diese Änderung ist im schlechtesten Fall wirkungslos. Wäre meine
+ursprüngliche Annahme doch richtig gewesen, hätte die bisherige Fassung
+funktioniert — sie tut es nicht, also kann das Umdrehen nichts verschlechtern.
+
+## Zweite Vorsichtsmaßnahme
+
+Der `_comment`-Block ist raus. Bei den meisten Minecraft-Dateien ist so etwas
+harmlos, aber wenn der Font-Parser in 26.2 strenger geworden ist, verwirft er
+die Datei still — was zum Beobachteten passen würde. Zwei mögliche Ursachen auf
+einmal zu beseitigen ist hier die Runde wert.

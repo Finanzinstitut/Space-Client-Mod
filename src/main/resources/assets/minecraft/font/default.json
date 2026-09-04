@@ -1,23 +1,13 @@
 {
-  "_comment": [
-    "Replaces Minecraft's pixel font everywhere: menus, chat, signs, books,",
-    "item names, and this mod's own screens.",
-    "",
-    "Open Sans, taken from googlefonts/opensans rather than google/fonts.",
-    "The latter now ships this family only as a variable font, and Minecraft's",
-    "font loader drops those without a word - which is what happened with Inter",
-    "and made it look as though nothing had been installed. This file is a",
-    "static TrueType with plain glyf outlines, which is what the loader reads.",
-    "",
-    "Order matters. Providers listed later win, so the vanilla includes stay",
-    "first as a fallback and the TrueType entry sits last to take priority.",
-    "Keeping include/default is what stops Chinese, Japanese and Korean text",
-    "from turning into boxes - Open Sans has no glyphs for them.",
-    "",
-    "If the text sits too high or too low, change shift. If it looks too big",
-    "or too small next to the interface, change size."
-  ],
   "providers": [
+    {
+      "type": "ttf",
+      "file": "spaceclient:opensans.ttf",
+      "size": 10.5,
+      "oversample": 3.0,
+      "shift": [0.0, -1.0],
+      "skip": []
+    },
     {
       "type": "reference",
       "id": "minecraft:include/space"
@@ -25,17 +15,6 @@
     {
       "type": "reference",
       "id": "minecraft:include/default"
-    },
-    {
-      "type": "ttf",
-      "file": "spaceclient:opensans.ttf",
-      "size": 10.5,
-      "oversample": 3.0,
-      "shift": [
-        0.0,
-        -1.0
-      ],
-      "skip": []
     }
   ]
 }
