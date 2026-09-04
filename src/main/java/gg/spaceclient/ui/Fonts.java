@@ -83,46 +83,50 @@ public final class Fonts {
             Minecraft mc = Minecraft.getInstance();
             if (mc == null) return;
 
-            java.lang.reflect.Field slot = null;
-            for (java.lang.reflect.Field field : Minecraft.class.getDeclaredFields()) {
-                if (field.getType() == Font.class) {
-                    field.setAccessible(true);
-                    slot = field;
-                    break;
-                }
-            }
-            if (slot == null) return;
-
-            if (original == null) original = (Font) slot.get(mc);
+            if (original == null) original = mc.font;
             if (original == null) return;
 
             String style = SpaceClient.getSettings().fontStyle();
+
+            Font target;
             if ("MINECRAFT".equals(style)) {
-                slot.set(mc, original);
-                return;
-            }
+                target = original;
+            } else {
+                Identifier id = idFor(style);
+                if (id == null) return;
 
-            Identifier id = idFor(style);
-            if (id == null) return;
-
-            Font built = cache.get(style);
-            if (built == null) {
-                built = build(mc, id);
-                if (built == null) {
-                    // Leave the game's own font in place rather than half
-                    // applying a change nothing can undo
-                    SpaceClient.LOGGER.warn(
-                            "Could not build the {} font; keeping the game's own", style);
-                    return;
+                target = cache.get(style);
+                if (target == null) {
+                    target = build(mc, id);
+                    if (target == null) {
+                        status = "could not build " + style;
+                        SpaceClient.LOGGER.warn(
+                                "Could not build the {} font; keeping the game's own", style);
+                        return;
+                    }
+                    cache.put(style, target);
                 }
-                cache.put(style, built);
             }
-            slot.set(mc, built);
+
+            // Through the accessor, not reflection. Minecraft.font is final,
+            // and since Java 17 reflection cannot write a final instance field
+            // - it throws, the throw gets caught, and the setting quietly does
+            // nothing. That is exactly what was happening.
+            ((gg.spaceclient.mixin.MinecraftFontAccessor) (Object) mc)
+                    .spaceclient$setFont(target);
+
+            status = style.toLowerCase(java.util.Locale.ROOT) + " applied";
 
         } catch (Throwable t) {
+            status = "failed: " + t.getMessage();
             SpaceClient.LOGGER.warn("Could not apply the interface font: {}", t.getMessage());
         }
     }
+
+    /** What the last attempt did, for the diagnostics page. */
+    public static String status() { return status; }
+
+    private static String status = "not applied yet";
 
     /**
      * Builds a Font that resolves every lookup to one particular definition.
