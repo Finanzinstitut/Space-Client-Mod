@@ -186,10 +186,10 @@ public class ArmorModule extends HudModule {
 
         if (vertical()) {
             rollingText(graphics, key, label, x + ICON + 4,
-                    y + (ICON - Fonts.ui().lineHeight) / 2 + 1, colorFor(pct), true);
+                    y + (ICON - Fonts.ui().lineHeight) / 2 + 1, colorFor(pct), false);
         } else {
             rollingText(graphics, key, label,
-                    x + (ICON - Fonts.ui().width(label)) / 2, y + ICON, colorFor(pct), true);
+                    x + (ICON - Fonts.ui().width(label)) / 2, y + ICON, colorFor(pct), false);
         }
     }
 }

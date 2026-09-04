@@ -35,6 +35,6 @@ public class FpsModule extends HudModule {
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
         shown.set(mc.getFps() + " FPS");
-        shown.draw(graphics, Fonts.ui(), x, y, textColor.get(), true);
+        shown.draw(graphics, Fonts.ui(), x, y, textColor.get(), false);
     }
 }

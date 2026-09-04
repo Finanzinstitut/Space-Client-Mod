@@ -149,6 +149,6 @@ public class HealthModule extends HudModule {
         // roll should start in the same frame that highlight does
         int colour = colour();
         shown.set(text());
-        shown.draw(graphics, Fonts.ui(), x, y, colour, true);
+        shown.draw(graphics, Fonts.ui(), x, y, colour, false);
     }
 }

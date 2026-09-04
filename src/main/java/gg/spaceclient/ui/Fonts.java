@@ -49,6 +49,9 @@ public final class Fonts {
     private static final Map<String, Font> cache = new HashMap<>();
     private static boolean broken = false;
 
+    /** The game's own Font, kept so "Minecraft" can hand it straight back. */
+    private static Font original = null;
+
     /**
      * The font to draw the interface with.
      *
@@ -57,25 +60,68 @@ public final class Fonts {
      * cosmetic disappointment, an interface that throws is a black screen.
      */
     public static Font ui() {
-        Minecraft mc = Minecraft.getInstance();
-        String style = SpaceClient.getSettings().fontStyle();
+        // Just the game's font, because apply() has already made that the
+        // chosen one. Two separate paths would mean the mod's screens and the
+        // rest of the game could disagree about which typeface is current.
+        return Minecraft.getInstance().font;
+    }
 
-        Identifier id = idFor(style);
-        if (id == null || broken) return mc.font;
+    /**
+     * Puts the chosen typeface everywhere, by swapping the game's own Font.
+     *
+     * A resource pack cannot do this: it is read once at load and
+     * `minecraft:default` is settled from then on. But `Minecraft.font` is an
+     * ordinary field holding an ordinary object, and everything in the game
+     * draws through it - menus, chat, signs, item names. Replacing it changes
+     * all of them at once, and putting the original back undoes it just as
+     * completely.
+     *
+     * Called when the setting changes and once at startup.
+     */
+    public static void apply() {
+        try {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc == null) return;
 
-        Font cached = cache.get(style);
-        if (cached != null) return cached;
+            java.lang.reflect.Field slot = null;
+            for (java.lang.reflect.Field field : Minecraft.class.getDeclaredFields()) {
+                if (field.getType() == Font.class) {
+                    field.setAccessible(true);
+                    slot = field;
+                    break;
+                }
+            }
+            if (slot == null) return;
 
-        Font built = build(mc, id);
-        if (built == null) {
-            broken = true;
-            SpaceClient.LOGGER.warn(
-                    "Custom interface fonts unavailable on this version; using the game's own");
-            return mc.font;
+            if (original == null) original = (Font) slot.get(mc);
+            if (original == null) return;
+
+            String style = SpaceClient.getSettings().fontStyle();
+            if ("MINECRAFT".equals(style)) {
+                slot.set(mc, original);
+                return;
+            }
+
+            Identifier id = idFor(style);
+            if (id == null) return;
+
+            Font built = cache.get(style);
+            if (built == null) {
+                built = build(mc, id);
+                if (built == null) {
+                    // Leave the game's own font in place rather than half
+                    // applying a change nothing can undo
+                    SpaceClient.LOGGER.warn(
+                            "Could not build the {} font; keeping the game's own", style);
+                    return;
+                }
+                cache.put(style, built);
+            }
+            slot.set(mc, built);
+
+        } catch (Throwable t) {
+            SpaceClient.LOGGER.warn("Could not apply the interface font: {}", t.getMessage());
         }
-
-        cache.put(style, built);
-        return built;
     }
 
     /**
@@ -97,7 +143,7 @@ public final class Fonts {
             for (Field field : Font.class.getDeclaredFields()) {
                 if (!Function.class.isAssignableFrom(field.getType())) continue;
                 field.setAccessible(true);
-                Object value = field.get(mc.font);
+                Object value = field.get(original != null ? original : mc.font);
                 if (value instanceof Function<?, ?> function) {
                     lookup = (Function<Identifier, Object>) function;
                     break;
@@ -132,10 +178,11 @@ public final class Fonts {
         }
     }
 
-    /** Forgets the built fonts, so a change of setting takes effect at once. */
+    /** Forgets the built fonts and re-applies, so a change takes effect at once. */
     public static void invalidate() {
         cache.clear();
         broken = false;
+        apply();
     }
 
     private Fonts() {}

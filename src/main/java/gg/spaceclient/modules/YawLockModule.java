@@ -57,6 +57,6 @@ public class YawLockModule extends HudModule {
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
         float off = Math.abs(deviation());
         int color = off < 0.05f ? 0xFF4ADE80 : off < 2f ? 0xFFFFD9A0 : textColor.get();
-        rollingText(graphics, "main", text(), x, y, color, true);
+        rollingText(graphics, "main", text(), x, y, color, false);
     }
 }

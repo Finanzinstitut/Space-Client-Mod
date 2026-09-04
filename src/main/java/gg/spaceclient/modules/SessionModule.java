@@ -50,12 +50,12 @@ public class SessionModule extends HudModule {
                 elapsed / 3600, (elapsed % 3600) / 60, elapsed % 60);
 
         clock.set(text);
-        clock.draw(graphics, Fonts.ui(), x, y, textColor.get(), true);
+        clock.draw(graphics, Fonts.ui(), x, y, textColor.get(), false);
 
         if (breakReminder.get() && elapsedMs > REMINDER_AFTER_MS) {
             long hours = elapsedMs / (60 * 60 * 1000);
             graphics.text(Fonts.ui(), hours + "h - time for a break?",
-                    x, y + Fonts.ui().lineHeight + 2, 0xFF38E0FF, true);
+                    x, y + Fonts.ui().lineHeight + 2, 0xFF38E0FF, false);
         }
     }
 }

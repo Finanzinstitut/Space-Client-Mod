@@ -42,6 +42,6 @@ public class CrosshairInfoModule extends HudModule {
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
-        rollingText(graphics, "main", text(), x, y, textColor.get(), true);
+        rollingText(graphics, "main", text(), x, y, textColor.get(), false);
     }
 }

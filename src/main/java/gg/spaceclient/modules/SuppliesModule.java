@@ -167,7 +167,7 @@ public class SuppliesModule extends HudModule {
             pulse.watchDrop(entry.count());
 
             graphics.text(Fonts.ui(), entry.label(), x, lineY,
-                    pulse.tint(0xFFAAAAAA, 0xFFFFFFFF), true);
+                    pulse.tint(0xFFAAAAAA, 0xFFFFFFFF), false);
 
             // Red at one, amber at nothing: running out and being out are
             // different problems, and the first is the one worth catching
@@ -185,7 +185,7 @@ public class SuppliesModule extends HudModule {
             counter.set(Integer.toString(entry.count()));
 
             counter.draw(graphics, Fonts.ui(),
-                    x + getWidth() - counter.width(Fonts.ui()), lineY, color, true);
+                    x + getWidth() - counter.width(Fonts.ui()), lineY, color, false);
             line++;
         }
     }

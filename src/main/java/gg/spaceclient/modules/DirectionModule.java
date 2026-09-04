@@ -72,6 +72,6 @@ public class DirectionModule extends HudModule {
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
-        graphics.text(Fonts.ui(), text(), x, y, textColor.get(), true);
+        graphics.text(Fonts.ui(), text(), x, y, textColor.get(), false);
     }
 }

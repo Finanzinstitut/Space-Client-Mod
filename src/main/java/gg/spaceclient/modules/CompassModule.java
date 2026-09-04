@@ -58,7 +58,7 @@ public class CompassModule extends HudModule {
             int labelX = px - Fonts.ui().width(label) / 2;
             boolean cardinal = i % 2 == 0;
             graphics.text(Fonts.ui(), label, labelX, y + 4,
-                    cardinal ? textColor.get() : 0xFF9A95C9, true);
+                    cardinal ? textColor.get() : 0xFF9A95C9, false);
         }
 
         // Centre marker
@@ -68,7 +68,7 @@ public class CompassModule extends HudModule {
             String degrees = String.format("%.0f°", heading);
             graphics.text(Fonts.ui(), degrees,
                     centre - Fonts.ui().width(degrees) / 2, y + Fonts.ui().lineHeight + 4,
-                    textColor.get(), true);
+                    textColor.get(), false);
         }
     }
 }

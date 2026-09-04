@@ -129,7 +129,7 @@ public class MouseTrackerModule extends HudModule {
                     ? cps.getLeftCps() + " | " + cps.getRightCps() + " CPS"
                     : "0 | 0 CPS";
             int textX = x + (BODY_W - Fonts.ui().width(text)) / 2;
-            rollingText(graphics, "cps", text, textX, y + BODY_H + 3, 0xFFFFFFFF, true);
+            rollingText(graphics, "cps", text, textX, y + BODY_H + 3, 0xFFFFFFFF, false);
         }
     }
 }

@@ -147,7 +147,7 @@ public class ConnectionModule extends HudModule {
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
         sample();
 
-        rollingText(graphics, "main", text(), x, y, textColor.get(), true);
+        rollingText(graphics, "main", text(), x, y, textColor.get(), false);
         if (!showGraph.get()) return;
 
         int top = y + Fonts.ui().lineHeight + 2;

@@ -93,6 +93,9 @@ public class SpaceClient implements ClientModInitializer {
         // is attached.
         gg.spaceclient.net.Handshake.register();
 
+        // After the config is read, so the saved choice is the one applied
+        gg.spaceclient.ui.Fonts.apply();
+
         // Key mappings now take a registered Category object rather than a
         // translation key string.
         KeyMapping.Category category = KeyMapping.Category.register(

@@ -114,7 +114,7 @@ public class DurabilityModule extends HudModule {
             // Keyed by line, which is safe here: the main hand is always first
             // and the offhand only ever appears below it
             rollingText(graphics, "hand" + line, reading.label(),
-                    x, y + line * (Fonts.ui().lineHeight + 1), colourFor(reading), true);
+                    x, y + line * (Fonts.ui().lineHeight + 1), colourFor(reading), false);
             line++;
         }
     }

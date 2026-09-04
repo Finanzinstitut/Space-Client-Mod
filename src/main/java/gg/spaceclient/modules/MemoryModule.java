@@ -66,7 +66,7 @@ public class MemoryModule extends HudModule {
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
         float ratio = ratio();
         int color = ratio > 0.9f ? 0xFFFF6B81 : ratio > 0.75f ? 0xFFFFD9A0 : textColor.get();
-        graphics.text(Fonts.ui(), text(), x, y, color, true);
+        graphics.text(Fonts.ui(), text(), x, y, color, false);
 
         if (!showBar.get()) return;
         int barY = y + Fonts.ui().lineHeight + 2;

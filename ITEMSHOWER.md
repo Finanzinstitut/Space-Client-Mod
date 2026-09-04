@@ -864,3 +864,45 @@ Zwei Zahlen in `src/main/resources/assets/minecraft/font/default.json`:
 Beide kannst du auf GitHub in einer halben Minute ändern und neu bauen. Ich
 kann das ohne laufendes Spiel nicht treffen, aber du siehst sofort, in welche
 Richtung es muss.
+
+---
+
+# 1.11.0 — Umschalter wirkt überall, Schatten weg, schärfer
+
+## Der Umschalter ändert jetzt wirklich alles
+
+Er hat vorher nur die Screens dieses Mods umgestellt, weil ich davon ausging,
+mehr sei ohne Ressourcen-Neuladen nicht möglich. Das stimmt für
+Ressourcenpakete, aber nicht für den Weg, den ich übersehen hatte:
+
+`Minecraft.font` ist ein ganz gewöhnliches Feld mit einem ganz gewöhnlichen
+Objekt darin, und **alles** im Spiel zeichnet darüber — Menüs, Chat, Schilder,
+Itemnamen. Wird es ausgetauscht, ändert sich alles auf einmal; wird das
+Original zurückgesetzt, ist es genauso vollständig rückgängig.
+
+`Fonts.apply()` macht genau das, beim Start und bei jeder Änderung im
+Appearance-Menü. Die ursprüngliche Schrift wird beim ersten Mal beiseitegelegt,
+damit "Minecraft" sie unverändert zurückgeben kann.
+
+Ein Detail, das sonst beim zweiten Wechsel schiefgegangen wäre: Beim Bauen
+einer Schrift borgt sich der Code die Glyphen-Funktion aus dem Font des Spiels.
+Nach dem ersten Austausch ist das aber schon unsere eigene — deshalb wird
+immer vom beiseitegelegten Original geborgt.
+
+## Schatten
+
+Alle Zeichenaufrufe dieses Mods setzen den Schatten jetzt auf aus: 29 Dateien,
+kein Aufruf mehr übrig. Der Schatten war für eine Pixelschrift gedacht, die ihn
+zum Abheben braucht; unter einer geglätteten Schrift ist er ein zweiter,
+unscharfer Umriss und genau das, was "verpixelt" aussehen lässt.
+
+## Schärfe
+
+`oversample` von 4 auf **8**, in allen vier Font-Definitionen. Das ist der
+Faktor, mit dem die Glyphen vor dem Verkleinern gerastert werden — je höher,
+desto feiner die Kanten bei gleicher Textgröße. Acht ist das Maximum, das noch
+sinnvoll ist; darüber wächst nur der Speicher für den Glyphen-Atlas.
+
+Die Größe bleibt bei 9.0. Falls der Text danach immer noch zu groß oder zu
+klein wirkt, ist das die eine Zahl in
+`assets/minecraft/font/default.json`, die du dafür ändern musst.

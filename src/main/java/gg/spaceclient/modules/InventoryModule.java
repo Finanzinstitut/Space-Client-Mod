@@ -173,6 +173,6 @@ public class InventoryModule extends HudModule {
         // two slots swapping digits at each other
         String label = Integer.toString(count);
         int labelX = x + ICON - Fonts.ui().width(label);
-        rollingText(graphics, "slot" + slot, label, labelX, y + ICON - 7, 0xFFFFFFFF, true);
+        rollingText(graphics, "slot" + slot, label, labelX, y + ICON - 7, 0xFFFFFFFF, false);
     }
 }

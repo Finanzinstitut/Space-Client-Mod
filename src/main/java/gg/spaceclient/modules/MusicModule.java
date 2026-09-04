@@ -140,9 +140,9 @@ public class MusicModule extends HudModule {
         title = trim(title, WIDTH - ART - 20);
         subtitle = trim(subtitle, WIDTH - ART - 20);
 
-        graphics.text(Fonts.ui(), title, textX, y + 6, titleColor.get(), true);
+        graphics.text(Fonts.ui(), title, textX, y + 6, titleColor.get(), false);
         graphics.text(Fonts.ui(), subtitle, textX, y + 6 + Fonts.ui().lineHeight + 1,
-                artistColor.get(), true);
+                artistColor.get(), false);
 
         if (showSource.get() && !idle) {
             String label = playing.source().equals("Spotify") ? "SPOTIFY" : "AMAZON";
