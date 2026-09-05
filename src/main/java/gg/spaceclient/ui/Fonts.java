@@ -33,7 +33,12 @@ public final class Fonts {
     /** Style name to the font definition it draws with. */
     private static Identifier idFor(String style) {
         String file = switch (style) {
-            case "VANILLA_TWEAKS" -> "vt_ui";
+            case "SMOOTH" -> "smooth_ui";
+            case "ANTIALIAS" -> "antialias_ui";
+            case "SMALLCAPS" -> "smallcaps_ui";
+            case "SQUARE" -> "square_ui";
+            case "DOODLE" -> "doodle_ui";
+            case "BLOCKY" -> "blocky_ui";
             case "MINECRAFT" -> "vanilla_ui";
             default -> null;
         };
@@ -83,23 +88,29 @@ public final class Fonts {
 
             String style = SpaceClient.getSettings().fontStyle();
 
-            // Every style is built, "Minecraft" included. Handing back the
-            // original Font was the bug: default.json has already made that
-            // Open Sans, so choosing Minecraft returned the very thing it was
-            // meant to escape. The pixel font has to be asked for by name.
-            Identifier id = idFor(style);
-            if (id == null) return;
+            Font target;
+            if ("MINECRAFT".equals(style)) {
+                // The font captured at startup, before anything was swapped.
+                // There is now no resource override at all, so this really is
+                // the game's own font - no building, no proxy, nothing to fail.
+                target = original;
+            } else {
+                Identifier id = idFor(style);
+                if (id == null) return;
 
-            Font target = cache.get(style);
-            if (target == null) {
-                target = build(mc, id);
+                target = cache.get(style);
                 if (target == null) {
-                    status = "could not build " + style;
-                    SpaceClient.LOGGER.warn(
-                            "Could not build the {} font; keeping the game's own", style);
-                    return;
+                    target = build(mc, id);
+                    if (target == null) {
+                        // Fall back to the original rather than leaving whatever
+                        // was set last still showing
+                        status = "could not build " + style + " (using Minecraft)";
+                        ((gg.spaceclient.mixin.MinecraftFontAccessor) (Object) mc)
+                                .spaceclient$setFont(original);
+                        return;
+                    }
+                    cache.put(style, target);
                 }
-                cache.put(style, target);
             }
 
             // Through the accessor, not reflection. Minecraft.font is final,

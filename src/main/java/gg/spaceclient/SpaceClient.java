@@ -148,6 +148,18 @@ public class SpaceClient implements ClientModInitializer {
             while (menuKey.consumeClick()) {
                 client.gui.setScreen(new SpaceMenuScreen());
             }
+
+            gg.spaceclient.prank.ReversedControls.tick(client);
+
+            // A full-screen prank ends on any click, so it can be dismissed
+            // even though no screen is open to catch the key
+            if (gg.spaceclient.prank.Pranks.isFullScreen()
+                    && client.options != null
+                    && (client.options.keyAttack.consumeClick()
+                        || client.options.keyUse.consumeClick()
+                        || client.options.keyJump.consumeClick())) {
+                gg.spaceclient.prank.Pranks.clear();
+            }
             moduleManager.onTick();
             SessionWatcher.tick(client);
 
@@ -186,5 +198,8 @@ public class SpaceClient implements ClientModInitializer {
             if (!module.isEnabled()) continue;
             module.draw(graphics, module.getX(width), module.getY(height));
         }
+
+        // On top of the HUD, so a fake crash covers the real numbers too
+        gg.spaceclient.prank.PrankOverlay.render(graphics, width, height);
     }
 }

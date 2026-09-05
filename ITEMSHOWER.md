@@ -1099,3 +1099,108 @@ drei Dateien**. VanillaTweaks packt sie übereinander, also hat genau eine
 Für weitere lade sie bitte **einzeln** herunter: auf vanillatweaks.net jeweils
 nur eine Schrift auswählen, herunterladen, nächste. Jede weitere ist dann drei
 Zeilen Arbeit.
+
+---
+
+# 1.14.0 — Prank-Menü (rein lokal)
+
+Rechte Shift → **Pranks**. Sieben Effekte, alle nur auf deinem eigenen
+Bildschirm. Kein einziger sendet etwas ans Netzwerk oder berührt einen anderen
+Spieler — es gibt im Code schlicht keinen Pfad dorthin. Für ein Video reicht
+das, weil die Kamera deinen Schirm sieht; das Spiel deines Freundes läuft
+unberührt weiter, und genau das hält den Client von jeder Bannliste fern.
+
+## Die Effekte
+
+- **Fake crash** — der Absturzbericht mit erfundenem Stacktrace, Taste weg.
+- **Fake kick** — der "Disconnected"-Bildschirm mit Grund und Zurück-Knopf.
+- **Fake ban** — "You are banned", Grund und Dauer im Menü einstellbar.
+- **Fake lag (5s)** — pulsierendes Abdunkeln mit "Downloading terrain...".
+- **Reverse controls (5s)** — A und D vertauscht.
+- **Screen: Shake / Flip / Static / Crack** — je 4 Sekunden.
+- **Fake chat** — eine erfundene Server-Zeile, dort wo der Chat sitzt.
+
+Die drei Vollbild-Effekte (Crash, Kick, Ban) bleiben, bis du eine Maustaste
+oder Leertaste drückst; die anderen laufen auf einer Uhr ab.
+
+## Wie es umgesetzt ist, und warum so
+
+Alles hängt an einem Zustand in `prank/Pranks`, gezeichnet von
+`prank/PrankOverlay` über den bestehenden HUD-Hook — also über allem, weshalb
+ein Fake-Crash auch die echten HUD-Zahlen verdeckt.
+
+Zwei Sachen liefen bewusst nicht über die naheliegende API:
+
+**Fake chat** geht nicht in die echte Chat-Komponente. `getChat().addMessage`
+ist auf 26.2 unbewiesen, und selbst gezeichnet ist die Zeile garantiert lokal —
+sie kann gar nicht erst versehentlich in echten Chat geraten.
+
+**Reverse controls** erzwingt keine Tastendrücke (`setDown` ist unbewiesen),
+sondern tauscht die beiden KeyMapping-Objekte für Links und Rechts auf den
+Options. A tut, was D tat, zurückgetauscht wird exakt rückgängig gemacht. Falls
+die Felder auf dieser Version final sein sollten, passiert einfach nichts — ein
+fairer Ausfall für einen Scherz.
+
+Nichts hier braucht ein neues Mixin, und der Server-Mod bleibt unberührt.
+
+---
+
+# 1.14.1 — Schriftwechsel repariert, "Smooth Font" drin
+
+## Warum "could not build MINECRAFT" auf dem Screen stand
+
+Ich habe jede Schrift über den Proxy gebaut, auch "Minecraft" - und wenn der
+Proxy scheitert, blieb die zuletzt gesetzte Schrift hängen. Das war Open Sans
+aus einem alten Build, plus eine gespeicherte Config, die noch auf einem alten
+Wert stand.
+
+"Minecraft" wird jetzt gar nicht mehr gebaut: Es ist einfach `original`, der
+Font, den ich beim Spielstart festhalte, bevor irgendetwas umgestellt wird. Da
+es keine globale Überschreibung mehr gibt, ist das wirklich die Schrift des
+Spiels - nichts zu bauen, nichts das scheitern kann. Und wenn eine andere
+Schrift sich mal nicht bauen lässt, fällt sie sichtbar auf Minecraft zurück,
+statt eine falsche hängen zu lassen.
+
+## Zur Zip: es ist wirklich nur eine Schrift drin
+
+Ich hatte nachgesehen, und diesmal ganz genau: In der Zip liegen nur die
+Bitmap-PNGs, keine sechs getrennten Schriften. **VanillaTweaks verschmilzt die
+Auswahl beim Download zu einer einzigen** - was in `ascii.png` liegt, ist eine
+Mischung, aus der ich sechs umschaltbare Schriften nicht zurückgewinnen kann.
+
+Die eine, die drin ist, habe ich mir angesehen: eine glatte serifenlose Schrift
+- das ist **Smooth Font** aus deinem Screenshot. Die ist jetzt als Stil drin,
+unter **Appearance → Font** neben "Minecraft" wählbar.
+
+## Für die anderen fünf
+
+Direkt herunterladen kann ich sie nicht - VanillaTweaks blockt automatisierte
+Zugriffe. Du musst sie einzeln holen: auf vanillatweaks.net **nur eine** Schrift
+auswählen, herunterladen, das dann für jede wiederholen. Schick mir die
+einzelnen Zips (oder auch nur die, die du wirklich willst), dann ist jede weitere
+ein Eintrag in der Liste - ein paar Zeilen pro Stück.
+
+Die Namen aus deinem Screenshot: Smooth, Anti-Alias, Small Caps, Square, Doodle,
+Blocky.
+
+---
+
+# 1.15.0 — alle sechs Schriften
+
+Diesmal kamen sie einzeln, und jede ist eine eigene Datei — sechs
+unterschiedliche Prüfsummen, also wirklich sechs Schriften und keine Mischung.
+Alle sind eingebaut und unter **Appearance → Font** durchschaltbar:
+
+Minecraft · Smooth · Anti-Alias · Small Caps · Square · Doodle · Blocky
+
+Die Namen sind die aus deinem Screenshot. Jede liegt als eigene Bitmap im Mod
+und wird zur Laufzeit gesetzt, ohne Ressourcen-Neuladen — derselbe Weg, der seit
+1.14.1 für den sauberen Wechsel sorgt.
+
+Wo eine Schrift kein `accented.png` oder `nonlatin.png` mitbringt, fällt dieser
+Teil auf die vanilla-Glyphen zurück, damit keine Sprache Zeichen verliert. Die
+Latein-Buchstaben, Zahlen und Satzzeichen — also alles, was man tatsächlich
+sieht — kommen aus der gewählten Schrift.
+
+Der Prank-Einladungscode und das Panel stehen weiterhin aus; sag Bescheid, wenn
+die Schriften sitzen, dann ist das das Nächste.

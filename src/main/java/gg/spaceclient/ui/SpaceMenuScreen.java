@@ -194,6 +194,7 @@ public class SpaceMenuScreen extends Screen {
                 {"Mods", ""},
                 {"Move HUD", "hud"},
                 {"Item Shower", "itemshower"},
+                {"Pranks", "pranks"},
                 {"Accounts", "accounts"},
                 {"Cosmetica", "cosmetica"},
                 {"Appearance", "appearance"},
@@ -218,6 +219,7 @@ public class SpaceMenuScreen extends Screen {
         switch (opens) {
             case "hud" -> mc.gui.setScreen(new HudEditorScreen(this));
             case "itemshower" -> mc.gui.setScreen(new ItemShowerScreen(this));
+            case "pranks" -> mc.gui.setScreen(new PrankScreen(this));
             case "accounts" -> mc.gui.setScreen(new AccountsScreen(this));
             case "cosmetica" -> mc.gui.setScreen(new CosmeticsScreen(this));
             case "appearance" -> mc.gui.setScreen(new AppearanceScreen(this));

@@ -37,7 +37,12 @@ public class AppearanceScreen extends Screen {
      */
     private static String prettyFont(String style) {
         return switch (style) {
-            case "VANILLA_TWEAKS" -> "Vanilla Tweaks";
+            case "SMOOTH" -> "Smooth Font";
+            case "ANTIALIAS" -> "Anti-Alias Font";
+            case "SMALLCAPS" -> "Small Caps Font";
+            case "SQUARE" -> "Square Font";
+            case "DOODLE" -> "Doodle Font";
+            case "BLOCKY" -> "Blocky Font";
             default -> "Minecraft";
         };
     }
