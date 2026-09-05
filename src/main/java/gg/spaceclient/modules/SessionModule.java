@@ -4,7 +4,6 @@ import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
 import gg.spaceclient.ui.Odometer;
-import gg.spaceclient.ui.Fonts;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
@@ -31,7 +30,7 @@ public class SessionModule extends HudModule {
     public int getWidth() { return 70; }
 
     @Override
-    public int getHeight() { return Fonts.ui().lineHeight * 2 + 2; }
+    public int getHeight() { return mc.font.lineHeight * 2 + 2; }
 
     /**
      * The clock this was always meant to be.
@@ -50,12 +49,12 @@ public class SessionModule extends HudModule {
                 elapsed / 3600, (elapsed % 3600) / 60, elapsed % 60);
 
         clock.set(text);
-        clock.draw(graphics, Fonts.ui(), x, y, textColor.get(), false);
+        clock.draw(graphics, mc.font, x, y, textColor.get(), true);
 
         if (breakReminder.get() && elapsedMs > REMINDER_AFTER_MS) {
             long hours = elapsedMs / (60 * 60 * 1000);
-            graphics.text(Fonts.ui(), hours + "h - time for a break?",
-                    x, y + Fonts.ui().lineHeight + 2, 0xFF38E0FF, false);
+            graphics.text(mc.font, hours + "h - time for a break?",
+                    x, y + mc.font.lineHeight + 2, 0xFF38E0FF, true);
         }
     }
 }

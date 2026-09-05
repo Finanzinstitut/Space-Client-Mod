@@ -2,6 +2,7 @@ package gg.spaceclient.ui;
 
 import gg.spaceclient.SpaceClient;
 import gg.spaceclient.config.ClientSettings;
+import gg.spaceclient.util.Screens;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -29,19 +30,6 @@ public class AppearanceScreen extends Screen {
      * The names are stored as they are so an old config keeps working, but
      * BLACK_HOLE is not what anybody wants to read on a button.
      */
-    /**
-     * Readable names for the typefaces.
-     *
-     * "Minecraft" rather than "Default", because it says what you get rather
-     * than what the setting happens to start at.
-     */
-    private static String prettyFont(String style) {
-        return switch (style) {
-            case "DOODLE" -> "Doodle Font";
-            default -> "Minecraft";
-        };
-    }
-
     private static String prettyStyle(String style) {
         return switch (style) {
             case "SPACE" -> "Starfield";
@@ -73,24 +61,25 @@ public class AppearanceScreen extends Screen {
         ));
         y += ROW_H + GAP;
 
+        // Opens a screen rather than cycling in place like the background does.
+        // Eight fonts is too many to page through one press at a time, and
+        // unlike a background a font cannot be judged from its name - the
+        // picker has room for a line saying what each one looks like.
         this.addRenderableWidget(new FlatButton(
                 left, y, PANEL_W, ROW_H,
-                () -> "Font: " + prettyFont(settings.fontStyle()),
+                () -> "Font: " + gg.spaceclient.font.FontStyle
+                        .byId(settings.fontStyle()).label(),
                 () -> false,
-                () -> {
-                    settings.cycleFont();
-                    SpaceClient.getConfigManager().save();
-                    this.rebuildWidgets();
-                }
-        ));
-        y += ROW_H + GAP * 2;
+                () -> Screens.open(new FontScreen(this))
+        ).asAction());
+        y += ROW_H + GAP + 4;
 
         // The accent is picked on a wheel; a hex field would mean typing.
         this.addRenderableWidget(new ColorWheel(
                 left, y, 96, settings.accentSetting(),
                 () -> SpaceClient.getConfigManager().save()
         ));
-        y += 96 + GAP * 2;
+        y += 96 + GAP + 4;
 
 
         this.addRenderableWidget(new FlatButton(
@@ -111,8 +100,8 @@ public class AppearanceScreen extends Screen {
         graphics.fill(left - 18, 20, left + PANEL_W + 18, 21, Theme.BORDER);
 
         JupiterIcon.draw(graphics, left, 34, 24);
-        graphics.text(Fonts.ui(), "APPEARANCE", left + 34, 38, Theme.CYAN, false);
-        graphics.text(Fonts.ui(), "Accent colour and menu background",
+        graphics.text(this.font, "APPEARANCE", left + 34, 38, Theme.CYAN, false);
+        graphics.text(this.font, "Font, accent colour and menu background",
                 left + 34, 50, Theme.TEXT_DIM, false);
         graphics.fill(left, 74, left + PANEL_W, 75, Theme.BORDER);
 
@@ -120,7 +109,7 @@ public class AppearanceScreen extends Screen {
 
         // Live preview swatch of the current accent
         int swatchY = this.height - 60;
-        graphics.text(Fonts.ui(), "Preview", left, swatchY - 12, Theme.TEXT_DIM, false);
+        graphics.text(this.font, "Preview", left, swatchY - 12, Theme.TEXT_DIM, false);
         graphics.fill(left, swatchY, left + PANEL_W, swatchY + 18, Theme.accentDim());
         graphics.fill(left, swatchY, left + 3, swatchY + 18, Theme.accent());
     }

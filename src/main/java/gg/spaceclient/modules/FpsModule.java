@@ -3,7 +3,6 @@ package gg.spaceclient.modules;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.ColorSetting;
 import gg.spaceclient.ui.Odometer;
-import gg.spaceclient.ui.Fonts;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 public class FpsModule extends HudModule {
@@ -27,14 +26,14 @@ public class FpsModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return Fonts.ui().width(mc.getFps() + " FPS"); }
+    public int getWidth() { return mc.font.width(mc.getFps() + " FPS"); }
 
     @Override
-    public int getHeight() { return Fonts.ui().lineHeight; }
+    public int getHeight() { return mc.font.lineHeight; }
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
         shown.set(mc.getFps() + " FPS");
-        shown.draw(graphics, Fonts.ui(), x, y, textColor.get(), false);
+        shown.draw(graphics, mc.font, x, y, textColor.get(), true);
     }
 }

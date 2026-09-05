@@ -7,7 +7,6 @@ import gg.spaceclient.setting.ColorSetting;
 import gg.spaceclient.ui.Pulse;
 import gg.spaceclient.ui.Textures;
 import gg.spaceclient.ui.Theme;
-import gg.spaceclient.ui.Fonts;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.resources.Identifier;
@@ -119,18 +118,18 @@ public class TwitchModule extends HudModule {
 
     @Override
     public int getWidth() {
-        int width = iconWidth() + Fonts.ui().width(countLine()) + 4 + Fonts.ui().width(FOLLOWERS);
+        int width = iconWidth() + mc.font.width(countLine()) + 4 + mc.font.width(FOLLOWERS);
 
         String last = Twitch.lastFollower();
         if (showLast.get() && Twitch.isLinked() && !last.isEmpty()) {
-            width = Math.max(width, iconWidth() + Fonts.ui().width(NEWEST + last));
+            width = Math.max(width, iconWidth() + mc.font.width(NEWEST + last));
         }
         return width + PAD * 2;
     }
 
     @Override
     public int getHeight() {
-        return PAD * 2 + Fonts.ui().lineHeight + (secondLine() ? Fonts.ui().lineHeight + 1 : 0);
+        return PAD * 2 + mc.font.lineHeight + (secondLine() ? mc.font.lineHeight + 1 : 0);
     }
 
     private boolean secondLine() {
@@ -159,7 +158,7 @@ public class TwitchModule extends HudModule {
         int lineY = y + PAD;
 
         if (showIcon.get()) {
-            int iconY = lineY + (Fonts.ui().lineHeight - ICON_SIZE) / 2;
+            int iconY = lineY + (mc.font.lineHeight - ICON_SIZE) / 2;
             // Through Textures rather than a direct blit: the texture call's
             // signature on 26.2 is unverified, and that class resolves it at
             // runtime, so a wrong guess costs a coloured square rather than a
@@ -174,20 +173,20 @@ public class TwitchModule extends HudModule {
 
         int color = Twitch.isLinked()
                 ? gained.tint(textColor.get(), BRAND_LIGHT) : Theme.OFF;
-        rollingText(graphics, "followers", count, textX, lineY, color, false);
+        graphics.text(mc.font, count, textX, lineY, color, false);
 
         // The word sits dimmer and after the number, so the eye lands on the
         // figure first
         if (Twitch.isLinked()) {
-            graphics.text(Fonts.ui(), FOLLOWERS,
-                    textX + Fonts.ui().width(count) + 4, lineY, Theme.OFF, false);
+            graphics.text(mc.font, FOLLOWERS,
+                    textX + mc.font.width(count) + 4, lineY, Theme.OFF, false);
         }
 
         if (secondLine()) {
-            int secondY = lineY + Fonts.ui().lineHeight + 1;
-            graphics.text(Fonts.ui(), NEWEST, x + PAD, secondY, Theme.OFF, false);
-            graphics.text(Fonts.ui(), Twitch.lastFollower(),
-                    x + PAD + Fonts.ui().width(NEWEST), secondY, BRAND_LIGHT, false);
+            int secondY = lineY + mc.font.lineHeight + 1;
+            graphics.text(mc.font, NEWEST, x + PAD, secondY, Theme.OFF, false);
+            graphics.text(mc.font, Twitch.lastFollower(),
+                    x + PAD + mc.font.width(NEWEST), secondY, BRAND_LIGHT, false);
         }
     }
 }

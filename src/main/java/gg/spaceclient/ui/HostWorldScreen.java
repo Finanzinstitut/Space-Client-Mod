@@ -94,8 +94,8 @@ public class HostWorldScreen extends Screen {
         graphics.fill(left - 18, 20, left + PANEL_W + 18, 21, Theme.BORDER);
 
         JupiterIcon.draw(graphics, left, 34, 24);
-        graphics.text(Fonts.ui(), "HOST WORLD", left + 34, 38, Theme.CYAN, false);
-        graphics.text(Fonts.ui(), "Open this world to friends",
+        graphics.text(this.font, "HOST WORLD", left + 34, 38, Theme.CYAN, false);
+        graphics.text(this.font, "Open this world to friends",
                 left + 34, 50, Theme.TEXT_DIM, false);
         graphics.fill(left, 74, left + PANEL_W, 75, Theme.BORDER);
 
@@ -104,25 +104,25 @@ public class HostWorldScreen extends Screen {
         // outside - and that difference is the whole story for the person
         // waiting on an address to send.
         if (WorldHost.allowsOffline()) {
-            graphics.text(Fonts.ui(),
+            graphics.text(this.font,
                     "Anyone who can reach the world may pick any name.",
                     left, 190, 0xFFFFC65C, false);
         }
 
         int y = this.height - 96;
-        graphics.text(Fonts.ui(), "Status", left, y, Theme.TEXT, false);
-        y += Fonts.ui().lineHeight + 3;
+        graphics.text(this.font, "Status", left, y, Theme.TEXT, false);
+        y += this.font.lineHeight + 3;
 
         String text = WorldHost.status();
         int room = PANEL_W;
         while (!text.isEmpty() && y < this.height - 54) {
             String row = text;
-            while (Fonts.ui().width(row) > room && row.length() > 1) {
+            while (this.font.width(row) > room && row.length() > 1) {
                 row = row.substring(0, row.length() - 1);
             }
-            graphics.text(Fonts.ui(), row, left, y, Theme.TEXT_DIM, false);
+            graphics.text(this.font, row, left, y, Theme.TEXT_DIM, false);
             text = text.substring(row.length());
-            y += Fonts.ui().lineHeight + 2;
+            y += this.font.lineHeight + 2;
         }
 
         super.extractRenderState(graphics, mouseX, mouseY, delta);

@@ -5,7 +5,6 @@ import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
 import gg.spaceclient.ui.Odometer;
 import gg.spaceclient.ui.Pulse;
-import gg.spaceclient.ui.Fonts;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.world.item.ItemStack;
@@ -147,27 +146,27 @@ public class SuppliesModule extends HudModule {
     public int getWidth() {
         int width = 0;
         for (Entry entry : entries()) {
-            width = Math.max(width, Fonts.ui().width(entry.label() + "  " + entry.count()));
+            width = Math.max(width, mc.font.width(entry.label() + "  " + entry.count()));
         }
         return Math.max(width, 40);
     }
 
     @Override
     public int getHeight() {
-        return Math.max(1, entries().size()) * (Fonts.ui().lineHeight + 1);
+        return Math.max(1, entries().size()) * (mc.font.lineHeight + 1);
     }
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
         int line = 0;
         for (Entry entry : entries()) {
-            int lineY = y + line * (Fonts.ui().lineHeight + 1);
+            int lineY = y + line * (mc.font.lineHeight + 1);
 
             Pulse pulse = pulses.computeIfAbsent(entry.label(), key -> new Pulse());
             pulse.watchDrop(entry.count());
 
-            graphics.text(Fonts.ui(), entry.label(), x, lineY,
-                    pulse.tint(0xFFAAAAAA, 0xFFFFFFFF), false);
+            graphics.text(mc.font, entry.label(), x, lineY,
+                    pulse.tint(0xFFAAAAAA, 0xFFFFFFFF), true);
 
             // Red at one, amber at nothing: running out and being out are
             // different problems, and the first is the one worth catching
@@ -184,8 +183,8 @@ public class SuppliesModule extends HudModule {
             Odometer counter = counters.computeIfAbsent(entry.label(), key -> new Odometer());
             counter.set(Integer.toString(entry.count()));
 
-            counter.draw(graphics, Fonts.ui(),
-                    x + getWidth() - counter.width(Fonts.ui()), lineY, color, false);
+            counter.draw(graphics, mc.font,
+                    x + getWidth() - counter.width(mc.font), lineY, color, true);
             line++;
         }
     }

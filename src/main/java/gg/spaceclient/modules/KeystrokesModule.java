@@ -5,7 +5,6 @@ import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
 import gg.spaceclient.setting.ModeSetting;
-import gg.spaceclient.ui.Fonts;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
@@ -250,18 +249,9 @@ public class KeystrokesModule extends HudModule {
             // The label inverts on press so it stays readable on the bright fill
             int color = pressed ? 0xFF202020 : textColor.get();
 
-            int textX = cellX + (cellW - Fonts.ui().width(label)) / 2;
-            int textY = cellY + (UNIT - Fonts.ui().lineHeight) / 2;
-            // Only the click counters roll. A key called WASD is a name, not a
-            // number, and rolling letters would be movement without meaning.
-            boolean isCount = cps != null
-                    && (cell.label().equals("LMB") || cell.label().equals("RMB"));
-
-            if (isCount) {
-                rollingText(graphics, cell.label(), label, textX, textY, color, false);
-            } else {
-                graphics.text(Fonts.ui(), label, textX, textY, color, false);
-            }
+            int textX = cellX + (cellW - mc.font.width(label)) / 2;
+            int textY = cellY + (UNIT - mc.font.lineHeight) / 2;
+            graphics.text(mc.font, label, textX, textY, color, false);
         }
     }
 }

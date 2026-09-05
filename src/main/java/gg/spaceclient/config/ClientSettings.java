@@ -24,16 +24,17 @@ public class ClientSettings {
     private String backgroundStyle = "SPACE";
 
     /**
-     * Which typeface this client's own screens use.
+     * Which font the game draws with.
      *
-     * The game's own font by default. Nothing in the resources overrides it any
-     * more, so a fresh install looks exactly like vanilla until this is
-     * changed.
+     * DEFAULT is Minecraft's own, and it is the default on purpose: up to 1.8.2
+     * this client replaced the font for everybody with no setting to turn it
+     * off, which is not a decision a HUD mod should be making on its own. The
+     * old Open Sans override is still available, but now as a choice.
+     *
+     * This is only what the menu displays. The game reads its font from the
+     * selected resource packs, which Minecraft stores itself - see FontPacks.
      */
-    public static final List<String> FONT_STYLES =
-            Arrays.asList("MINECRAFT", "DOODLE");
-
-    private String fontStyle = "MINECRAFT";
+    private String fontStyle = gg.spaceclient.font.FontStyle.DEFAULT;
 
     /**
      * The accent lives in a ColorSetting so the same colour wheel widget the
@@ -44,16 +45,13 @@ public class ClientSettings {
     // The launcher's violet, so the in-game menu matches it out of the box.
     public String backgroundStyle() { return backgroundStyle; }
     public String fontStyle() { return fontStyle; }
+
+    public void setFontStyle(String id) {
+        if (gg.spaceclient.font.FontStyle.isKnown(id)) fontStyle = id;
+    }
+
     public int accentColor() { return accent.get(); }
     public ColorSetting accentSetting() { return accent; }
-
-    public void cycleFont() {
-        int index = FONT_STYLES.indexOf(fontStyle);
-        fontStyle = FONT_STYLES.get((index + 1) % FONT_STYLES.size());
-        // The built fonts are cached, so the new choice has to clear them or
-        // the screen keeps drawing in the old one until the game restarts
-        gg.spaceclient.ui.Fonts.invalidate();
-    }
 
     public void cycleBackground() {
         int index = BACKGROUND_STYLES.indexOf(backgroundStyle);
@@ -70,8 +68,8 @@ public class ClientSettings {
 
     public void save(JsonObject json) {
         json.addProperty("background_style", backgroundStyle);
-        json.addProperty("font_style", fontStyle);
         json.addProperty("accent_color", accent.get());
+        json.addProperty("font_style", fontStyle);
     }
 
     public void load(JsonObject json) {
@@ -79,12 +77,14 @@ public class ClientSettings {
             String value = json.get("background_style").getAsString();
             if (BACKGROUND_STYLES.contains(value)) backgroundStyle = value;
         }
-        if (json.has("font_style")) {
-            String value = json.get("font_style").getAsString();
-            if (FONT_STYLES.contains(value)) fontStyle = value;
-        }
         if (json.has("accent_color")) {
             accent.set(json.get("accent_color").getAsInt());
+        }
+        // setFontStyle rather than a plain assignment, so an id from a build
+        // that had a style this one does not falls back to Minecraft's font
+        // instead of naming a pack that will never be found.
+        if (json.has("font_style")) {
+            setFontStyle(json.get("font_style").getAsString());
         }
     }
 }

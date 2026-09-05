@@ -169,7 +169,7 @@ public class SpaceMenuScreen extends Screen {
         int x = contentRight() - PAD - w;
         int y = panelY() + 14;
 
-        search = new EditBox(Fonts.ui(), x, y, w, 16, Component.literal("Search"));
+        search = new EditBox(this.font, x, y, w, 16, Component.literal("Search"));
         search.setBordered(false);
         search.setMaxLength(48);
         search.setTextColor(Theme.TEXT);
@@ -194,7 +194,6 @@ public class SpaceMenuScreen extends Screen {
                 {"Mods", ""},
                 {"Move HUD", "hud"},
                 {"Item Shower", "itemshower"},
-                {"Pranks", "pranks"},
                 {"Accounts", "accounts"},
                 {"Cosmetica", "cosmetica"},
                 {"Appearance", "appearance"},
@@ -219,7 +218,6 @@ public class SpaceMenuScreen extends Screen {
         switch (opens) {
             case "hud" -> mc.gui.setScreen(new HudEditorScreen(this));
             case "itemshower" -> mc.gui.setScreen(new ItemShowerScreen(this));
-            case "pranks" -> mc.gui.setScreen(new PrankScreen(this));
             case "accounts" -> mc.gui.setScreen(new AccountsScreen(this));
             case "cosmetica" -> mc.gui.setScreen(new CosmeticsScreen(this));
             case "appearance" -> mc.gui.setScreen(new AppearanceScreen(this));
@@ -293,7 +291,7 @@ public class SpaceMenuScreen extends Screen {
         // Sits apart from the categories because it stacks with them rather
         // than replacing them: HUD plus enabled is a reasonable thing to ask
         String label = "On";
-        int w = Fonts.ui().width(label) + 16;
+        int w = this.font.width(label) + 16;
         if (x + w <= contentRight() - PAD) {
             this.addRenderableWidget(new NavButton(
                     x, y, w, CHIP_H, NavButton.Style.CHIP,
@@ -310,7 +308,7 @@ public class SpaceMenuScreen extends Screen {
 
     /** Returns the width used, so chips can sit side by side without a table. */
     private int chip(int x, int y, String label, String value) {
-        int w = Fonts.ui().width(label) + 16;
+        int w = this.font.width(label) + 16;
         this.addRenderableWidget(new NavButton(
                 x, y, w, CHIP_H, NavButton.Style.CHIP,
                 () -> label,
@@ -468,8 +466,8 @@ public class SpaceMenuScreen extends Screen {
 
         // Header
         JupiterIcon.draw(graphics, x0 + 12, y0 + 12, 18);
-        graphics.text(Fonts.ui(), "SPACE", x0 + 36, y0 + 12, Theme.accent(), false);
-        graphics.text(Fonts.ui(), "CLIENT", x0 + 36, y0 + 24, Theme.TEXT, false);
+        graphics.text(this.font, "SPACE", x0 + 36, y0 + 12, Theme.accent(), false);
+        graphics.text(this.font, "CLIENT", x0 + 36, y0 + 24, Theme.TEXT, false);
         graphics.fill(x0, y0 + HEADER_H - 4, x1, y0 + HEADER_H - 3, Theme.BORDER);
 
         // Search field: its own frame, since the vanilla border was turned off
@@ -483,7 +481,7 @@ public class SpaceMenuScreen extends Screen {
 
         if (shown().isEmpty()) {
             String empty = query.isEmpty() ? "Nothing here" : "No module matches";
-            graphics.text(Fonts.ui(), empty,
+            graphics.text(this.font, empty,
                     contentLeft() + PAD, listTop() + 10, Theme.TEXT_DIM, false);
         }
 
@@ -510,8 +508,8 @@ public class SpaceMenuScreen extends Screen {
                 ? Minecraft.getInstance().getUser().getName() : "Player";
         // Left of the streamer button, which now owns the right hand end
         String right = name + "  v" + SpaceClient.VERSION;
-        int rightX = contentRight() - PAD - 96 - 10 - Fonts.ui().width(right);
-        graphics.text(Fonts.ui(), right, rightX, y1 - 19, Theme.OFF, false);
+        int rightX = contentRight() - PAD - 96 - 10 - this.font.width(right);
+        graphics.text(this.font, right, rightX, y1 - 19, Theme.OFF, false);
 
         // Description of whichever row the pointer is over. Above the footer
         // rather than inside it: the profile button took that line, and a
@@ -527,8 +525,8 @@ public class SpaceMenuScreen extends Screen {
                 int index = scrollRow + i;
                 if (index < modules.size()) {
                     String description = modules.get(index).getDescription();
-                    graphics.text(Fonts.ui(),
-                            Fonts.ui().plainSubstrByWidth(description, room),
+                    graphics.text(this.font,
+                            this.font.plainSubstrByWidth(description, room),
                             contentLeft() + PAD, y1 - FOOTER_H - 11, Theme.TEXT_DIM, false);
                 }
                 break;

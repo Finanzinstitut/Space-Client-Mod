@@ -121,8 +121,8 @@ public class StreamerScreen extends Screen {
         graphics.fill(left - 18, 20, left + PANEL_W + 18, 21, Theme.BORDER);
 
         JupiterIcon.draw(graphics, left, 34, 24);
-        graphics.text(Fonts.ui(), "STREAMER MODE", left + 34, 38, Theme.CYAN, false);
-        graphics.text(Fonts.ui(), "Hides your position and shows your channel",
+        graphics.text(this.font, "STREAMER MODE", left + 34, 38, Theme.CYAN, false);
+        graphics.text(this.font, "Hides your position and shows your channel",
                 left + 34, 50, Theme.TEXT_DIM, false);
         graphics.fill(left, 74, left + PANEL_W, 75, Theme.BORDER);
 
@@ -133,31 +133,31 @@ public class StreamerScreen extends Screen {
         if (Twitch.isLinking()) {
             // The code is the whole point of this screen while linking, so it
             // gets the space and the accent colour
-            graphics.text(Fonts.ui(), "Open " + Twitch.verifyUrl(),
+            graphics.text(this.font, "Open " + Twitch.verifyUrl(),
                     left, y, Theme.TEXT_DIM, false);
-            graphics.text(Fonts.ui(), "and enter this code:", left, y + 12, Theme.TEXT_DIM, false);
-            graphics.text(Fonts.ui(), Twitch.userCode(), left, y + 28, Theme.accent(), false);
-            graphics.text(Fonts.ui(), "This screen notices by itself once you have.",
+            graphics.text(this.font, "and enter this code:", left, y + 12, Theme.TEXT_DIM, false);
+            graphics.text(this.font, Twitch.userCode(), left, y + 28, Theme.accent(), false);
+            graphics.text(this.font, "This screen notices by itself once you have.",
                     left, y + 44, Theme.OFF, false);
 
         } else if (Twitch.isLinked()) {
             int followers = Twitch.followers();
-            graphics.text(Fonts.ui(),
+            graphics.text(this.font,
                     followers < 0 ? "Followers: loading..." : "Followers: " + followers,
                     left, y, Theme.TEXT, false);
 
             String last = Twitch.lastFollower();
-            graphics.text(Fonts.ui(),
+            graphics.text(this.font,
                     last.isEmpty() ? "Newest follower: none yet" : "Newest follower: " + last,
                     left, y + 12, Theme.TEXT_DIM, false);
 
         } else {
-            graphics.text(Fonts.ui(), "Only Twitch is supported.", left, y, Theme.TEXT_DIM, false);
-            graphics.text(Fonts.ui(), "YouTube and TikTok do not publish", left, y + 12, Theme.OFF, false);
-            graphics.text(Fonts.ui(), "who followed you last.", left, y + 22, Theme.OFF, false);
+            graphics.text(this.font, "Only Twitch is supported.", left, y, Theme.TEXT_DIM, false);
+            graphics.text(this.font, "YouTube and TikTok do not publish", left, y + 12, Theme.OFF, false);
+            graphics.text(this.font, "who followed you last.", left, y + 22, Theme.OFF, false);
         }
 
-        graphics.text(Fonts.ui(), Twitch.status(), left, this.height - 66, Theme.OFF, false);
+        graphics.text(this.font, Twitch.status(), left, this.height - 66, Theme.OFF, false);
     }
 
     @Override

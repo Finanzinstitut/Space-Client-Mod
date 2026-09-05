@@ -13,9 +13,7 @@
     "ItemEntityRenderStateMixin",
     "ItemEntityRendererMixin",
     "ItemInHandRendererMixin",
-    "GuiItemScaleMixin",
-    "MinecraftFontAccessor",
-    "FontAccessor"
+    "GuiItemScaleMixin"
   ],
   "injectors": {
     "defaultRequire": 0

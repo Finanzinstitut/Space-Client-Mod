@@ -328,7 +328,7 @@ public class HudEditorScreen extends Screen {
                 } else if (module.isLocked()) {
                     label = label + "  locked";
                 }
-                graphics.text(Fonts.ui(), label, drawX, drawY - 13,
+                graphics.text(this.font, label, drawX, drawY - 13,
                         active ? Theme.CYAN : Theme.TEXT, false);
             }
         }
@@ -353,11 +353,11 @@ public class HudEditorScreen extends Screen {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
 
         JupiterIcon.draw(graphics, 24, 52, 20);
-        graphics.text(Fonts.ui(), "HUD EDITOR", 52, 54, Theme.CYAN, false);
-        graphics.text(Fonts.ui(), hint(), 52, 66, Theme.TEXT_DIM, false);
-        graphics.text(Fonts.ui(), "Scroll over an element to resize it at any time",
+        graphics.text(this.font, "HUD EDITOR", 52, 54, Theme.CYAN, false);
+        graphics.text(this.font, hint(), 52, 66, Theme.TEXT_DIM, false);
+        graphics.text(this.font, "Scroll over an element to resize it at any time",
                 24, this.height - 36, Theme.OFF, false);
-        graphics.text(Fonts.ui(), "Esc to go back", 24, this.height - 24, Theme.TEXT_DIM, false);
+        graphics.text(this.font, "Esc to go back", 24, this.height - 24, Theme.TEXT_DIM, false);
     }
 
     private String hint() {

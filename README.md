@@ -46,6 +46,25 @@ hairline borders instead of Minecraft's bevelled buttons.
 and the accent colour with RGB sliders, with a live preview. Everything is
 written to `config/spaceclient.json` as soon as it changes.
 
+**Appearance -> Font** picks the font the whole game draws with: Minecraft's
+own, six redrawn bitmap faces (Smooth, Anti-Alias, Small Caps, Square, Doodle,
+Blocky) and Open Sans. Minecraft's own is the default.
+
+Each face ships inside the jar as a finished resource pack. Choosing one writes
+it into `resourcepacks/` as `spaceclient-font-<name>.zip` and puts it at the end
+of the selected list, which is the highest priority slot - so it wins over a
+font set by your own resource pack. Choosing Minecraft removes it again and
+leaves your packs to decide. Switching triggers a resource reload, the same
+one-off pause as toggling any pack.
+
+The selection is stored by Minecraft in `options.txt` alongside every other
+pack, so it survives a restart without this mod doing anything at startup. The
+copy in `config/spaceclient.json` is only what the menu displays.
+
+Up to 1.8.2 the jar carried `assets/minecraft/font/default.json`, which forced
+Open Sans on everybody with no way to switch it off. That file is gone. The same
+override is now the Open Sans entry in this list, off unless it is picked.
+
 The middle mouse button has no vanilla binding, so Space Client registers its
 own — it appears in the normal Controls screen under "Space Client" and can be
 rebound there.

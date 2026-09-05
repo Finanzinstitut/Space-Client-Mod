@@ -41,7 +41,7 @@ public class DiagnosticsScreen extends Screen {
 
     /** Whether a row at this height is inside the visible strip. */
     private boolean visible(int y) {
-        return y >= listTop() - Fonts.ui().lineHeight && y <= listBottom();
+        return y >= listTop() - this.font.lineHeight && y <= listBottom();
     }
 
     private int maxScroll() {
@@ -59,17 +59,17 @@ public class DiagnosticsScreen extends Screen {
     private int line(GuiGraphicsExtractor graphics, int left, int y,
                      String label, String value) {
         if (visible(y)) {
-            graphics.text(Fonts.ui(), label, left, y, Theme.TEXT, false);
+            graphics.text(this.font, label, left, y, Theme.TEXT, false);
 
             String text = value == null ? "-" : value;
             int room = PANEL_W - 190;
-            while (Fonts.ui().width(text) > room && text.length() > 1) {
+            while (this.font.width(text) > room && text.length() > 1) {
                 text = text.substring(0, text.length() - 1);
             }
 
-            graphics.text(Fonts.ui(), text, left + 190, y, Theme.TEXT_DIM, false);
+            graphics.text(this.font, text, left + 190, y, Theme.TEXT_DIM, false);
         }
-        return y + Fonts.ui().lineHeight + 3;
+        return y + this.font.lineHeight + 3;
     }
 
     @Override
@@ -93,8 +93,8 @@ public class DiagnosticsScreen extends Screen {
         graphics.fill(left - 18, 20, left + PANEL_W + 18, 21, Theme.BORDER);
 
         JupiterIcon.draw(graphics, left, 34, 24);
-        graphics.text(Fonts.ui(), "DIAGNOSTICS", left + 34, 38, Theme.CYAN, false);
-        graphics.text(Fonts.ui(), "What this Minecraft version does and does not expose",
+        graphics.text(this.font, "DIAGNOSTICS", left + 34, 38, Theme.CYAN, false);
+        graphics.text(this.font, "What this Minecraft version does and does not expose",
                 left + 34, 50, Theme.TEXT_DIM, false);
         graphics.fill(left, 74, left + PANEL_W, 75, Theme.BORDER);
 
@@ -107,8 +107,8 @@ public class DiagnosticsScreen extends Screen {
             int color = check.ok() ? 0xFF4ADE80 : 0xFFFF6B81;
 
             if (visible(y)) {
-                graphics.text(Fonts.ui(), mark, left, y, color, false);
-                graphics.text(Fonts.ui(), check.name(), left + 24, y, Theme.TEXT, false);
+                graphics.text(this.font, mark, left, y, color, false);
+                graphics.text(this.font, check.name(), left + 24, y, Theme.TEXT, false);
             }
 
             // Details can get long; wrap rather than run off the panel
@@ -118,14 +118,14 @@ public class DiagnosticsScreen extends Screen {
 
             while (!detail.isEmpty()) {
                 String line = detail;
-                while (Fonts.ui().width(line) > room && line.length() > 1) {
+                while (this.font.width(line) > room && line.length() > 1) {
                     line = line.substring(0, line.length() - 1);
                 }
                 if (visible(y)) {
-                    graphics.text(Fonts.ui(), line, detailX, y, Theme.TEXT_DIM, false);
+                    graphics.text(this.font, line, detailX, y, Theme.TEXT_DIM, false);
                 }
                 detail = detail.substring(line.length());
-                y += Fonts.ui().lineHeight + 2;
+                y += this.font.lineHeight + 2;
             }
             y += 2;
         }
@@ -138,8 +138,8 @@ public class DiagnosticsScreen extends Screen {
         if (visible(y)) graphics.fill(left, y, left + PANEL_W, y + 1, Theme.BORDER);
         y += 10;
 
-        if (visible(y)) graphics.text(Fonts.ui(), "NOW PLAYING", left, y, Theme.CYAN, false);
-        y += Fonts.ui().lineHeight + 4;
+        if (visible(y)) graphics.text(this.font, "NOW PLAYING", left, y, Theme.CYAN, false);
+        y += this.font.lineHeight + 4;
 
         y = line(graphics, left, y, "Music lookup", MusicWatcher.status());
         y = line(graphics, left, y, "Media session", MediaSession.status());
@@ -153,7 +153,6 @@ public class DiagnosticsScreen extends Screen {
         y = line(graphics, left, y, "Lyric line", NowPlayingShare.lyricStatus());
         y = line(graphics, left, y, "Name tag hook", NowPlayingShare.hookStatus());
         y = line(graphics, left, y, "Badges", Presence.status());
-        y = line(graphics, left, y, "Font", gg.spaceclient.ui.Fonts.status());
         y = line(graphics, left, y, "Item scaling",
                 gg.spaceclient.access.ItemScaleReport.status());
 
@@ -161,8 +160,8 @@ public class DiagnosticsScreen extends Screen {
 
         // A hint only while there is something below the fold
         if (maxScroll() > 0) {
-            graphics.text(Fonts.ui(), "scroll for more",
-                    left + PANEL_W - Fonts.ui().width("scroll for more"),
+            graphics.text(this.font, "scroll for more",
+                    left + PANEL_W - this.font.width("scroll for more"),
                     this.height - 62, Theme.TEXT_DIM, false);
         }
 

@@ -210,8 +210,8 @@ public class SettingsScreen extends Screen {
         graphics.fill(left - 18, 20, left + PANEL_W + 18, 21, Theme.BORDER);
 
         JupiterIcon.draw(graphics, left, 34, 24);
-        graphics.text(Fonts.ui(), heading.toUpperCase(), left + 34, 38, Theme.CYAN, false);
-        graphics.text(Fonts.ui(), subheading, left + 34, 50, Theme.TEXT_DIM, false);
+        graphics.text(this.font, heading.toUpperCase(), left + 34, 38, Theme.CYAN, false);
+        graphics.text(this.font, subheading, left + 34, 50, Theme.TEXT_DIM, false);
         graphics.fill(left, 74, left + PANEL_W, 75, Theme.BORDER);
 
         super.extractRenderState(graphics, mouseX, mouseY, delta);
@@ -220,10 +220,10 @@ public class SettingsScreen extends Screen {
         // render event is missing, so say that here rather than let the
         // settings look broken.
         if (heading.equalsIgnoreCase("Hitbox") && !gg.spaceclient.render.HitboxRenderer.isAvailable()) {
-            graphics.text(Fonts.ui(),
+            graphics.text(this.font,
                     "Custom drawing unavailable - using the game's own hitbox view.",
                     left, this.height - 46, 0xFFFF9AAE, false);
-            graphics.text(Fonts.ui(),
+            graphics.text(this.font,
                     "Colours, widths and arrows have no effect in that mode.",
                     left, this.height - 34, 0xFF9A95C9, false);
         }
@@ -234,15 +234,15 @@ public class SettingsScreen extends Screen {
         for (Setting setting : visibleSettings) {
             if (!(setting instanceof ColorSetting)) continue;
             if (index >= colourRows.size()) break;
-            graphics.text(Fonts.ui(), setting.getName(),
+            graphics.text(this.font, setting.getName(),
                     left, colourRows.get(index)[0], Theme.TEXT, false);
             index++;
         }
 
         if (pageCount > 1) {
             String label = "Page " + (page + 1) + " of " + pageCount;
-            graphics.text(Fonts.ui(), label,
-                    left + PANEL_W - Fonts.ui().width(label), 60, Theme.TEXT_DIM, false);
+            graphics.text(this.font, label,
+                    left + PANEL_W - this.font.width(label), 60, Theme.TEXT_DIM, false);
         }
     }
 

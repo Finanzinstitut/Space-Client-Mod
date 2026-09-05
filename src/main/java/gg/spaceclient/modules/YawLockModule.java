@@ -3,7 +3,6 @@ package gg.spaceclient.modules;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
-import gg.spaceclient.ui.Fonts;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
@@ -48,15 +47,15 @@ public class YawLockModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return Math.max(50, Fonts.ui().width(text())); }
+    public int getWidth() { return Math.max(50, mc.font.width(text())); }
 
     @Override
-    public int getHeight() { return Fonts.ui().lineHeight; }
+    public int getHeight() { return mc.font.lineHeight; }
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
         float off = Math.abs(deviation());
         int color = off < 0.05f ? 0xFF4ADE80 : off < 2f ? 0xFFFFD9A0 : textColor.get();
-        rollingText(graphics, "main", text(), x, y, color, false);
+        graphics.text(mc.font, text(), x, y, color, true);
     }
 }

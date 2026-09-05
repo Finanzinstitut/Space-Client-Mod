@@ -125,7 +125,7 @@ public class CosmeticsScreen extends Screen {
     }
 
     private int chip(int x, int y, String label, Tab value) {
-        int w = Fonts.ui().width(label) + 22;
+        int w = this.font.width(label) + 22;
         this.addRenderableWidget(new NavButton(
                 x, y, w, CHIP_H, NavButton.Style.CHIP,
                 () -> label,
@@ -302,20 +302,20 @@ public class CosmeticsScreen extends Screen {
         graphics.fill(SIDEBAR_W, 0, SIDEBAR_W + 1, this.height, Theme.BORDER);
 
         JupiterIcon.draw(graphics, 16, 24, 22);
-        graphics.text(Fonts.ui(), "SPACE", 46, 24, Theme.accent(), false);
-        graphics.text(Fonts.ui(), "CLIENT", 46, 36, Theme.TEXT, false);
+        graphics.text(this.font, "SPACE", 46, 24, Theme.accent(), false);
+        graphics.text(this.font, "CLIENT", 46, 36, Theme.TEXT, false);
         graphics.fill(16, 60, SIDEBAR_W - 16, 61, Theme.BORDER);
-        graphics.text(Fonts.ui(), "MENU", 16, 76, Theme.TEXT_DIM, false);
+        graphics.text(this.font, "MENU", 16, 76, Theme.TEXT_DIM, false);
 
         String name = Minecraft.getInstance().getUser() != null
                 ? Minecraft.getInstance().getUser().getName() : "Player";
         graphics.fill(16, this.height - 44, SIDEBAR_W - 16, this.height - 43, Theme.BORDER);
-        graphics.text(Fonts.ui(), name, 16, this.height - 34, Theme.TEXT, false);
-        graphics.text(Fonts.ui(), "v" + SpaceClient.VERSION, 16, this.height - 22,
+        graphics.text(this.font, name, 16, this.height - 34, Theme.TEXT, false);
+        graphics.text(this.font, "v" + SpaceClient.VERSION, 16, this.height - 22,
                 Theme.TEXT_DIM, false);
 
-        graphics.text(Fonts.ui(), "Cosmetica", contentLeft(), 30, Theme.TEXT, false);
-        graphics.text(Fonts.ui(), status(), contentLeft(), 44, statusColor(), false);
+        graphics.text(this.font, "Cosmetica", contentLeft(), 30, Theme.TEXT, false);
+        graphics.text(this.font, status(), contentLeft(), 44, statusColor(), false);
 
         super.extractRenderState(graphics, mouseX, mouseY, delta);
 
@@ -326,7 +326,7 @@ public class CosmeticsScreen extends Screen {
         if (!CosmeticaBridge.installed()) {
             drawMissing(graphics);
         } else if (cards.isEmpty()) {
-            graphics.text(Fonts.ui(), emptyLine(), contentLeft(), gridTop() + 10,
+            graphics.text(this.font, emptyLine(), contentLeft(), gridTop() + 10,
                     Theme.TEXT_DIM, false);
         }
 
@@ -404,7 +404,7 @@ public class CosmeticsScreen extends Screen {
         int y = gridTop();
         for (String line : lines) {
             if (!line.isEmpty()) {
-                graphics.text(Fonts.ui(), line, contentLeft(), y,
+                graphics.text(this.font, line, contentLeft(), y,
                         line.startsWith("Cosmetica is") ? Theme.TEXT : Theme.TEXT_DIM, false);
             }
             y += 14;
@@ -419,7 +419,7 @@ public class CosmeticsScreen extends Screen {
             int y = gridTop() - scroll + (i / cols) * (CARD_H + GAP);
             if (mouseX >= x && mouseX <= x + CARD_W && mouseY >= y && mouseY <= y + CARD_H
                     && mouseY >= gridTop() - 4 && mouseY <= gridBottom()) {
-                graphics.text(Fonts.ui(), hints.get(i), contentLeft(), this.height - 12,
+                graphics.text(this.font, hints.get(i), contentLeft(), this.height - 12,
                         Theme.TEXT_DIM, false);
                 return;
             }

@@ -4,7 +4,6 @@ import gg.spaceclient.module.HudModule;
 import gg.spaceclient.util.Reflect;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
-import gg.spaceclient.ui.Fonts;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
@@ -64,10 +63,10 @@ public class ServerInfoModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return Math.max(60, Fonts.ui().width(text())); }
+    public int getWidth() { return Math.max(60, mc.font.width(text())); }
 
     @Override
-    public int getHeight() { return Fonts.ui().lineHeight; }
+    public int getHeight() { return mc.font.lineHeight; }
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
@@ -75,6 +74,6 @@ public class ServerInfoModule extends HudModule {
         if (flagChanges.get() && System.currentTimeMillis() - changedAt < 3000) {
             color = 0xFF38E0FF;
         }
-        rollingText(graphics, "main", text(), x, y, color, false);
+        graphics.text(mc.font, text(), x, y, color, true);
     }
 }

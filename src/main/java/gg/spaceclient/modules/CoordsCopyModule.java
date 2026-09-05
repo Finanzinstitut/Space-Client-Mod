@@ -3,7 +3,6 @@ package gg.spaceclient.modules;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
-import gg.spaceclient.ui.Fonts;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
@@ -70,13 +69,13 @@ public class CoordsCopyModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return Fonts.ui().width(text()); }
+    public int getWidth() { return mc.font.width(text()); }
 
     @Override
-    public int getHeight() { return Fonts.ui().lineHeight; }
+    public int getHeight() { return mc.font.lineHeight; }
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
-        rollingText(graphics, "main", text(), x, y, textColor.get(), false);
+        graphics.text(mc.font, text(), x, y, textColor.get(), true);
     }
 }

@@ -80,14 +80,14 @@ public class AccountsScreen extends Screen {
         graphics.fill(left - 18, 20, left + PANEL_W + 18, 21, Theme.BORDER);
 
         JupiterIcon.draw(graphics, left, 34, 24);
-        graphics.text(Fonts.ui(), "ACCOUNTS", left + 34, 38, Theme.CYAN, false);
+        graphics.text(this.font, "ACCOUNTS", left + 34, 38, Theme.CYAN, false);
         // Read live from the game, so a failed swap is visible rather than hidden
-        graphics.text(Fonts.ui(), "Game reports: " + Minecraft.getInstance().getUser().getName(),
+        graphics.text(this.font, "Game reports: " + Minecraft.getInstance().getUser().getName(),
                 left + 34, 50, Theme.TEXT_DIM, false);
         graphics.fill(left, 74, left + PANEL_W, 75, Theme.BORDER);
 
         if (accounts.isEmpty()) {
-            graphics.text(Fonts.ui(),
+            graphics.text(this.font,
                     LauncherAccounts.isAvailable()
                             ? "The launcher has no accounts signed in."
                             : "Launcher accounts not found - start the game from Space Client.",
@@ -98,7 +98,7 @@ public class AccountsScreen extends Screen {
 
         String status = SessionManager.status();
         if (!status.isEmpty()) {
-            graphics.text(Fonts.ui(), status, left, this.height - 34,
+            graphics.text(this.font, status, left, this.height - 34,
                     SessionManager.isBusy() ? Theme.TEXT_DIM : Theme.CYAN, false);
         }
     }

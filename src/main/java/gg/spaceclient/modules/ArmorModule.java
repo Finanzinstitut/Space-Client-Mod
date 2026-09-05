@@ -4,7 +4,6 @@ import gg.spaceclient.SpaceClient;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ModeSetting;
-import gg.spaceclient.ui.Fonts;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -98,7 +97,7 @@ public class ArmorModule extends HudModule {
     public int getWidth() {
         int count = Math.max(1, pieces().size());
         if (vertical()) {
-            return wantsPercent() ? ICON + 4 + Fonts.ui().width("100%") : ICON;
+            return wantsPercent() ? ICON + 4 + mc.font.width("100%") : ICON;
         }
         return count * ICON + (count - 1) * GAP;
     }
@@ -107,7 +106,7 @@ public class ArmorModule extends HudModule {
     public int getHeight() {
         int count = Math.max(1, pieces().size());
         if (vertical()) return count * (ICON + GAP) - GAP;
-        return ICON + (wantsPercent() ? Fonts.ui().lineHeight : 0);
+        return ICON + (wantsPercent() ? mc.font.lineHeight : 0);
     }
 
     private static int percentOf(ItemStack stack) {
@@ -141,15 +140,14 @@ public class ArmorModule extends HudModule {
         int cx = x;
         int cy = y;
 
-        int slot = 0;
         for (ItemStack stack : pieces) {
-            drawPiece(graphics, stack, cx, cy, slot++);
+            drawPiece(graphics, stack, cx, cy);
             if (vertical()) cy += ICON + GAP;
             else cx += ICON + GAP;
         }
     }
 
-    private void drawPiece(GuiGraphicsExtractor graphics, ItemStack stack, int x, int y, int slot) {
+    private void drawPiece(GuiGraphicsExtractor graphics, ItemStack stack, int x, int y) {
         boolean empty = stack == null || stack.isEmpty();
 
         if (empty) {
@@ -180,16 +178,12 @@ public class ArmorModule extends HudModule {
         int pct = empty ? -1 : percentOf(stack);
         String label = pct < 0 ? "-" : pct + "%";
 
-        // Keyed by slot, so helmet and boots keep their own counters even
-        // though both are drawn by this one method
-        String key = "slot" + slot;
-
         if (vertical()) {
-            rollingText(graphics, key, label, x + ICON + 4,
-                    y + (ICON - Fonts.ui().lineHeight) / 2 + 1, colorFor(pct), false);
+            graphics.text(mc.font, label, x + ICON + 4,
+                    y + (ICON - mc.font.lineHeight) / 2 + 1, colorFor(pct), true);
         } else {
-            rollingText(graphics, key, label,
-                    x + (ICON - Fonts.ui().width(label)) / 2, y + ICON, colorFor(pct), false);
+            graphics.text(mc.font, label,
+                    x + (ICON - mc.font.width(label)) / 2, y + ICON, colorFor(pct), true);
         }
     }
 }

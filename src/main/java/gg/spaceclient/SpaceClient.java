@@ -58,7 +58,6 @@ public class SpaceClient implements ClientModInitializer {
     }
     public static final Logger LOGGER = LoggerFactory.getLogger("Space Client");
 
-    private static boolean fontApplied = false;
     private static ModuleManager moduleManager;
     private static ConfigManager configManager;
     private static ClientSettings settings;
@@ -93,26 +92,6 @@ public class SpaceClient implements ClientModInitializer {
         // requirement: payload types must exist on both ends before a handler
         // is attached.
         gg.spaceclient.net.Handshake.register();
-
-        // Register the bundled Doodle font as a resource pack, then apply the
-        // saved choice. Registration has to happen here at init, before the
-        // pack list is first built; toggling it on and off comes later.
-        try {
-            net.fabricmc.loader.api.FabricLoader.getInstance()
-                    .getModContainer(MOD_ID)
-                    .ifPresent(container ->
-                            net.fabricmc.fabric.api.resource.ResourceManagerHelper
-                                    .registerBuiltinResourcePack(
-                                            Identifier.fromNamespaceAndPath(MOD_ID, "doodle"),
-                                            container,
-                                            net.fabricmc.fabric.api.resource.ResourcePackActivationType.NORMAL));
-        } catch (Throwable t) {
-            LOGGER.warn("Could not register the Doodle font pack: {}", t.getMessage());
-        }
-
-        // Fonts.apply() is deferred to the first client tick: the pack
-        // repository is not ready to be toggled the instant the pack is
-        // registered here.
 
         // Key mappings now take a registered Category object rather than a
         // translation key string.
@@ -166,18 +145,6 @@ public class SpaceClient implements ClientModInitializer {
             while (menuKey.consumeClick()) {
                 client.gui.setScreen(new SpaceMenuScreen());
             }
-
-            gg.spaceclient.prank.ReversedControls.tick(client);
-
-            // A full-screen prank ends on any click, so it can be dismissed
-            // even though no screen is open to catch the key
-            if (gg.spaceclient.prank.Pranks.isFullScreen()
-                    && client.options != null
-                    && (client.options.keyAttack.consumeClick()
-                        || client.options.keyUse.consumeClick()
-                        || client.options.keyJump.consumeClick())) {
-                gg.spaceclient.prank.Pranks.clear();
-            }
             moduleManager.onTick();
             SessionWatcher.tick(client);
 
@@ -192,14 +159,15 @@ public class SpaceClient implements ClientModInitializer {
             gg.spaceclient.net.Presence.tick();
             gg.spaceclient.net.Twitch.tick();
 
-            if (!fontApplied) {
-                fontApplied = true;
-                gg.spaceclient.ui.Fonts.apply();
-            }
-
             // The window only exists once the game is running, so the hook is
             // installed on the first tick rather than during initialisation.
             gg.spaceclient.input.RawMouse.install();
+
+            // Same reasoning one step further: the pack repository is not
+            // necessarily built during initialisation. This runs once and
+            // usually does nothing, because Minecraft has already restored the
+            // font pack from its own options.
+            gg.spaceclient.font.FontPacks.sync();
         });
 
         // Our elements draw just before the chat, so the HUD API handles layering.
@@ -221,8 +189,5 @@ public class SpaceClient implements ClientModInitializer {
             if (!module.isEnabled()) continue;
             module.draw(graphics, module.getX(width), module.getY(height));
         }
-
-        // On top of the HUD, so a fake crash covers the real numbers too
-        gg.spaceclient.prank.PrankOverlay.render(graphics, width, height);
     }
 }

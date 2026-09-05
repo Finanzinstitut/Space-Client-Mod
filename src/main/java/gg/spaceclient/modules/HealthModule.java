@@ -6,7 +6,6 @@ import gg.spaceclient.setting.ColorSetting;
 import gg.spaceclient.ui.Odometer;
 import gg.spaceclient.ui.Pulse;
 import gg.spaceclient.util.Reflect;
-import gg.spaceclient.ui.Fonts;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
@@ -138,10 +137,10 @@ public class HealthModule extends HudModule {
     }
 
     @Override
-    public int getWidth() { return Fonts.ui().width(text()); }
+    public int getWidth() { return mc.font.width(text()); }
 
     @Override
-    public int getHeight() { return Fonts.ui().lineHeight; }
+    public int getHeight() { return mc.font.lineHeight; }
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
@@ -149,6 +148,6 @@ public class HealthModule extends HudModule {
         // roll should start in the same frame that highlight does
         int colour = colour();
         shown.set(text());
-        shown.draw(graphics, Fonts.ui(), x, y, colour, false);
+        shown.draw(graphics, mc.font, x, y, colour, true);
     }
 }
