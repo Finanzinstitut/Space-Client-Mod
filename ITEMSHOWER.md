@@ -1236,3 +1236,20 @@ Buchstaben, und die holt "Minecraft" damit zurück.
 dessen Effekt-Glyph aber an dessen eigene Definition gebunden ist - der
 Fehlschlag beim Bauen. Jetzt implementiert der Code beide selbst: glyphs für
 unsere Definition, effect unveraendert vom echten Provider.
+
+---
+
+# 1.15.2 — Pixelschrift-Kopie war zu klein
+
+Die Zeichen im Menü waren verrutscht: Mojangs `ascii.png` ist **128x128**, alle
+anderen Schriften und meine Zeichentabelle rechnen mit **256x256** (16x16
+Zellen à 16 px). Bei 128 px sind die Zellen nur 8 px, also zeigte jeder
+Buchstabe auf die falsche Stelle - daher der Symbolsalat.
+
+Die Kopie ist jetzt auf 256x256 hochskaliert, mit Nearest-Neighbor, damit die
+Pixel scharf bleiben. Das Belegungsraster stimmt danach zellengenau mit der
+Tabelle überein, geprüft Zelle für Zelle.
+
+Nur die "Minecraft"-Option war betroffen - die sechs VanillaTweaks-Schriften
+sind von Haus aus 256x256 und lagen richtig. Im Screenshot war eben "Minecraft"
+aktiv.
