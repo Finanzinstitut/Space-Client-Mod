@@ -58,6 +58,7 @@ public class SpaceClient implements ClientModInitializer {
     }
     public static final Logger LOGGER = LoggerFactory.getLogger("Space Client");
 
+    private static boolean fontApplied = false;
     private static ModuleManager moduleManager;
     private static ConfigManager configManager;
     private static ClientSettings settings;
@@ -93,8 +94,25 @@ public class SpaceClient implements ClientModInitializer {
         // is attached.
         gg.spaceclient.net.Handshake.register();
 
-        // After the config is read, so the saved choice is the one applied
-        gg.spaceclient.ui.Fonts.apply();
+        // Register the bundled Doodle font as a resource pack, then apply the
+        // saved choice. Registration has to happen here at init, before the
+        // pack list is first built; toggling it on and off comes later.
+        try {
+            net.fabricmc.loader.api.FabricLoader.getInstance()
+                    .getModContainer(MOD_ID)
+                    .ifPresent(container ->
+                            net.fabricmc.fabric.api.resource.ResourceManagerHelper
+                                    .registerBuiltinResourcePack(
+                                            Identifier.fromNamespaceAndPath(MOD_ID, "doodle"),
+                                            container,
+                                            net.fabricmc.fabric.api.resource.ResourcePackActivationType.NORMAL));
+        } catch (Throwable t) {
+            LOGGER.warn("Could not register the Doodle font pack: {}", t.getMessage());
+        }
+
+        // Fonts.apply() is deferred to the first client tick: the pack
+        // repository is not ready to be toggled the instant the pack is
+        // registered here.
 
         // Key mappings now take a registered Category object rather than a
         // translation key string.
@@ -173,6 +191,11 @@ public class SpaceClient implements ClientModInitializer {
             // in a world. Its own timers keep it to a couple of calls an hour.
             gg.spaceclient.net.Presence.tick();
             gg.spaceclient.net.Twitch.tick();
+
+            if (!fontApplied) {
+                fontApplied = true;
+                gg.spaceclient.ui.Fonts.apply();
+            }
 
             // The window only exists once the game is running, so the hook is
             // installed on the first tick rather than during initialisation.

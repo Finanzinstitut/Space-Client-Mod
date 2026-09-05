@@ -1253,3 +1253,44 @@ Tabelle überein, geprüft Zelle für Zelle.
 Nur die "Minecraft"-Option war betroffen - die sechs VanillaTweaks-Schriften
 sind von Haus aus 256x256 und lagen richtig. Im Screenshot war eben "Minecraft"
 aktiv.
+
+---
+
+# 1.16.0 — Schrift als Ressourcenpaket (der richtige Weg)
+
+Ich habe die Schrift die ganze Zeit falsch angegangen. Das Font-Objekt zur
+Laufzeit auszutauschen ist ein Hack: er erreicht nie jeden Bildschirm, und er
+läuft erst nach dem Titelbildschirm - daher "manche Sachen noch Open Sans" und
+"beim Start die falsche Schrift". Kein Feinschliff hätte das behoben, weil der
+Ansatz selbst nicht trägt.
+
+## Jetzt: ein eingebautes Ressourcenpaket
+
+Doodle liegt als Paket in `resourcepacks/doodle` im Mod und wird über Fabric
+registriert. Ein Ressourcenpaket ersetzt die Schrift dort, wo das Spiel sie
+lädt - also **überall**, Titelbildschirm eingeschlossen, und nichts kämpft mehr
+dagegen.
+
+Verifiziert aus Fabrics Quelltext, nicht geraten:
+`ResourceManagerHelper.registerBuiltinResourcePack(Identifier, ModContainer,
+ResourcePackActivationType)`, Paket unter `resourcepacks/<pfad>`,
+`NORMAL` = vorhanden aber standardmaessig aus.
+
+## Umschalten Minecraft <-> Doodle
+
+**Appearance -> Font.** "Minecraft" schaltet das Paket ab (echte Pixelschrift),
+"Doodle" schaltet es an. Der Zustand wird mit den Ressourcenpaketen gespeichert,
+bleibt also über Neustarts erhalten. Beim ersten Client-Tick wird die
+gespeicherte Wahl angewandt - nicht schon bei der Registrierung, weil die
+Paketliste da noch nicht bereit ist.
+
+`Fonts.ui()` gibt jetzt einfach die aktuelle Spiel-Schrift zurück; die 45
+Aufrufstellen mussten nicht angefasst werden. Der ganze Laufzeit-Tausch samt
+Proxy und den zwei Font-Accessor-Mixins ist stillgelegt.
+
+## Was das für die anderen fünf Schriften heisst
+
+Der Umschalter kennt jetzt nur Minecraft und Doodle, wie besprochen. Smooth,
+Anti-Alias, Small Caps, Square und Blocky sind aus dem Client raus. Wenn eine
+davon doch rein soll, ist sie ein zweites `resourcepacks/<name>`-Verzeichnis
+plus ein Eintrag in der Liste - sag Bescheid.

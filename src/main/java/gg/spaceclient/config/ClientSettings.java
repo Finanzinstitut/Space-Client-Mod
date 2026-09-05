@@ -31,7 +31,7 @@ public class ClientSettings {
      * changed.
      */
     public static final List<String> FONT_STYLES =
-            Arrays.asList("MINECRAFT", "SMOOTH", "ANTIALIAS", "SMALLCAPS", "SQUARE", "DOODLE", "BLOCKY");
+            Arrays.asList("MINECRAFT", "DOODLE");
 
     private String fontStyle = "MINECRAFT";
 
