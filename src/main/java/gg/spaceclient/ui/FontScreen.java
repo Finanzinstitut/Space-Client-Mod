@@ -125,7 +125,7 @@ public class FontScreen extends Screen {
         graphics.text(this.font, shown.label(), left, noteY, Theme.TEXT, false);
         graphics.text(this.font, shown.note(), left, noteY + 12, Theme.TEXT_DIM, false);
         graphics.text(this.font,
-                "Installed as a resource pack, on top of your own",
+                "Locked to the top of the resource pack list",
                 left, noteY + 26, Theme.OFF, false);
     }
 

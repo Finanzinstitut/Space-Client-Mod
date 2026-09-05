@@ -51,11 +51,17 @@ own, six redrawn bitmap faces (Smooth, Anti-Alias, Small Caps, Square, Doodle,
 Blocky) and Open Sans. Minecraft's own is the default.
 
 Each face ships inside the jar as a finished resource pack. Choosing one writes
-it into `resourcepacks/` as `spaceclient-font-<name>.zip` and puts it at the end
-of the selected list, which is the highest priority slot - so it wins over a
-font set by your own resource pack. Choosing Minecraft removes it again and
-leaves your packs to decide. Switching triggers a resource reload, the same
-one-off pause as toggling any pack.
+it into `resourcepacks/` as `spaceclient-font-<name>.zip` and pins it to the top
+of the selected list - required, so there is no arrow to take it out, and fixed,
+so it cannot be dragged below anything. That is the highest priority slot, which
+is what makes it win over a font set by your own resource pack. It is the same
+pair of switches Minecraft uses on its own Default pack, only at the other end
+of the list.
+
+Only ever one of them is on disk; switching deletes the previous one, so the
+resource pack screen never fills up with old fonts. Choosing Minecraft unpins and
+removes it entirely and leaves your own packs to decide. Switching triggers a
+resource reload, the same one-off pause as toggling any pack.
 
 The selection is stored by Minecraft in `options.txt` alongside every other
 pack, so it survives a restart without this mod doing anything at startup. The

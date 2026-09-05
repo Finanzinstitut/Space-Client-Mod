@@ -129,6 +129,21 @@ public class SpaceClient implements ClientModInitializer {
                 return;
             }
 
+            // The resource pack screen reloads the repository while it builds
+            // itself, which un-pins the font pack a moment before the list of
+            // packs is drawn from it - so waiting for the next tick would mean
+            // the screen shows the font as an ordinary, removable pack. Pinning
+            // here and rebuilding the list is what closes that gap.
+            //
+            // Matched on the class name rather than an import: this screen is
+            // not touched anywhere else in the mod, and a name that no longer
+            // exists should quietly match nothing rather than fail the build.
+            if (screen.getClass().getName().endsWith("PackSelectionScreen")) {
+                gg.spaceclient.font.FontPacks.harden();
+                gg.spaceclient.util.Reflect.call(screen, "updateList", "populateLists");
+                return;
+            }
+
             if (!(screen instanceof JoinMultiplayerScreen)) return;
             ScreenInjector.addWidget(screen, new FlatButton(
                     10, 10, 116, 20,
@@ -168,6 +183,12 @@ public class SpaceClient implements ClientModInitializer {
             // usually does nothing, because Minecraft has already restored the
             // font pack from its own options.
             gg.spaceclient.font.FontPacks.sync();
+
+            // Every reload of the pack repository - F3+T, another mod, the
+            // resource pack screen opening - throws away the pack objects and
+            // builds new ones, which loses the lock on the font pack. This puts
+            // it back. In the settled case it is a pointer comparison.
+            gg.spaceclient.font.FontPacks.harden();
         });
 
         // Our elements draw just before the chat, so the HUD API handles layering.
