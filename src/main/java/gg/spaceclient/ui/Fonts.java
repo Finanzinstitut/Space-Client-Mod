@@ -13,13 +13,15 @@ import java.util.Map;
 /**
  * The typeface this client draws itself in.
  *
- * The game's font is replaced everywhere by `assets/minecraft/font/default.json`
- * - menus, chat, signs, books, item names. That is deliberate.
+ * Bitmap fonts, not TrueType. Every TTF attempt looked wrong for the same
+ * reason: a typeface drawn for print, squeezed into eight pixels of height, is
+ * a smear no matter how it is rasterised. These are pixel fonts drawn for
+ * Minecraft at exactly that size, which is why they simply look right.
  *
- * This class is the separate question of what Space Client's own screens draw
- * in, which can be changed while the game runs. It defaults to the same face as
- * everything else, so the client looks of a piece; picking "Minecraft" here
- * gives the original pixel font back for this mod's screens only.
+ * There is no longer any global override in the resources. Switching builds a
+ * Font per definition and puts it where the game keeps its own, so every choice
+ * - including the game's own font - takes effect the moment it is picked, and
+ * nothing has to be undone at load.
  *
  * Switching at runtime cannot be done with resource files - a resource pack is
  * chosen at load and `minecraft:default` is fixed once it is. So the Font
@@ -30,18 +32,13 @@ public final class Fonts {
 
     /** Style name to the font definition it draws with. */
     private static Identifier idFor(String style) {
-        return switch (style) {
-            case "OPEN_SANS" -> Identifier.fromNamespaceAndPath(
-                    SpaceClient.MOD_ID, "opensans_ui");
-            case "BARLOW" -> Identifier.fromNamespaceAndPath(
-                    SpaceClient.MOD_ID, "barlow_ui");
-            // Not null: the game's own font is now Open Sans, because
-            // default.json replaces it everywhere. Reaching the original pixel
-            // font again means asking for the vanilla providers by name.
-            case "MINECRAFT" -> Identifier.fromNamespaceAndPath(
-                    SpaceClient.MOD_ID, "vanilla_ui");
+        String file = switch (style) {
+            case "VANILLA_TWEAKS" -> "vt_ui";
+            case "MINECRAFT" -> "vanilla_ui";
             default -> null;
         };
+        if (file == null) return null;
+        return Identifier.fromNamespaceAndPath(SpaceClient.MOD_ID, file);
     }
 
     private static final Map<String, Font> cache = new HashMap<>();
@@ -86,24 +83,23 @@ public final class Fonts {
 
             String style = SpaceClient.getSettings().fontStyle();
 
-            Font target;
-            if ("MINECRAFT".equals(style)) {
-                target = original;
-            } else {
-                Identifier id = idFor(style);
-                if (id == null) return;
+            // Every style is built, "Minecraft" included. Handing back the
+            // original Font was the bug: default.json has already made that
+            // Open Sans, so choosing Minecraft returned the very thing it was
+            // meant to escape. The pixel font has to be asked for by name.
+            Identifier id = idFor(style);
+            if (id == null) return;
 
-                target = cache.get(style);
+            Font target = cache.get(style);
+            if (target == null) {
+                target = build(mc, id);
                 if (target == null) {
-                    target = build(mc, id);
-                    if (target == null) {
-                        status = "could not build " + style;
-                        SpaceClient.LOGGER.warn(
-                                "Could not build the {} font; keeping the game's own", style);
-                        return;
-                    }
-                    cache.put(style, target);
+                    status = "could not build " + style;
+                    SpaceClient.LOGGER.warn(
+                            "Could not build the {} font; keeping the game's own", style);
+                    return;
                 }
+                cache.put(style, target);
             }
 
             // Through the accessor, not reflection. Minecraft.font is final,

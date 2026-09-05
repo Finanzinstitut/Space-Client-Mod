@@ -975,3 +975,127 @@ Typ `FontDescription` bekommt. Dort wird unsere Beschreibung eingesetzt.
 
 Der Vorteil ist nicht nur, dass es jetzt kompiliert: Egal wie viele Methoden
 `Font.Provider` hat oder künftig bekommt, dieser Code muss sie nicht kennen.
+
+---
+
+# 1.12.0 — Caxton, und warum "Minecraft" nie funktioniert hat
+
+## Caxton ist kein Font, sondern der fehlende Teil
+
+Der Mod, den du geschickt hast, bringt Minecraft **echtes TrueType-Rendering**
+bei — mit richtiger Kantenglättung statt des groben Rasterers im Spiel. Genau
+das war das Problem: Die Schrift kam die ganze Zeit korrekt an, sie sah nur
+grob aus, weil das Spiel sie so gezeichnet hat.
+
+Meine eigenen `ttf`-Provider sind deshalb raus. Die Schriften liegen jetzt im
+Format, das Caxton erwartet:
+
+```
+assets/spaceclient/textures/font/opensans_regular.ttf       (+ .ttf.json)
+assets/spaceclient/textures/font/barlow_regular.ttf         (+ .ttf.json)
+assets/spaceclient/font/opensans_ui.json                    "type": "caxton"
+assets/spaceclient/font/barlow_ui.json
+assets/spaceclient/font/vanilla_ui.json                     die Pixelschrift
+assets/minecraft/font/default.json                          global
+```
+
+Nebenbei bestätigt Caxtons eigene `default.json` etwas, das ich vorher nur
+erschlossen hatte: Der Font-Provider steht dort **vor** den vanilla-Verweisen.
+Der erste gewinnt, so wie ich es in 1.9.1 umgestellt hatte.
+
+Caxton ist als `recommends` eingetragen, nicht als `depends` — ohne ihn läuft
+Space Client weiter, die Schrift bleibt dann eben die vom Spiel.
+
+## Warum der Wechsel zu "Minecraft" nie ging
+
+Ein echter Fehler in meinem Code, und ein peinlich einfacher:
+
+```java
+if ("MINECRAFT".equals(style)) {
+    target = original;      // <- das Original war längst Open Sans
+}
+```
+
+`original` ist der Font, den das Spiel beim Start hatte — und dessen Definition
+hatte `default.json` schon auf Open Sans umgestellt. Die Option hat also brav
+genau die Schrift zurückgegeben, vor der sie fliehen sollte.
+
+Jetzt wird jede Auswahl gebaut, "Minecraft" eingeschlossen, aus
+`spaceclient:vanilla_ui` — einer Definition, die ausdrücklich die
+vanilla-Provider nennt.
+
+## Was du wissen solltest
+
+**Caxton meldet einen Konflikt mit Iris**, und Iris ist bei dir installiert.
+Das steht so in Caxtons eigener `fabric.mod.json` (`"conflicts": {"iris": "*"}`)
+und heißt: startet, aber die Autoren erwarten Probleme mit Shadern. Falls die
+Schrift mit aktiven Shadern verschwindet oder flackert, liegt es daran und nicht
+an Space Client.
+
+Caxton bringt außerdem eigene Ressourcenpakete für Open Sans und Inter mit. Die
+brauchst du nicht — unsere Definitionen liegen direkt im Mod und sind über
+Appearance umschaltbar.
+
+---
+
+# 1.13.0 — Bitmap-Schriften, und die KV-Sperre
+
+## Cloudflare: 1000 Schreibvorgänge am Tag überschritten
+
+Ursache gefunden, und es war nicht der Presence-Heartbeat: **Now Playing hat bei
+jeder Meldung in KV geschrieben, alle zehn Sekunden.** Das sind 8.640
+Schreibvorgänge pro Tag für einen einzigen Zuhörer, gegen ein Kontingent von
+1.000. Das Kontingent war damit vormittags aufgebraucht.
+
+Zwei Änderungen im Worker:
+
+**Nur schreiben, wenn sich etwas geändert hat.** Ein anderer Titel, oder Start
+und Stopp, zählen immer. Die Position für sich nicht — die läuft von allein
+weiter, und Zuhörer rechnen sie aus dem Zeitstempel hoch. Ausnahme ist ein
+Sprung im Titel: liegt die Position weit von dort, wohin sie gedriftet sein
+müsste, ist die Rechnung der Zuhörer falsch und nur ein Schreibvorgang kann sie
+korrigieren.
+
+**Lebensdauer von 5 auf 30 Minuten.** Der Datensatz wird bei halber Lebenszeit
+erneuert; fünf Minuten hießen ein Schreibvorgang alle zweieinhalb Minuten, auch
+für jemanden, der ein langes Album hört.
+
+| | vorher | jetzt |
+|---|---|---|
+| Now Playing, Dauerbetrieb | 8.640/Tag | ~96/Tag plus einer je Titel |
+| Presence, 3 Stunden Spielzeit | 26/Tag | unverändert |
+
+Das Kontingent setzt sich um 00:00 UTC von selbst zurück. Bezahlen musst du
+nichts.
+
+## Schriften: der Grundfehler war TrueType
+
+Jeder TTF-Versuch sah aus demselben Grund falsch aus: Eine Schrift, die für
+Druck gezeichnet wurde, auf acht Pixel Höhe gequetscht, ist ein Brei — egal wie
+fein sie gerastert wird. Caxton hätte das gemildert, aber es ist eine
+Alpha-Version, sie kollidiert mit deinem Iris, und sie behandelt ein Symptom.
+
+Die VanillaTweaks-Schriften sind **Bitmap-Schriften**, für Minecraft in genau
+dieser Größe gezeichnet. Deshalb sehen sie richtig aus, ohne dass irgendetwas
+geglättet werden muss.
+
+Entfernt: Open Sans, Barlow, die Caxton-Abhängigkeit und die globale
+`default.json`. Es gibt jetzt **keine** Überschreibung mehr in den Ressourcen —
+ein frisch installierter Client sieht exakt wie Vanilla aus, bis du im
+Appearance-Menü etwas anderes wählst. Damit greift auch "Minecraft" wieder,
+weil es nichts mehr rückgängig zu machen gibt.
+
+Die Zeichentabelle habe ich wörtlich aus deiner
+`assets/minecraft/font/include/default.json` übernommen. 256 Codepunkte zu
+raten wäre auf eine schwer auffindbare Art falsch gewesen: Ein verrutschter
+Eintrag vertauscht stillschweigend zwei Buchstaben.
+
+## Nur eine Schrift, nicht sechs
+
+In deinem Zip waren zwar alle sechs ausgewählt, aber sie ersetzen **dieselben
+drei Dateien**. VanillaTweaks packt sie übereinander, also hat genau eine
+überlebt — und welche, steht nirgends drin.
+
+Für weitere lade sie bitte **einzeln** herunter: auf vanillatweaks.net jeweils
+nur eine Schrift auswählen, herunterladen, nächste. Jede weitere ist dann drei
+Zeilen Arbeit.

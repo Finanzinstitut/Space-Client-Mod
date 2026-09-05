@@ -37,8 +37,7 @@ public class AppearanceScreen extends Screen {
      */
     private static String prettyFont(String style) {
         return switch (style) {
-            case "OPEN_SANS" -> "Open Sans";
-            case "BARLOW" -> "Barlow";
+            case "VANILLA_TWEAKS" -> "Vanilla Tweaks";
             default -> "Minecraft";
         };
     }

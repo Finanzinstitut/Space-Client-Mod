@@ -26,15 +26,14 @@ public class ClientSettings {
     /**
      * Which typeface this client's own screens use.
      *
-     * Matches the game-wide font by default, so the client is of a piece with
-     * what default.json already did. "MINECRAFT" here means the original pixel
-     * font, which is otherwise no longer reachable once that override is in
-     * place.
+     * The game's own font by default. Nothing in the resources overrides it any
+     * more, so a fresh install looks exactly like vanilla until this is
+     * changed.
      */
     public static final List<String> FONT_STYLES =
-            Arrays.asList("MINECRAFT", "OPEN_SANS", "BARLOW");
+            Arrays.asList("MINECRAFT", "VANILLA_TWEAKS");
 
-    private String fontStyle = "OPEN_SANS";
+    private String fontStyle = "MINECRAFT";
 
     /**
      * The accent lives in a ColorSetting so the same colour wheel widget the
