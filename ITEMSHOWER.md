@@ -1204,3 +1204,35 @@ sieht — kommen aus der gewählten Schrift.
 
 Der Prank-Einladungscode und das Panel stehen weiterhin aus; sag Bescheid, wenn
 die Schriften sitzen, dann ist das das Nächste.
+
+---
+
+# 1.15.1 — "Minecraft" gibt wieder die Pixelschrift
+
+Der Umschalter funktioniert, aber "Minecraft" zeigte Open Sans - Caxtons
+Schrift, obwohl du Caxton entfernt hast. Zwei verkettete Ursachen:
+
+**Erstens** hielt der Code beim Start die *gerade aktive* Schrift als "original"
+fest. Solange Caxton lief, war das Caxtons Schrift, nicht die Pixelschrift. Bei
+"Minecraft" gab er brav dieses gemerkte Objekt zurück - das falsche.
+
+**Zweitens**, und das ist der eigentliche Fix: "Minecraft" wird jetzt wie jeder
+andere Stil aus einer eigenen Definition gebaut, statt auf das gemerkte Objekt
+zu vertrauen. Aber diese Definition durfte nicht auf `minecraft:include/default`
+verweisen - genau das überschreibt ein Font-Mod. Sie zeigt jetzt auf eine
+**eigene Kopie der Pixelschrift** unter unserem Namespace
+(`spaceclient:font/pixel_ascii.png`). Damit trifft "Minecraft" die echten
+Pixel-Glyphen, egal was sonst installiert ist.
+
+Die Kopie ist die originale `ascii.png` von Mojang, aus einem offenen
+Asset-Spiegel. Nur der Latein-Block; Akzente und Nicht-Latein laufen weiter über
+die vanilla-Verweise, was reicht - ein Font-Mod ersetzt die lateinischen
+Buchstaben, und die holt "Minecraft" damit zurück.
+
+## Nebenbefund aus dem Provider-Dump
+
+`Font.Provider` hat zwei Methoden, nicht eine: `glyphs(FontDescription)` und
+`effect()`. Der frühere Proxy reichte `effect()` an den Quell-Provider durch,
+dessen Effekt-Glyph aber an dessen eigene Definition gebunden ist - der
+Fehlschlag beim Bauen. Jetzt implementiert der Code beide selbst: glyphs für
+unsere Definition, effect unveraendert vom echten Provider.

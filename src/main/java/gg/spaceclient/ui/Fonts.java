@@ -88,29 +88,28 @@ public final class Fonts {
 
             String style = SpaceClient.getSettings().fontStyle();
 
-            Font target;
-            if ("MINECRAFT".equals(style)) {
-                // The font captured at startup, before anything was swapped.
-                // There is now no resource override at all, so this really is
-                // the game's own font - no building, no proxy, nothing to fail.
-                target = original;
-            } else {
-                Identifier id = idFor(style);
-                if (id == null) return;
+            // "Minecraft" is built like every other style now, from a
+            // definition that names the vanilla providers by hand.
+            //
+            // Handing back the captured `original` looked right and was not: if
+            // another font mod - Caxton, say - had already replaced the game's
+            // font before this mod started, then `original` is that mod's font,
+            // not the pixel one. Choosing "Minecraft" then gave Caxton's Open
+            // Sans back. Asking for the vanilla providers by name sidesteps
+            // whatever any other mod did to the default.
+            Identifier id = idFor(style);
+            if (id == null) return;
 
-                target = cache.get(style);
+            Font target = cache.get(style);
+            if (target == null) {
+                target = build(mc, id);
                 if (target == null) {
-                    target = build(mc, id);
-                    if (target == null) {
-                        // Fall back to the original rather than leaving whatever
-                        // was set last still showing
-                        status = "could not build " + style + " (using Minecraft)";
-                        ((gg.spaceclient.mixin.MinecraftFontAccessor) (Object) mc)
-                                .spaceclient$setFont(original);
-                        return;
-                    }
-                    cache.put(style, target);
+                    status = "could not build " + style;
+                    SpaceClient.LOGGER.warn(
+                            "Could not build the {} font; leaving the current one", style);
+                    return;
                 }
+                cache.put(style, target);
             }
 
             // Through the accessor, not reflection. Minecraft.font is final,
@@ -152,24 +151,30 @@ public final class Fonts {
     private static Font build(Minecraft mc, Identifier id) {
         try {
             Font source = original != null ? original : mc.font;
-            Font.Provider provider =
+            Font.Provider real =
                     ((gg.spaceclient.mixin.FontAccessor) (Object) source).spaceclient$provider();
-            if (provider == null) return null;
+            if (real == null) return null;
 
             FontDescription description = new FontDescription.Resource(id);
 
-            Font.Provider redirected = (Font.Provider) java.lang.reflect.Proxy.newProxyInstance(
-                    Font.Provider.class.getClassLoader(),
-                    new Class<?>[]{ Font.Provider.class },
-                    (proxy, method, args) -> {
-                        // One argument, and it is a font description: this is
-                        // the glyph lookup, so answer for ours instead
-                        if (args != null && args.length == 1
-                                && args[0] instanceof FontDescription) {
-                            return method.invoke(provider, description);
-                        }
-                        return method.invoke(provider, args);
-                    });
+            // A real Provider, not a proxy. The dump settled what it needs:
+            // glyphs(FontDescription) and effect(). The proxy forwarded
+            // effect() to the source provider, whose effect glyph is tied to
+            // the source's own definition, not ours - a mismatch that failed
+            // the build. Implementing both explicitly keeps them consistent:
+            // glyphs answers for our definition, effect comes from the real
+            // one unchanged.
+            Font.Provider redirected = new Font.Provider() {
+                @Override
+                public net.minecraft.client.gui.GlyphSource glyphs(FontDescription ignored) {
+                    return real.glyphs(description);
+                }
+
+                @Override
+                public net.minecraft.client.gui.font.glyphs.EffectGlyph effect() {
+                    return real.effect();
+                }
+            };
 
             return new Font(redirected);
 
