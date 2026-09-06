@@ -73,6 +73,12 @@ public final class Diagnostics {
                 !gg.spaceclient.modules.ZoomModule.lastResult().startsWith("write ignored"),
                 gg.spaceclient.modules.ZoomModule.lastResult()));
 
+        // The post effect slot is shared with the game and dropped without
+        // warning, so what the module last managed to do is worth reading
+        checks.add(new Check("Saturation",
+                !gg.spaceclient.modules.SaturationModule.lastResult().contains("no effect"),
+                gg.spaceclient.modules.SaturationModule.lastResult()));
+
         boolean musicSupported = gg.spaceclient.music.MusicWatcher.isSupported();
         // Which route the track came from, since the two differ in what they see
         checks.add(new Check("Music route", true, gg.spaceclient.music.MusicWatcher.status()));
