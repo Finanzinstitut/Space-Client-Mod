@@ -47,6 +47,7 @@ public class ModuleManager {
         register(new SuppliesModule());
         register(new HealthModule());
         register(new DurabilityModule());
+        register(new SaturationModule());
     }
 
     private void register(Module module) {

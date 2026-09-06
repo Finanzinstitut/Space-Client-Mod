@@ -38,6 +38,7 @@ public final class ModuleCategories {
             Map.entry("backdrop", VISUAL),
             Map.entry("camera", VISUAL),
             Map.entry("fullbright", VISUAL),
+            Map.entry("saturation", VISUAL),
 
             Map.entry("coordscopy", UTILITY),
             Map.entry("yawlock", UTILITY),
