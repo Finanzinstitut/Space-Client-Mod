@@ -207,7 +207,18 @@ public class SaturationModule extends Module {
 
         Identifier wanted = idFor(step);
 
-        if (wanted.equals(current)) {
+        // Both fields have to line up, not just the identifier.
+        //
+        // The render path checks postEffectId AND a separate `effectActive`
+        // flag, and skips the pass if either is missing. currentPostEffect()
+        // only reports the first of the two, so an effect can read as set
+        // while nothing at all is drawn - which is exactly what happens in
+        // some camera modes. Returning early on the identifier alone left the
+        // flag off with nothing ever to turn it back on. Calling setPostEffect
+        // again is the repair, because it writes both.
+        boolean live = effectActive(renderer);
+
+        if (wanted.equals(current) && live) {
             applied = wanted;
             status = "active at " + step + "%";
             return;
@@ -221,6 +232,18 @@ public class SaturationModule extends Module {
         }
 
         setEffect(renderer, wanted, step);
+    }
+
+    /**
+     * The flag the render path checks alongside the identifier.
+     *
+     * Absent from any public method, so it is read straight off the field.
+     * Unreadable counts as true: the module then behaves as it did before this
+     * was known about rather than reapplying the effect every single tick.
+     */
+    private boolean effectActive(Object renderer) {
+        Object value = readField(renderer, "effectActive");
+        return !(value instanceof Boolean flag) || flag;
     }
 
     @Override
@@ -249,13 +272,35 @@ public class SaturationModule extends Module {
 
         // callWith returns null for a void method as well as for a miss, so a
         // failure shows up as the effect simply never appearing. Reading the
-        // field back is what tells the two apart.
+        // fields back is what tells the two apart.
         if (currentEffect(renderer) == null) {
             warnOnce();
             status = "setPostEffect had no effect";
+        } else if (!effectActive(renderer)) {
+            // Set, but the game will not draw it. Worth saying out loud
+            // rather than reporting a cheerful "active"
+            status = "set at " + step + "%, but the render flag is off";
         } else {
             status = "active at " + step + "%";
         }
+    }
+
+    /** Reads a field by name, walking up the class hierarchy. */
+    private static Object readField(Object target, String name) {
+        if (target == null) return null;
+        Class<?> current = target.getClass();
+        while (current != null) {
+            try {
+                Field field = current.getDeclaredField(name);
+                field.setAccessible(true);
+                return field.get(target);
+            } catch (NoSuchFieldException ignored) {
+                current = current.getSuperclass();
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+        return null;
     }
 
     private Identifier currentEffect(Object renderer) {
