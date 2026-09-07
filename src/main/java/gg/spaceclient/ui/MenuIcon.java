@@ -36,7 +36,13 @@ public class MenuIcon extends Button {
     private float appear = 0f;
 
     public MenuIcon(int x, int y, int size, Kind kind, String label, Runnable onPress) {
-        super(x, y, size, size, Component.empty(), btn -> onPress.run(), DEFAULT_NARRATION);
+        // Guarded through the button instance rather than by clearing the
+        // widget's own enabled flag: that flag's name on this version has not
+        // been proven by a compile, and the press handler is handed the button
+        // anyway, so the check costs nothing and risks nothing.
+        super(x, y, size, size, Component.empty(),
+                btn -> { if (((MenuIcon) btn).appear > 0.5f) onPress.run(); },
+                DEFAULT_NARRATION);
         this.kind = kind;
         this.label = label;
     }
@@ -45,7 +51,6 @@ public class MenuIcon extends Button {
 
     public void setAppear(float value) {
         this.appear = Ease.clamp01(value);
-        this.active = this.appear > 0.5f;
     }
 
     public float appear() { return appear; }

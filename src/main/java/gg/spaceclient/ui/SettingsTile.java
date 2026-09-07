@@ -26,7 +26,9 @@ public class SettingsTile extends Button {
 
     public SettingsTile(int x, int y, int width, int height,
                         String title, String subtitle, Mark mark, Runnable onPress) {
-        super(x, y, width, height, Component.empty(), btn -> onPress.run(), DEFAULT_NARRATION);
+        super(x, y, width, height, Component.empty(),
+                btn -> { if (((SettingsTile) btn).appear > 0.5f) onPress.run(); },
+                DEFAULT_NARRATION);
         this.title = title;
         this.subtitle = subtitle;
         this.mark = mark;
@@ -34,7 +36,6 @@ public class SettingsTile extends Button {
 
     public void setAppear(float value) {
         this.appear = Ease.clamp01(value);
-        this.active = this.appear > 0.5f;
     }
 
     @Override

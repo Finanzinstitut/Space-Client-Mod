@@ -54,8 +54,6 @@ public class ServersScreen extends Screen {
     private String failure = null;
 
     private long openedAt = 0L;
-    private float scroll = 0f;
-    private float scrollTarget = 0f;
 
     public ServersScreen(Screen parent) {
         super(Component.literal("Multiplayer"));
@@ -410,12 +408,6 @@ public class ServersScreen extends Screen {
     }
 
     // --- drawing ---
-
-    @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double amountX, double amountY) {
-        scrollTarget = Math.max(0f, scrollTarget - (float) amountY * 28f);
-        return true;
-    }
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {

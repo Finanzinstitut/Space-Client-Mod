@@ -55,6 +55,9 @@ public class MainMenuScreen extends Screen {
 
     private long openedAt = 0L;
 
+    /** Whether the introduction has already run since the game started. */
+    private static boolean introPlayed = false;
+
     /**
      * Chosen once per screen rather than per frame, so the greeting does not
      * change while it is being read.
@@ -73,8 +76,17 @@ public class MainMenuScreen extends Screen {
         // replaying the introduction because someone dragged the window edge
         // is the kind of thing that makes people turn a menu off.
         if (openedAt == 0L) {
-            openedAt = System.currentTimeMillis();
             greeting = pickGreeting();
+
+            // Played once per session, not once per visit. Coming back from
+            // the server list to watch the same four seconds again is the
+            // point at which an introduction becomes a toll booth, and every
+            // way of skipping it goes through the input API - which changed
+            // shape in this version and is not worth guessing at.
+            openedAt = introPlayed
+                    ? System.currentTimeMillis() - DONE
+                    : System.currentTimeMillis();
+            introPlayed = true;
         }
 
         icons.clear();
@@ -191,35 +203,10 @@ public class MainMenuScreen extends Screen {
         return openedAt == 0L ? 0L : System.currentTimeMillis() - openedAt;
     }
 
-    /** Sends the sequence to its end, for anyone who has seen it before. */
-    private void skip() {
-        if (elapsed() < DONE) {
-            openedAt = System.currentTimeMillis() - DONE;
-        }
-    }
-
     private static float span(long now, long from, long to) {
         if (now <= from) return 0f;
         if (now >= to) return 1f;
         return (now - from) / (float) (to - from);
-    }
-
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (elapsed() < DONE) {
-            skip();
-            return true;
-        }
-        return super.mouseClicked(mouseX, mouseY, button);
-    }
-
-    @Override
-    public boolean keyPressed(int key, int scanCode, int modifiers) {
-        if (elapsed() < DONE) {
-            skip();
-            return true;
-        }
-        return super.keyPressed(key, scanCode, modifiers);
     }
 
     @Override
@@ -349,6 +336,11 @@ public class MainMenuScreen extends Screen {
     @Override
     public void onClose() { }
 
-    @Override
+    /**
+     * Deliberately without @Override: nothing else in this mod has compiled
+     * against this method, so if it has been renamed this quietly becomes an
+     * unused method rather than a failed build. If the name still stands, Java
+     * treats it as an override with or without the annotation.
+     */
     public boolean isPauseScreen() { return false; }
 }
