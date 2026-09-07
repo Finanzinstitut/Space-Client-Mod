@@ -251,30 +251,46 @@ public class WorldsScreen extends Screen {
             Object flows = Reflect.call(Minecraft.getInstance(), "createWorldOpenFlows");
             if (flows == null) return;
 
-            // The newer shape takes something to run if the world will not
-            // open; the older one takes only the id
-            Object done = Reflect.callWith(flows, "openWorld", levelId, (Runnable) () -> Screens.open(this));
-            if (done == null) Reflect.callWith(flows, "openWorld", levelId);
+            // Asked whether it ran rather than what it returned: openWorld is
+            // void, so a null answer meant "try the other shape" and the world
+            // was opened twice in a row.
+            boolean opened = Construct.invokedOn(flows, "openWorld",
+                    levelId, (Runnable) () -> Screens.open(this));
 
-        } catch (Throwable ignored) {
-            SpaceClient.LOGGER.warn("Could not open the world on this version");
+            if (!opened) {
+                SpaceClient.LOGGER.warn("Could not open the world on this version");
+            }
+
+        } catch (Throwable t) {
+            SpaceClient.LOGGER.warn("Could not open the world: {}", String.valueOf(t));
         }
     }
 
+    /**
+     * Opens the game's world creator.
+     *
+     * The first version of this insisted on a two argument openFresh and gave
+     * up when it did not find one, which on this version meant the button did
+     * nothing at all. Now any shape that can be filled from what is on offer
+     * will do, and the names the class actually has are logged when none can -
+     * so a miss produces the answer rather than another guess.
+     */
     private void createWorld() {
-        try {
-            Class<?> type = Class.forName(
-                    "net.minecraft.client.gui.screens.worldselection.CreateWorldScreen");
-            for (Method method : type.getMethods()) {
-                if (!method.getName().equals("openFresh")) continue;
-                if (method.getParameterCount() != 2) continue;
-                method.invoke(null, Minecraft.getInstance(), this);
-                return;
-            }
-        } catch (Throwable ignored) {
-            // Fall through to the game's own list, which can always create one
+        String className = "net.minecraft.client.gui.screens.worldselection.CreateWorldScreen";
+
+        for (String name : new String[]{"openFresh", "createFresh", "openCreateWorldScreen"}) {
+            if (Construct.invoked(className, name, Minecraft.getInstance(), this)) return;
         }
-        SpaceClient.LOGGER.warn("Could not open the world creator on this version");
+
+        // Some versions build it rather than offer a factory
+        Object screen = Construct.of(className, Minecraft.getInstance(), this);
+        if (screen instanceof Screen creator) {
+            Screens.open(creator);
+            return;
+        }
+
+        SpaceClient.LOGGER.warn("Could not open the world creator: {}",
+                Construct.describeStatics(className, null));
     }
 
     @Override

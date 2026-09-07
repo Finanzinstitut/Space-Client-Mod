@@ -369,14 +369,19 @@ public class ServersScreen extends Screen {
         Object parsed = Construct.call(
                 "net.minecraft.client.multiplayer.resolver.ServerAddress", "parseString", address);
 
-        Object done = Construct.call(
+        // Asked whether it ran, not what it gave back: startConnecting returns
+        // void, so its null answer is indistinguishable from a miss. Treating
+        // that null as failure is what opened the game's own server list for a
+        // moment on every successful join - and left the disconnect screen
+        // pointing at it afterwards.
+        boolean started = Construct.invoked(
                 "net.minecraft.client.gui.screens.ConnectScreen", "startConnecting",
                 this, Minecraft.getInstance(), parsed, server);
 
-        if (done == null) {
-            // Nothing usable: hand over to the game's own screen rather than
-            // leave a Join button that quietly does nothing
-            SpaceClient.LOGGER.warn("Could not start a connection on this version");
+        if (!started) {
+            SpaceClient.LOGGER.warn("Could not start a connection: {}",
+                    Construct.describeStatics(
+                            "net.minecraft.client.gui.screens.ConnectScreen", "startConnecting"));
             openVanilla();
         }
     }

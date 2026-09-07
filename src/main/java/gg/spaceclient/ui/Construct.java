@@ -92,6 +92,103 @@ public final class Construct {
         return null;
     }
 
+    /**
+     * Calls a static method and says whether it ran, not what it returned.
+     *
+     * The distinction matters because most of what this client hands off to -
+     * starting a connection, opening the world creator - returns void, and a
+     * void method reflected over gives back null. Reading that null as failure
+     * is what made a successful server join also open the game's own server
+     * list for a moment, and then land there again on disconnect.
+     */
+    public static boolean invoked(String className, String methodName, Object... pool) {
+        try {
+            Class<?> type = Class.forName(className);
+            Method[] methods = type.getMethods();
+
+            java.util.Arrays.sort(methods,
+                    (a, b) -> b.getParameterCount() - a.getParameterCount());
+
+            for (Method method : methods) {
+                if (!method.getName().equals(methodName)) continue;
+                if (!java.lang.reflect.Modifier.isStatic(method.getModifiers())) continue;
+
+                Object[] args = match(method.getParameterTypes(), pool);
+                if (args == null) continue;
+                try {
+                    method.invoke(null, args);
+                    return true;
+                } catch (Throwable ignored) {
+                    // Try the next overload
+                }
+            }
+        } catch (Throwable ignored) {
+            // Not present on this version
+        }
+        return false;
+    }
+
+    /**
+     * The same for an instance method, matched by name and fillable arguments.
+     *
+     * Returns whether one ran, so a void method is not mistaken for a miss and
+     * retried with a different shape - which is how opening a world ended up
+     * being attempted twice in a row.
+     */
+    public static boolean invokedOn(Object target, String methodName, Object... pool) {
+        if (target == null) return false;
+        try {
+            Method[] methods = target.getClass().getMethods();
+
+            java.util.Arrays.sort(methods,
+                    (a, b) -> b.getParameterCount() - a.getParameterCount());
+
+            for (Method method : methods) {
+                if (!method.getName().equals(methodName)) continue;
+                if (java.lang.reflect.Modifier.isStatic(method.getModifiers())) continue;
+
+                Object[] args = match(method.getParameterTypes(), pool);
+                if (args == null) continue;
+                try {
+                    method.setAccessible(true);
+                    method.invoke(target, args);
+                    return true;
+                } catch (Throwable ignored) {
+                    // Try the next overload
+                }
+            }
+        } catch (Throwable ignored) {
+            // Nothing usable
+        }
+        return false;
+    }
+
+    /**
+     * The static methods a class actually offers, for a log line when nothing
+     * matched. Guessing twice is worse than reporting once.
+     */
+    public static String describeStatics(String className, String methodName) {
+        try {
+            Class<?> type = Class.forName(className);
+            StringBuilder out = new StringBuilder();
+            for (Method method : type.getMethods()) {
+                if (!java.lang.reflect.Modifier.isStatic(method.getModifiers())) continue;
+                if (methodName != null && !method.getName().contains(methodName)) continue;
+                if (out.length() > 0) out.append("; ");
+                out.append(method.getName()).append('(');
+                Class<?>[] params = method.getParameterTypes();
+                for (int i = 0; i < params.length; i++) {
+                    if (i > 0) out.append(", ");
+                    out.append(params[i].getSimpleName());
+                }
+                out.append(')');
+            }
+            return out.length() == 0 ? "no matching static methods" : out.toString();
+        } catch (Throwable ignored) {
+            return "class not present";
+        }
+    }
+
     /** The same idea for a static factory method. */
     public static Object call(String className, String methodName, Object... pool) {
         try {
