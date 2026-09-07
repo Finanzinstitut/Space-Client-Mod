@@ -52,6 +52,20 @@ public final class MenuWallpaper {
     private static float offsetY = 0f;
 
     /**
+     * How much of the drift is currently allowed, from nothing to all of it.
+     *
+     * The introduction sets this to zero and raises it once the icons are in
+     * place. A picture answering the cursor while a greeting is still being
+     * read pulls the eye away from the words - the drift is an invitation to
+     * touch things, and there is nothing to touch yet.
+     */
+    private static float influence = 1f;
+
+    public static void setInfluence(float value) {
+        influence = Ease.clamp01(value);
+    }
+
+    /**
      * Draws the wallpaper, or reports that it could not.
      *
      * @return false when there is no usable texture call, so the caller can
@@ -77,9 +91,13 @@ public final class MenuWallpaper {
         float fromCentreX = clamp((mouseX - width / 2f) / (width / 2f));
         float fromCentreY = clamp((mouseY - height / 2f) / (height / 2f));
 
+        // Negated because the image is drawn from its own top left corner:
+        // to make the visible scene travel towards the cursor, the crop has to
+        // travel away from it. Reasoning about it the other way round is what
+        // put the first version of this the wrong way round in both axes.
         float step = Math.max(delta, 0.1f);
-        offsetX = Ease.approach(offsetX, fromCentreX * roomX, 0.09f, step);
-        offsetY = Ease.approach(offsetY, fromCentreY * roomY, 0.09f, step);
+        offsetX = Ease.approach(offsetX, -fromCentreX * roomX * influence, 0.09f, step);
+        offsetY = Ease.approach(offsetY, -fromCentreY * roomY * influence, 0.09f, step);
 
         int x = Math.round((width - drawWidth) / 2f + offsetX);
         int y = Math.round((height - drawHeight) / 2f + offsetY);

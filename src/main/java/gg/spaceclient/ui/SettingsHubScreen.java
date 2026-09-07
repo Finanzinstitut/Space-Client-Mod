@@ -76,9 +76,19 @@ public class SettingsHubScreen extends Screen {
                 SettingsTile.Mark.KEYS,
                 "net.minecraft.client.gui.screens.options.controls.ControlsScreen");
 
+        // Under options. rather than at the top level, which is where an
+        // earlier guess put it - the tile simply never appeared.
         vanilla(plan, "Language", "The language the game is written in",
                 SettingsTile.Mark.LANGUAGE,
-                "net.minecraft.client.gui.screens.LanguageSelectScreen");
+                "net.minecraft.client.gui.screens.options.LanguageSelectScreen");
+
+        vanilla(plan, "Chat", "Chat visibility, width and colours",
+                SettingsTile.Mark.INFO,
+                "net.minecraft.client.gui.screens.options.ChatOptionsScreen");
+
+        vanilla(plan, "Accessibility", "Text background, narrator and motion",
+                SettingsTile.Mark.INFO,
+                "net.minecraft.client.gui.screens.options.AccessibilityOptionsScreen");
 
         vanilla(plan, "Resource packs", "Textures, sounds and fonts",
                 SettingsTile.Mark.PACKS,
@@ -131,15 +141,22 @@ public class SettingsHubScreen extends Screen {
         plan.add(new Plan(title, subtitle, mark, () -> openVanilla(className)));
     }
 
+    /**
+     * Opens one of the game's own screens.
+     *
+     * The options object is read straight off the field. Asking for it through
+     * a getter returned null, and because a missing argument used to be passed
+     * as null rather than refused, every one of these screens was built with no
+     * settings behind it - they opened onto nothing at all. Passing the real
+     * object is the fix; refusing to build without it is the guard, so the same
+     * mistake shows up as a tile that does not react instead of a blank screen.
+     */
     private void openVanilla(String className) {
-        Object options = null;
-        try {
-            options = gg.spaceclient.util.Reflect.call(Minecraft.getInstance(), "getOptions");
-        } catch (Throwable ignored) {
-            // Some of these screens do not want it anyway
-        }
+        Object options = Minecraft.getInstance().options;
 
-        Object screen = Construct.of(className, this, options, Minecraft.getInstance());
+        Object screen = Construct.strict(className, this, options, Minecraft.getInstance());
+        if (screen == null) screen = Construct.of(className, this, options, Minecraft.getInstance());
+
         if (screen instanceof Screen target) {
             Screens.open(target);
         } else {

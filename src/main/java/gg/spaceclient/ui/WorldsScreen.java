@@ -49,8 +49,17 @@ public class WorldsScreen extends Screen {
     private java.util.List<Entry> entries = java.util.List.of();
     private String failure = null;
 
-    private float scroll = 0f;
-    private float scrollTarget = 0f;
+    /**
+     * The leftmost card, counted in whole cards.
+     *
+     * Whole cards for the same reason the server list steps by whole rows:
+     * there is no clip here, so a card sliding half off the edge would draw
+     * over the heading and the back button instead of disappearing.
+     */
+    private int scrollCard = 0;
+
+    private final DragScroll drag = new DragScroll();
+    private int dragCarry = 0;
 
     public WorldsScreen(Screen parent) {
         super(Component.literal("Singleplayer"));
@@ -64,28 +73,88 @@ public class WorldsScreen extends Screen {
     protected void init() {
         if (entries.isEmpty() && failure == null) load();
 
-        int count = entries.size() + 1;
-        int totalWidth = count * CARD_W + (count - 1) * CARD_GAP;
-        int startX = Math.max(30, (this.width - totalWidth) / 2);
+        int total = entries.size() + 1;          // the cards, plus the new one
+        int visible = visibleCards();
+        scrollCard = Math.max(0, Math.min(maxScrollCard(), scrollCard));
+
+        int shown = Math.min(visible, total - scrollCard);
+        int blockWidth = shown * CARD_W + (shown - 1) * CARD_GAP;
+        int startX = (this.width - blockWidth) / 2;
         int y = (this.height - CARD_H) / 2;
 
-        for (int i = 0; i < entries.size(); i++) {
-            Entry entry = entries.get(i);
-            int x = startX + i * (CARD_W + CARD_GAP);
-            this.addRenderableWidget(new WorldCard(
-                    x, y, CARD_W, CARD_H,
-                    entry.name(), entry.detail(), texture(entry),
-                    false, () -> open(entry.id())));
-        }
+        for (int slot = 0; slot < shown; slot++) {
+            int index = scrollCard + slot;
+            int x = startX + slot * (CARD_W + CARD_GAP);
 
-        int newX = startX + entries.size() * (CARD_W + CARD_GAP);
-        this.addRenderableWidget(new WorldCard(
-                newX, y, CARD_W, CARD_H,
-                "New world", "", null, true, this::createWorld));
+            if (index < entries.size()) {
+                Entry entry = entries.get(index);
+                this.addRenderableWidget(new WorldCard(
+                        x, y, CARD_W, CARD_H,
+                        entry.name(), entry.detail(), texture(entry),
+                        false, () -> { if (!drag.swallowsClick()) open(entry.id()); }));
+            } else {
+                this.addRenderableWidget(new WorldCard(
+                        x, y, CARD_W, CARD_H,
+                        "New world", "", null, true,
+                        () -> { if (!drag.swallowsClick()) createWorld(); }));
+            }
+        }
 
         this.addRenderableWidget(new FlatButton(
                 20, this.height - 36, 100, 22,
                 () -> "Back", () -> false, this::onClose).asAction());
+    }
+
+    /** How many whole cards fit across, leaving a margin at each edge. */
+    private int visibleCards() {
+        int room = this.width - 60;
+        return Math.max(1, (room + CARD_GAP) / (CARD_W + CARD_GAP));
+    }
+
+    private int maxScrollCard() {
+        return Math.max(0, entries.size() + 1 - visibleCards());
+    }
+
+    private boolean scrollBy(double amount) {
+        int max = maxScrollCard();
+        if (max <= 0) return false;
+
+        int before = scrollCard;
+        scrollCard = Math.max(0, Math.min(max, scrollCard - (int) Math.signum(amount)));
+        if (scrollCard != before) this.rebuildWidgets();
+        return true;
+    }
+
+    // The wheel scrolls a horizontal row sideways here. Turning it is the
+    // gesture for "further along the list", whichever way the list runs.
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        return scrollBy(scrollY);
+    }
+
+    public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+        return scrollBy(amount);
+    }
+
+    private void applyDrag() {
+        if (!drag.isDragging()) {
+            dragCarry = 0;
+            return;
+        }
+        dragCarry += drag.deltaX();
+
+        int step = CARD_W + CARD_GAP;
+        while (Math.abs(dragCarry) >= step) {
+            int direction = dragCarry > 0 ? 1 : -1;
+            dragCarry -= direction * step;
+
+            int before = scrollCard;
+            scrollCard = Math.max(0, Math.min(maxScrollCard(), scrollCard - direction));
+            if (scrollCard == before) {
+                dragCarry = 0;
+                break;
+            }
+            this.rebuildWidgets();
+        }
     }
 
     // --- reading the saves ---
@@ -145,7 +214,6 @@ public class WorldsScreen extends Screen {
     // --- thumbnails ---
 
     private static final java.util.Map<String, Identifier> TEXTURES = new java.util.HashMap<>();
-    private static boolean textureWarned = false;
 
     /**
      * The world's own thumbnail, registered once and remembered.
@@ -163,60 +231,17 @@ public class WorldsScreen extends Screen {
         try {
             byte[] bytes = Files.readAllBytes(entry.icon());
 
-            Class<?> nativeImage = Class.forName("com.mojang.blaze3d.platform.NativeImage");
-            Method read = nativeImage.getMethod("read", byte[].class);
-            Object image = read.invoke(null, (Object) bytes);
-            if (image == null) return null;
-
-            Object texture = newDynamicTexture(image);
-            if (texture == null) return null;
-
-            Object manager = Reflect.call(Minecraft.getInstance(), "getTextureManager");
-            if (manager == null) return null;
-
             Identifier id = Identifier.fromNamespaceAndPath(
                     SpaceClient.MOD_ID,
                     "world_icon/" + entry.id().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_.-]", "_"));
 
-            Reflect.callWith(manager, "register", id, texture);
-            TEXTURES.put(entry.id(), id);
-            return id;
+            Identifier registered = TextureLoader.register(bytes, id);
+            if (registered != null) TEXTURES.put(entry.id(), registered);
+            return registered;
 
         } catch (Throwable ignored) {
-            if (!textureWarned) {
-                textureWarned = true;
-                SpaceClient.LOGGER.warn("World thumbnails could not be decoded on this version");
-            }
             return null;
         }
-    }
-
-    private Object newDynamicTexture(Object image) {
-        try {
-            Class<?> type = Class.forName("com.mojang.blaze3d.platform.DynamicTexture");
-            for (Constructor<?> constructor : type.getConstructors()) {
-                Class<?>[] params = constructor.getParameterTypes();
-                try {
-                    if (params.length == 1 && params[0].isInstance(image)) {
-                        return constructor.newInstance(image);
-                    }
-                    if (params.length == 2 && params[1].isInstance(image)) {
-                        if (params[0] == String.class) {
-                            return constructor.newInstance("space client world icon", image);
-                        }
-                        if (params[0] == java.util.function.Supplier.class) {
-                            java.util.function.Supplier<String> label = () -> "space client world icon";
-                            return constructor.newInstance(label, image);
-                        }
-                    }
-                } catch (Throwable ignored) {
-                    // Wrong shape, try the next
-                }
-            }
-        } catch (Throwable ignored) {
-            // Not present on this version
-        }
-        return null;
     }
 
     // --- actions ---
@@ -254,6 +279,9 @@ public class WorldsScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+        drag.update(mouseX, mouseY);
+        applyDrag();
+
         if (!MenuWallpaper.draw(graphics, this.width, this.height, mouseX, mouseY, delta)) {
             Backdrop.draw(graphics, this.width, this.height);
         }
@@ -266,7 +294,11 @@ public class WorldsScreen extends Screen {
                 scaled ? 0 : 30, 0xFFFFFFFF, false);
         if (scaled) Scale.pop(graphics);
 
-        String hint = failure != null ? failure : "Pick a world, or make a new one";
+        String hint = failure != null
+                ? failure
+                : maxScrollCard() > 0
+                    ? "Pick a world  ·  scroll or drag for more"
+                    : "Pick a world, or make a new one";
         graphics.text(this.font, hint,
                 (this.width - this.font.width(hint)) / 2, 56,
                 failure != null ? 0xFFE8C46A : 0xFFB9B4DC, false);

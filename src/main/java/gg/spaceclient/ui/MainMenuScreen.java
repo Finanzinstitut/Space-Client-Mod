@@ -37,18 +37,18 @@ public class MainMenuScreen extends Screen {
 
     // --- the run, in milliseconds from opening ---
 
-    private static final long GREET_IN = 400;
-    private static final long GREET_HOLD = 1600;
-    private static final long GREET_OUT = 2000;
-    private static final long CLOCK_IN = 1850;
-    private static final long CLOCK_SETTLED = 2350;
-    private static final long CLOCK_RISE = 3050;
-    private static final long CLOCK_UP = 3700;
-    private static final long ICONS_IN = 3450;
-    private static final long DONE = 4300;
+    private static final long GREET_IN = 700;
+    private static final long GREET_HOLD = 2900;
+    private static final long GREET_OUT = 3500;
+    private static final long CLOCK_IN = 3250;
+    private static final long CLOCK_SETTLED = 4050;
+    private static final long CLOCK_RISE = 5400;
+    private static final long CLOCK_UP = 6400;
+    private static final long ICONS_IN = 6000;
+    private static final long DONE = 7200;
 
     /** Stagger between one icon appearing and the next. */
-    private static final long ICON_STEP = 70;
+    private static final long ICON_STEP = 90;
 
     private static final int ICON_SIZE = 40;
     private static final int ICON_GAP = 16;
@@ -213,6 +213,9 @@ public class MainMenuScreen extends Screen {
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         long now = elapsed();
 
+        // Held still through the greeting, then eased in with the icons
+        MenuWallpaper.setInfluence(Ease.outCubic(span(now, ICONS_IN, ICONS_IN + 900)));
+
         // The photograph if it can be drawn, the drawn backdrop if not -
         // never nothing, because a menu on black looks broken rather than plain
         if (!MenuWallpaper.draw(graphics, this.width, this.height, mouseX, mouseY, delta)) {
@@ -230,7 +233,7 @@ public class MainMenuScreen extends Screen {
         // entrance is part of the same clock as everything else
         for (int i = 0; i < icons.size(); i++) {
             long start = ICONS_IN + i * ICON_STEP;
-            icons.get(i).setAppear(span(now, start, start + 320));
+            icons.get(i).setAppear(span(now, start, start + 450));
         }
 
         super.extractRenderState(graphics, mouseX, mouseY, delta);
@@ -306,7 +309,7 @@ public class MainMenuScreen extends Screen {
 
         // The client's name under the clock, as small as it can be and still
         // be read - it is a signature, not a banner
-        float nameFade = Ease.outCubic(span(now, CLOCK_SETTLED, CLOCK_SETTLED + 400));
+        float nameFade = Ease.outCubic(span(now, CLOCK_SETTLED, CLOCK_SETTLED + 700));
         if (nameFade > 0.01f) {
             String name = "Space Client";
             int nameY = timeY + Math.round(this.font.lineHeight * scale) + 4;

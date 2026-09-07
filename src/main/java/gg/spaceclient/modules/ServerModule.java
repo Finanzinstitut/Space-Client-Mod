@@ -12,9 +12,7 @@ import gg.spaceclient.util.Reflect;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.resources.Identifier;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 
 /**
  * Which server you are actually on, with its icon.
@@ -143,8 +141,6 @@ public class ServerModule extends HudModule {
     /** What that identifier was built from, so a change is noticed. */
     private int iconKey = 0;
 
-    private static boolean iconWarned = false;
-
     /**
      * The icon for the server we are on, registering it the first time.
      *
@@ -188,66 +184,16 @@ public class ServerModule extends HudModule {
      * own hash, which means switching servers and switching back reuses what
      * was already registered instead of piling up textures.
      */
+    /**
+     * Hands the bytes to the loader, under an identifier keyed by the image.
+     *
+     * Keyed by content rather than by address, so hopping between two servers
+     * reuses what is already registered instead of adding a texture each time.
+     */
     private Identifier register(byte[] bytes, int key) {
-        try {
-            Class<?> nativeImage = Class.forName("com.mojang.blaze3d.platform.NativeImage");
-            Method read = nativeImage.getMethod("read", byte[].class);
-            Object image = read.invoke(null, (Object) bytes);
-            if (image == null) return null;
-
-            Object texture = newDynamicTexture(image);
-            if (texture == null) return null;
-
-            Object manager = Reflect.call(mc, "getTextureManager");
-            if (manager == null) return null;
-
-            Identifier id = Identifier.fromNamespaceAndPath(
-                    SpaceClient.MOD_ID, "server_icon/" + Integer.toHexString(key));
-
-            Reflect.callWith(manager, "register", id, texture);
-            return id;
-
-        } catch (Throwable ignored) {
-            if (!iconWarned) {
-                iconWarned = true;
-                SpaceClient.LOGGER.warn("Server icon could not be decoded on this version");
-            }
-            return null;
-        }
-    }
-
-    /** Tries the constructor shapes this version might carry. */
-    private Object newDynamicTexture(Object image) {
-        try {
-            Class<?> type = Class.forName("com.mojang.blaze3d.platform.DynamicTexture");
-
-            for (Constructor<?> constructor : type.getConstructors()) {
-                Class<?>[] params = constructor.getParameterTypes();
-
-                try {
-                    if (params.length == 1 && params[0].isInstance(image)) {
-                        return constructor.newInstance(image);
-                    }
-                    // The two argument forms take a label first, either as a
-                    // string or as something that supplies one
-                    if (params.length == 2 && params[1].isInstance(image)) {
-                        if (params[0] == String.class) {
-                            return constructor.newInstance("space client server icon", image);
-                        }
-                        if (params[0] == java.util.function.Supplier.class) {
-                            java.util.function.Supplier<String> label =
-                                    () -> "space client server icon";
-                            return constructor.newInstance(label, image);
-                        }
-                    }
-                } catch (Throwable ignored) {
-                    // Wrong shape, try the next one
-                }
-            }
-        } catch (Throwable ignored) {
-            // No such class on this version
-        }
-        return null;
+        return gg.spaceclient.ui.TextureLoader.register(bytes,
+                Identifier.fromNamespaceAndPath(
+                        SpaceClient.MOD_ID, "server_icon/" + Integer.toHexString(key)));
     }
 
     // --- the text ---

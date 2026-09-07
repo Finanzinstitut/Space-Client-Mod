@@ -49,6 +49,49 @@ public final class Construct {
         return null;
     }
 
+    /**
+     * As above, but refusing rather than filling a gap with null.
+     *
+     * Passing null for an argument nothing in the pool matched is convenient
+     * and occasionally right, and it is also how a settings screen ends up
+     * built with no settings behind it - constructed successfully, opening
+     * onto nothing. Where every argument genuinely matters, this returns null
+     * instead so the caller can say so.
+     */
+    public static Object strict(String className, Object... pool) {
+        try {
+            Class<?> type = Class.forName(className);
+            Constructor<?>[] constructors = type.getConstructors();
+
+            java.util.Arrays.sort(constructors,
+                    (a, b) -> b.getParameterCount() - a.getParameterCount());
+
+            for (Constructor<?> constructor : constructors) {
+                Object[] args = match(constructor.getParameterTypes(), pool);
+                if (args == null) continue;
+
+                boolean complete = true;
+                Class<?>[] params = constructor.getParameterTypes();
+                for (int i = 0; i < args.length; i++) {
+                    if (args[i] == null && !params[i].isPrimitive()) {
+                        complete = false;
+                        break;
+                    }
+                }
+                if (!complete) continue;
+
+                try {
+                    return constructor.newInstance(args);
+                } catch (Throwable ignored) {
+                    // Built but rejected what it was given; try the next shape
+                }
+            }
+        } catch (Throwable ignored) {
+            // Not present on this version
+        }
+        return null;
+    }
+
     /** The same idea for a static factory method. */
     public static Object call(String className, String methodName, Object... pool) {
         try {

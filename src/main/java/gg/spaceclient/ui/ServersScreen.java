@@ -55,6 +55,21 @@ public class ServersScreen extends Screen {
 
     private long openedAt = 0L;
 
+    /**
+     * The first row on screen, counted in whole rows.
+     *
+     * Whole rows rather than pixels because nothing here can clip: without a
+     * scissor call a half row would simply draw over the buttons below it,
+     * which is exactly the overlap this replaces. Stepping by a row means the
+     * list is always a set of complete rows inside its box.
+     */
+    private int scrollRow = 0;
+
+    private final DragScroll drag = new DragScroll();
+
+    /** Pixels pulled since the last whole row was consumed. */
+    private int dragCarry = 0;
+
     public ServersScreen(Screen parent) {
         super(Component.literal("Multiplayer"));
         this.parent = parent;
@@ -70,9 +85,14 @@ public class ServersScreen extends Screen {
         int left = (this.width - LIST_W) / 2;
         int top = 92;
 
-        for (int i = 0; i < rows.size(); i++) {
-            final int index = i;
-            int y = top + i * (ROW_H + ROW_GAP);
+        int visible = visibleRows();
+        scrollRow = Math.max(0, Math.min(maxScrollRow(), scrollRow));
+
+        for (int slot = 0; slot < visible; slot++) {
+            final int index = scrollRow + slot;
+            if (index >= rows.size()) break;
+
+            int y = top + slot * (ROW_H + ROW_GAP);
 
             ServerRow row = new ServerRow(
                     left, y, LIST_W, ROW_H,
@@ -125,7 +145,66 @@ public class ServersScreen extends Screen {
                 () -> "Back", () -> false, this::onClose).asAction());
     }
 
+    /** How many whole rows fit between the heading and the action bar. */
+    private int visibleRows() {
+        int top = 92;
+        int bottom = this.height - 78;
+        int room = bottom - top;
+        return Math.max(1, room / (ROW_H + ROW_GAP));
+    }
+
+    private int maxScrollRow() {
+        return Math.max(0, rows.size() - visibleRows());
+    }
+
+    private boolean scrollBy(double amount) {
+        int max = maxScrollRow();
+        if (max <= 0) return false;
+
+        int before = scrollRow;
+        scrollRow = Math.max(0, Math.min(max, scrollRow - (int) Math.signum(amount)));
+        if (scrollRow != before) this.rebuildWidgets();
+        return true;
+    }
+
+    // Two shapes, neither annotated: the wheel callback gained a second axis
+    // and whichever one this version declares is the one that gets called.
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        return scrollBy(scrollY);
+    }
+
+    public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+        return scrollBy(amount);
+    }
+
+    /** Turns a pull into whole rows, keeping the remainder for the next frame. */
+    private void applyDrag() {
+        if (!drag.isDragging()) {
+            dragCarry = 0;
+            return;
+        }
+        dragCarry += drag.deltaY();
+
+        int step = ROW_H + ROW_GAP;
+        while (Math.abs(dragCarry) >= step) {
+            // Pulling down moves the list down, which shows earlier rows
+            int direction = dragCarry > 0 ? 1 : -1;
+            dragCarry -= direction * step;
+
+            int before = scrollRow;
+            scrollRow = Math.max(0, Math.min(maxScrollRow(), scrollRow - direction));
+            if (scrollRow == before) {
+                dragCarry = 0;
+                break;
+            }
+            this.rebuildWidgets();
+        }
+    }
+
     private void pick(int index) {
+        // A press that ends a pull is not a choice
+        if (drag.swallowsClick()) return;
+
         long now = System.currentTimeMillis();
         if (selected == index && now - lastPick < 400) {
             join();
@@ -249,7 +328,6 @@ public class ServersScreen extends Screen {
     // --- icons ---
 
     private static final java.util.Map<Integer, Identifier> ICONS = new java.util.HashMap<>();
-    private static boolean iconWarned = false;
 
     private Identifier icon(Object server, String address) {
         Object value = readAny(server, "iconBytes", "getIconBytes", "getIcon");
@@ -267,34 +345,12 @@ public class ServersScreen extends Screen {
         Identifier known = ICONS.get(key);
         if (known != null) return known;
 
-        try {
-            Class<?> nativeImage = Class.forName("com.mojang.blaze3d.platform.NativeImage");
-            Method read = nativeImage.getMethod("read", byte[].class);
-            Object image = read.invoke(null, (Object) bytes);
-            if (image == null) return null;
+        Identifier id = Identifier.fromNamespaceAndPath(
+                SpaceClient.MOD_ID, "server_list/" + Integer.toHexString(key));
 
-            Object texture = Construct.of("com.mojang.blaze3d.platform.DynamicTexture",
-                    (java.util.function.Supplier<String>) () -> "space client server icon", image);
-            if (texture == null) texture = Construct.of(
-                    "com.mojang.blaze3d.platform.DynamicTexture", image);
-            if (texture == null) return null;
-
-            Object manager = Reflect.call(Minecraft.getInstance(), "getTextureManager");
-            if (manager == null) return null;
-
-            Identifier id = Identifier.fromNamespaceAndPath(
-                    SpaceClient.MOD_ID, "server_list/" + Integer.toHexString(key));
-            Reflect.callWith(manager, "register", id, texture);
-            ICONS.put(key, id);
-            return id;
-
-        } catch (Throwable ignored) {
-            if (!iconWarned) {
-                iconWarned = true;
-                SpaceClient.LOGGER.warn("Server icons could not be decoded on this version");
-            }
-            return null;
-        }
+        Identifier registered = TextureLoader.register(bytes, id);
+        if (registered != null) ICONS.put(key, registered);
+        return registered;
     }
 
     // --- the actions ---
@@ -416,6 +472,9 @@ public class ServersScreen extends Screen {
         }
         graphics.fill(0, 0, this.width, this.height, 0x60000000);
 
+        drag.update(mouseX, mouseY);
+        applyDrag();
+
         long now = System.currentTimeMillis() - openedAt;
         for (int i = 0; i < widgets.size(); i++) {
             long start = 60L * i;
@@ -435,7 +494,11 @@ public class ServersScreen extends Screen {
                 : rows.isEmpty()
                     ? "No servers saved yet - add one below"
                     : rows.size() + (rows.size() == 1 ? " server" : " servers")
-                        + "  ·  double click to join";
+                        + (maxScrollRow() > 0
+                            ? "  ·  " + (scrollRow + 1) + "-"
+                                + Math.min(rows.size(), scrollRow + visibleRows())
+                                + "  ·  scroll or drag"
+                            : "  ·  double click to join");
         graphics.text(this.font, hint,
                 (this.width - this.font.width(hint)) / 2, 56,
                 failure != null ? 0xFFE8C46A : 0xFFB9B4DC, false);
