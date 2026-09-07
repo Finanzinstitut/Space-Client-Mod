@@ -48,6 +48,8 @@ public class ModuleManager {
         register(new HealthModule());
         register(new DurabilityModule());
         register(new SaturationModule());
+        register(new NutritionModule());
+        register(new ServerModule());
     }
 
     private void register(Module module) {

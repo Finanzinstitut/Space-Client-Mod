@@ -144,6 +144,20 @@ public class SpaceClient implements ClientModInitializer {
                 return;
             }
 
+            // The title screen is replaced rather than decorated, so it is
+            // matched by name: TitleScreen is not imported anywhere else here,
+            // and a class that no longer exists should quietly match nothing
+            // instead of failing the build.
+            //
+            // Swapping the screen from inside AFTER_INIT is safe because the
+            // replacement is not a TitleScreen, so the event fires once for
+            // the original and never again for ours.
+            if (screen.getClass().getName().endsWith("TitleScreen")
+                    && settings.customMenu()) {
+                client.gui.setScreen(new gg.spaceclient.ui.MainMenuScreen());
+                return;
+            }
+
             if (!(screen instanceof JoinMultiplayerScreen)) return;
             ScreenInjector.addWidget(screen, new FlatButton(
                     10, 10, 116, 20,

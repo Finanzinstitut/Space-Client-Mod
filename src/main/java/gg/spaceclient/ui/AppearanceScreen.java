@@ -72,6 +72,19 @@ public class AppearanceScreen extends Screen {
                 () -> false,
                 () -> Screens.open(new FontScreen(this))
         ).asAction());
+        y += ROW_H + GAP;
+
+        // A toggle rather than a cycle: the custom menu is either the client's
+        // or the game's, and there is no third option to page through.
+        this.addRenderableWidget(new FlatButton(
+                left, y, PANEL_W, ROW_H,
+                () -> "Custom main menu",
+                settings::customMenu,
+                () -> {
+                    settings.setCustomMenu(!settings.customMenu());
+                    SpaceClient.getConfigManager().save();
+                }
+        ));
         y += ROW_H + GAP + 4;
 
         // The accent is picked on a wheel; a hex field would mean typing.
