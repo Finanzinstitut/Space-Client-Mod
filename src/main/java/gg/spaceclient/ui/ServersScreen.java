@@ -140,6 +140,16 @@ public class ServersScreen extends Screen {
                 left + 136, upper, 130, 24,
                 () -> "Direct connect", () -> false, this::direct).asAction());
 
+        // Retrying is a real fix, not a placebo. Large networks put a proxy in
+        // front of several backends, and when one of them is out of step the
+        // login fails on that one and succeeds on the next - so the second
+        // attempt lands somewhere else and works. Without this the only way
+        // back in is to find the entry in the list and press Join again.
+        this.addRenderableWidget(new FlatButton(
+                left + 272, upper, 130, 24,
+                () -> lastJoined == null ? "Reconnect" : "Reconnect: " + lastJoinedName,
+                () -> false, this::reconnect).asAction());
+
         this.addRenderableWidget(new FlatButton(
                 left + LIST_W - 90, y, 90, 24,
                 () -> "Back", () -> false, this::onClose).asAction());
@@ -359,12 +369,32 @@ public class ServersScreen extends Screen {
         return selected >= 0 && selected < servers.size() ? servers.get(selected) : null;
     }
 
+    /**
+     * The last server this client tried to reach.
+     *
+     * Static because the screen does not survive a connection attempt - the
+     * game replaces it while connecting, and what comes back afterwards is a
+     * fresh instance with an empty selection. Remembering it here is what lets
+     * the button still know where you were.
+     */
+    private static Object lastJoined = null;
+    private static String lastJoinedName = "";
+
     private void join() {
         joinServer(current());
     }
 
+    private void reconnect() {
+        if (lastJoined == null) return;
+        joinServer(lastJoined);
+    }
+
     private void joinServer(Object server) {
         if (server == null) return;
+
+        lastJoined = server;
+        String saved = string(server, "name", "getName");
+        lastJoinedName = saved == null ? "server" : saved;
 
         String address = string(server, "ip", "getIp", "getAddress");
         if (address == null) return;
