@@ -79,11 +79,13 @@ public final class TextureLoader {
             return null;
         }
 
-        // register takes an AbstractTexture; registerAndLoad is the newer
-        // path for anything that reloads. Either one leaves the texture
-        // drawable under this identifier, so whichever answers is fine.
-        Object done = Reflect.callWith(manager, "register", id, texture);
-        if (done == null) Reflect.callWith(manager, "registerAndLoad", id, texture);
+        // register takes an AbstractTexture; registerAndLoad is the newer path
+        // for anything that reloads. Asked whether one ran rather than what it
+        // returned - both are void, so the old check registered every icon
+        // twice, once down each path.
+        if (!Construct.invokedOn(manager, "register", id, texture)) {
+            Construct.invokedOn(manager, "registerAndLoad", id, texture);
+        }
 
         reportOnce(null, texture.getClass().getName());
         return id;

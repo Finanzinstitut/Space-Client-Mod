@@ -158,6 +158,19 @@ public class SpaceClient implements ClientModInitializer {
                 return;
             }
 
+            // The disconnect screen goes back to the game's server list, not
+            // to wherever you left from, so returning from a server dropped
+            // you into vanilla's. Catching that screen wherever it appears is
+            // steadier than trying to redirect the disconnect itself - which
+            // sits behind an API this mod has never compiled against.
+            if (screen instanceof JoinMultiplayerScreen
+                    && settings.customMenu()
+                    && gg.spaceclient.ui.ServersScreen.shouldReplaceVanillaList()) {
+                client.gui.setScreen(new gg.spaceclient.ui.ServersScreen(
+                        new gg.spaceclient.ui.MainMenuScreen()));
+                return;
+            }
+
             if (!(screen instanceof JoinMultiplayerScreen)) return;
             ScreenInjector.addWidget(screen, new FlatButton(
                     10, 10, 116, 20,

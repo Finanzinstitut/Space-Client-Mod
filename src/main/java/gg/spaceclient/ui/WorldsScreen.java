@@ -278,17 +278,19 @@ public class WorldsScreen extends Screen {
     private void createWorld() {
         String className = "net.minecraft.client.gui.screens.worldselection.CreateWorldScreen";
 
-        for (String name : new String[]{"openFresh", "createFresh", "openCreateWorldScreen"}) {
-            if (Construct.invoked(className, name, Minecraft.getInstance(), this)) return;
-        }
+        String used = Construct.invokedBest(className,
+                new String[]{"openFresh", "createFresh", "openCreateWorldScreen"},
+                Minecraft.getInstance(), this);
 
-        // Some versions build it rather than offer a factory
-        Object screen = Construct.of(className, Minecraft.getInstance(), this);
-        if (screen instanceof Screen creator) {
-            Screens.open(creator);
+        if (used != null) {
+            SpaceClient.LOGGER.info("World creator opened through {}", used);
             return;
         }
 
+        // Deliberately no constructor fallback. Building this screen directly
+        // succeeds and produces something that opens and then ignores every
+        // button on it, because the creation context it needs is not something
+        // that can be handed over from here - which is worse than saying so.
         SpaceClient.LOGGER.warn("Could not open the world creator: {}",
                 Construct.describeStatics(className, null));
     }

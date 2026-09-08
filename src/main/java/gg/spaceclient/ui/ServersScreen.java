@@ -224,7 +224,7 @@ public class ServersScreen extends Screen {
                     Minecraft.getInstance());
             if (list == null) throw new IllegalStateException("no server list");
 
-            Reflect.call(list, "load");
+            Construct.invokedOn(list, "load");
             serverList = list;
 
             pinger = Construct.of("net.minecraft.client.multiplayer.ServerStatusPinger");
@@ -360,7 +360,10 @@ public class ServersScreen extends Screen {
     }
 
     private void join() {
-        Object server = current();
+        joinServer(current());
+    }
+
+    private void joinServer(Object server) {
         if (server == null) return;
 
         String address = string(server, "ip", "getIp", "getAddress");
@@ -386,59 +389,127 @@ public class ServersScreen extends Screen {
         }
     }
 
-    private void add() {
-        Object blank = Construct.of("net.minecraft.client.multiplayer.ServerData",
-                "Minecraft Server", "", null);
-        Object screen = Construct.of(
-                "net.minecraft.client.gui.screens.EditServerScreen",
-                this, (java.util.function.Consumer<Boolean>) ok -> saveEdit(ok, blank, true), blank);
+    /**
+     * A blank entry for the editor to fill in.
+     *
+     * The third argument is an enum saying what kind of entry it is, and its
+     * values cannot be named from here. Reading one off the class is better
+     * than passing null: the editor stores it and the list writes it back out,
+     * so a null would come back as a broken line in the servers file.
+     */
+    private Object blankServer() {
+        Object kind = enumValue("net.minecraft.client.multiplayer.ServerData$Type", "OTHER");
+        Object made = Construct.strict("net.minecraft.client.multiplayer.ServerData",
+                "Minecraft Server", "", kind);
+        return made != null
+                ? made
+                : Construct.of("net.minecraft.client.multiplayer.ServerData",
+                        "Minecraft Server", "", kind);
+    }
 
-        if (screen instanceof Screen editor) Screens.open(editor);
-        else openVanilla();
+    private static Object enumValue(String className, String name) {
+        try {
+            Class<?> type = Class.forName(className);
+            for (Object constant : type.getEnumConstants()) {
+                if (constant.toString().equalsIgnoreCase(name)) return constant;
+            }
+            Object[] constants = type.getEnumConstants();
+            return constants != null && constants.length > 0 ? constants[0] : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private void add() {
+        Object blank = blankServer();
+        if (blank == null) { openVanilla(); return; }
+
+        openEditor(blank, true);
     }
 
     private void edit() {
         Object server = current();
         if (server == null) return;
-
-        Object screen = Construct.of(
-                "net.minecraft.client.gui.screens.EditServerScreen",
-                this, (java.util.function.Consumer<Boolean>) ok -> saveEdit(ok, server, false), server);
-
-        if (screen instanceof Screen editor) Screens.open(editor);
-        else openVanilla();
+        openEditor(server, false);
     }
 
-    private void saveEdit(Boolean ok, Object server, boolean isNew) {
-        if (Boolean.TRUE.equals(ok) && serverList != null) {
-            if (isNew) Reflect.callWith(serverList, "add", server, Boolean.FALSE);
-            Reflect.call(serverList, "save");
-            rebuildRows();
+    /**
+     * Opens the game's server editor.
+     *
+     * The callback goes in as a Construct.Callback rather than as a Consumer,
+     * because the interface the editor wants is fastutil's BooleanConsumer on
+     * this version and a Consumer simply does not match it. That mismatch left
+     * the slot null, and a null there is why the editor opened with none of
+     * its buttons working.
+     */
+    private void openEditor(Object server, boolean isNew) {
+        Construct.Callback callback = new Construct.Callback(args -> {
+            boolean ok = args.length > 0 && Boolean.TRUE.equals(args[0]);
+            saveEdit(ok, server, isNew);
+        });
+
+        Object screen = Construct.strict(
+                "net.minecraft.client.gui.screens.EditServerScreen", this, callback, server);
+
+        if (screen instanceof Screen editor) {
+            Screens.open(editor);
+        } else {
+            SpaceClient.LOGGER.warn("Could not open the server editor on this version");
+            openVanilla();
         }
-        Screens.open(this);
+    }
+
+    private void saveEdit(boolean ok, Object server, boolean isNew) {
+        if (ok && serverList != null) {
+            if (isNew) {
+                // Two shapes: the newer one also says whether it goes on top
+                if (!Construct.invokedOn(serverList, "add", server, Boolean.FALSE)) {
+                    Construct.invokedOn(serverList, "add", server);
+                }
+            }
+            Construct.invokedOn(serverList, "save");
+        }
         rebuildRows();
+        Screens.open(this);
     }
 
     private void delete() {
         Object server = current();
         if (server == null || serverList == null) return;
 
-        Reflect.callWith(serverList, "remove", server);
-        Reflect.call(serverList, "save");
+        Construct.invokedOn(serverList, "remove", server);
+        Construct.invokedOn(serverList, "save");
+
         selected = -1;
+        scrollRow = Math.max(0, Math.min(scrollRow, Math.max(0, rows.size() - 2)));
         rebuildRows();
         this.rebuildWidgets();
     }
 
     private void direct() {
-        Object blank = Construct.of("net.minecraft.client.multiplayer.ServerData",
-                "Minecraft Server", "", null);
-        Object screen = Construct.of(
-                "net.minecraft.client.gui.screens.DirectJoinServerScreen",
-                this, (java.util.function.Consumer<Boolean>) ok -> Screens.open(this), blank);
+        Object blank = blankServer();
+        if (blank == null) { openVanilla(); return; }
 
-        if (screen instanceof Screen direct) Screens.open(direct);
-        else openVanilla();
+        Construct.Callback callback = new Construct.Callback(args -> {
+            boolean ok = args.length > 0 && Boolean.TRUE.equals(args[0]);
+            if (ok) {
+                // The screen filled the address in; connecting is still ours
+                joinServer(blank);
+            } else {
+                Screens.open(this);
+            }
+        });
+
+        Object screen = Construct.strict(
+                "net.minecraft.client.gui.screens.DirectJoinServerScreen",
+                this, callback, blank);
+
+        if (screen instanceof Screen target) {
+            Screens.open(target);
+        } else {
+            SpaceClient.LOGGER.warn("Could not open direct connect on this version");
+            openVanilla();
+        }
     }
 
     /**
@@ -452,20 +523,49 @@ public class ServersScreen extends Screen {
         if (pinger == null || servers.isEmpty()) return;
 
         for (Object server : servers) {
-            try {
-                Reflect.callWith(pinger, "pingServer", server,
-                        (Runnable) this::rebuildRows, (Runnable) this::rebuildRows);
-            } catch (Throwable ignored) {
-                // Older shape with fewer callbacks
-                Reflect.callWith(pinger, "pingServer", server, (Runnable) this::rebuildRows);
+            // Asked whether it ran: callWith cannot say, so the shorter shape
+            // used to be skipped even when the longer one had not matched
+            if (Construct.invokedOn(pinger, "pingServer", server,
+                    (Runnable) this::rebuildRows, (Runnable) this::rebuildRows)) {
+                continue;
             }
+            Construct.invokedOn(pinger, "pingServer", server, (Runnable) this::rebuildRows);
         }
     }
 
+    /**
+     * Hands over to the game's own server list.
+     *
+     * Flagged, because the client otherwise turns that screen back into this
+     * one wherever it appears. Without the flag a screen this one cannot do
+     * would bounce straight back here and the button would look broken.
+     */
     private void openVanilla() {
         Object screen = Construct.of(
                 "net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen", parent);
-        if (screen instanceof Screen fallback) Screens.open(fallback);
+        if (screen instanceof Screen fallback) {
+            allowVanillaOnce = true;
+            Screens.open(fallback);
+        }
+    }
+
+    /** Lets the next vanilla server list through untouched. */
+    private static boolean allowVanillaOnce = false;
+
+    /**
+     * Whether the client should replace a vanilla server list it did not open.
+     *
+     * The disconnect screen sends you back to the game's list rather than to
+     * whichever screen you left from, so returning from a server landed you in
+     * vanilla's. Catching it wherever it appears is more reliable than trying
+     * to talk the disconnect screen into pointing somewhere else.
+     */
+    public static boolean shouldReplaceVanillaList() {
+        if (allowVanillaOnce) {
+            allowVanillaOnce = false;
+            return false;
+        }
+        return true;
     }
 
     // --- drawing ---

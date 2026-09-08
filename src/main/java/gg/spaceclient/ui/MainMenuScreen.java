@@ -138,7 +138,10 @@ public class MainMenuScreen extends Screen {
     }
 
     private void quit() {
-        Reflect.call(Minecraft.getInstance(), "stop");
+        // void either way, so asked whether it ran rather than what it gave
+        if (!Construct.invokedOn(Minecraft.getInstance(), "stop")) {
+            Construct.invokedOn(Minecraft.getInstance(), "close");
+        }
     }
 
     private Object construct(String className, Screen parent) {

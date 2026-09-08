@@ -129,6 +129,63 @@ public final class Construct {
     }
 
     /**
+     * Runs whichever static method can be fully satisfied from the pool.
+     *
+     * For classes that offer exactly one way in but do not agree with previous
+     * versions on what it is called. Preferred names are tried first; failing
+     * that, any static method whose every argument can be filled from what is
+     * on offer will do - a factory that wants a Minecraft and a Screen and
+     * nothing else is not something a class has two of by accident.
+     *
+     * Nothing is filled with null here. A screen built with a hole where its
+     * context should be opens and then ignores every button on it, which is
+     * harder to diagnose than a button that does nothing at all.
+     *
+     * @return the name that ran, or null if nothing did.
+     */
+    public static String invokedBest(String className, String[] preferred, Object... pool) {
+        try {
+            Class<?> type = Class.forName(className);
+
+            for (String name : preferred) {
+                if (invoked(className, name, pool)) return name;
+            }
+
+            Method[] methods = type.getMethods();
+            java.util.Arrays.sort(methods,
+                    (a, b) -> b.getParameterCount() - a.getParameterCount());
+
+            for (Method method : methods) {
+                if (!java.lang.reflect.Modifier.isStatic(method.getModifiers())) continue;
+                if (method.getParameterCount() == 0) continue;
+
+                Class<?>[] params = method.getParameterTypes();
+                Object[] args = match(params, pool);
+                if (args == null) continue;
+
+                boolean complete = true;
+                for (int i = 0; i < args.length; i++) {
+                    if (args[i] == null && !params[i].isPrimitive()) {
+                        complete = false;
+                        break;
+                    }
+                }
+                if (!complete) continue;
+
+                try {
+                    method.invoke(null, args);
+                    return method.getName();
+                } catch (Throwable ignored) {
+                    // Try the next one
+                }
+            }
+        } catch (Throwable ignored) {
+            // Not present on this version
+        }
+        return null;
+    }
+
+    /**
      * The same for an instance method, matched by name and fillable arguments.
      *
      * Returns whether one ran, so a void method is not mistaken for a miss and
@@ -217,6 +274,70 @@ public final class Construct {
     }
 
     /**
+     * Stands in for a callback whose interface is not known here.
+     *
+     * The game's editor screens take a one method interface to report what the
+     * user chose, and which interface that is has varied - a plain Consumer,
+     * fastutil's BooleanConsumer, something else again. Offering one concrete
+     * type means the argument simply does not match and the slot is filled
+     * with null, which is how a screen opens with every button on it inert.
+     *
+     * Offering this instead lets the parameter decide: whatever single method
+     * interface is wanted, it gets built to order.
+     */
+    public static final class Callback {
+        private final java.util.function.Consumer<Object[]> action;
+
+        public Callback(java.util.function.Consumer<Object[]> action) {
+            this.action = action;
+        }
+
+        /** A proxy implementing whatever interface was asked for. */
+        private Object as(Class<?> type) {
+            try {
+                return java.lang.reflect.Proxy.newProxyInstance(
+                        type.getClassLoader(),
+                        new Class<?>[]{type},
+                        (proxy, method, args) -> {
+                            if (method.getDeclaringClass() == Object.class) {
+                                return switch (method.getName()) {
+                                    case "hashCode" -> System.identityHashCode(proxy);
+                                    case "equals" -> proxy == args[0];
+                                    default -> "space client callback";
+                                };
+                            }
+                            action.accept(args == null ? new Object[0] : args);
+                            return defaultFor(method.getReturnType());
+                        });
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+
+        private static Object defaultFor(Class<?> type) {
+            if (!type.isPrimitive() || type == void.class) return null;
+            if (type == boolean.class) return Boolean.FALSE;
+            if (type == int.class) return 0;
+            if (type == long.class) return 0L;
+            if (type == float.class) return 0f;
+            if (type == double.class) return 0d;
+            return null;
+        }
+
+        /** Whether an interface has exactly one method to implement. */
+        private static boolean isFunctional(Class<?> type) {
+            if (!type.isInterface()) return false;
+            int abstractMethods = 0;
+            for (Method method : type.getMethods()) {
+                if (method.isDefault()) continue;
+                if (java.lang.reflect.Modifier.isStatic(method.getModifiers())) continue;
+                abstractMethods++;
+            }
+            return abstractMethods == 1;
+        }
+    }
+
+    /**
      * Fills a parameter list from the pool, one value per slot.
      *
      * A value is used at most once, so a constructor wanting two screens does
@@ -238,6 +359,19 @@ public final class Construct {
                 found = pool[p];
                 used[p] = true;
                 break;
+            }
+
+            // Nothing matched outright: if the slot wants a one method
+            // interface and a callback was offered, build one to fit
+            if (found == null && Callback.isFunctional(want)) {
+                for (int p = 0; p < pool.length; p++) {
+                    if (used[p] || !(pool[p] instanceof Callback callback)) continue;
+                    Object proxy = callback.as(want);
+                    if (proxy == null) continue;
+                    found = proxy;
+                    used[p] = true;
+                    break;
+                }
             }
 
             if (found != null) {
