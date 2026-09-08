@@ -65,6 +65,19 @@ public class ServersScreen extends Screen {
      */
     private int scrollRow = 0;
 
+    /** Servers still waiting to be asked how they are doing. */
+    private final java.util.Deque<Object> pending = new java.util.ArrayDeque<>();
+
+    /**
+     * New textures registered on this frame.
+     *
+     * Decoding a PNG and handing it to the GPU is not free, and doing it for
+     * every server the first time the list draws is the other half of the
+     * stall. One per frame means a full list is dressed within a second
+     * without any single frame carrying the whole cost.
+     */
+    private int texturesThisFrame = 0;
+
     private final DragScroll drag = new DragScroll();
 
     /** Pixels pulled since the last whole row was consumed. */
@@ -140,15 +153,6 @@ public class ServersScreen extends Screen {
                 left + 136, upper, 130, 24,
                 () -> "Direct connect", () -> false, this::direct).asAction());
 
-        // Retrying is a real fix, not a placebo. Large networks put a proxy in
-        // front of several backends, and when one of them is out of step the
-        // login fails on that one and succeeds on the next - so the second
-        // attempt lands somewhere else and works. Without this the only way
-        // back in is to find the entry in the list and press Join again.
-        this.addRenderableWidget(new FlatButton(
-                left + 272, upper, 130, 24,
-                () -> lastJoined == null ? "Reconnect" : "Reconnect: " + lastJoinedName,
-                () -> false, this::reconnect).asAction());
 
         this.addRenderableWidget(new FlatButton(
                 left + LIST_W - 90, y, 90, 24,
@@ -240,7 +244,14 @@ public class ServersScreen extends Screen {
             pinger = Construct.of("net.minecraft.client.multiplayer.ServerStatusPinger");
 
             rebuildRows();
-            refresh();
+
+            // Not pinged here. Asking every saved server at once is what made
+            // opening this screen freeze for about a second - each ping does
+            // its own name lookup, and a dozen of those land on the frame that
+            // is trying to draw the list. They are spread out instead, a
+            // couple per frame, from the queue below.
+            pending.clear();
+            pending.addAll(servers);
 
         } catch (Throwable t) {
             failure = "Could not read the server list on this version";
@@ -287,13 +298,13 @@ public class ServersScreen extends Screen {
         return value instanceof Number number ? number.intValue() : 0;
     }
 
-    private String string(Object target, String... names) {
+    private static String string(Object target, String... names) {
         Object value = readAny(target, names);
         return value instanceof String text && !text.isEmpty() ? text : null;
     }
 
     /** A method with any of these names, or failing that a field. */
-    private Object readAny(Object target, String... names) {
+    private static Object readAny(Object target, String... names) {
         Object value = Reflect.call(target, names);
         if (value != null) return value;
 
@@ -355,6 +366,12 @@ public class ServersScreen extends Screen {
         Identifier known = ICONS.get(key);
         if (known != null) return known;
 
+        // Held back rather than decoded now: the row draws without a picture
+        // this frame and with one on the next, which nobody notices, and no
+        // single frame pays for a whole list of them
+        if (texturesThisFrame >= 1) return null;
+        texturesThisFrame++;
+
         Identifier id = Identifier.fromNamespaceAndPath(
                 SpaceClient.MOD_ID, "server_list/" + Integer.toHexString(key));
 
@@ -384,10 +401,35 @@ public class ServersScreen extends Screen {
         joinServer(current());
     }
 
-    private void reconnect() {
+    /**
+     * Joins the last server again, from wherever the button happens to be.
+     *
+     * Public and static because the place this belongs is the disconnect
+     * screen, which is the game's and not ours - that is where you are
+     * standing when you need it, and a button in a menu you have to navigate
+     * back to first is not a reconnect button.
+     */
+    public static void reconnectLast() {
         if (lastJoined == null) return;
-        joinServer(lastJoined);
+
+        String address = string(lastJoined, "ip", "getIp", "getAddress");
+        if (address == null) return;
+
+        Object parsed = Construct.call(
+                "net.minecraft.client.multiplayer.resolver.ServerAddress", "parseString", address);
+
+        Screen back = new ServersScreen(new MainMenuScreen());
+        boolean started = Construct.invoked(
+                "net.minecraft.client.gui.screens.ConnectScreen", "startConnecting",
+                back, Minecraft.getInstance(), parsed, lastJoined);
+
+        if (!started) SpaceClient.LOGGER.warn("Reconnect could not start a connection");
     }
+
+    /** Whether there is anything to reconnect to. */
+    public static boolean hasLastServer() { return lastJoined != null; }
+
+    public static String lastServerName() { return lastJoinedName; }
 
     private void joinServer(Object server) {
         if (server == null) return;
@@ -549,18 +591,33 @@ public class ServersScreen extends Screen {
      * rows already read from, so nothing here waits and the bars fill in as
      * answers arrive.
      */
+    /** Queues every server for another ping, a couple per frame. */
     private void refresh() {
-        if (pinger == null || servers.isEmpty()) return;
+        pending.clear();
+        pending.addAll(servers);
+    }
 
-        for (Object server : servers) {
-            // Asked whether it ran: callWith cannot say, so the shorter shape
-            // used to be skipped even when the longer one had not matched
-            if (Construct.invokedOn(pinger, "pingServer", server,
-                    (Runnable) this::rebuildRows, (Runnable) this::rebuildRows)) {
-                continue;
-            }
-            Construct.invokedOn(pinger, "pingServer", server, (Runnable) this::rebuildRows);
+    /** Asks the next couple of servers, keeping any one frame cheap. */
+    private void drainPings() {
+        if (pinger == null) { pending.clear(); return; }
+
+        for (int i = 0; i < 2 && !pending.isEmpty(); i++) {
+            Object server = pending.poll();
+            if (server == null) continue;
+            ping(server);
         }
+    }
+
+    private void ping(Object server) {
+        if (pinger == null) return;
+
+        // Asked whether it ran: callWith cannot say, so the shorter shape
+        // used to be skipped even when the longer one had not matched
+        if (Construct.invokedOn(pinger, "pingServer", server,
+                (Runnable) this::rebuildRows, (Runnable) this::rebuildRows)) {
+            return;
+        }
+        Construct.invokedOn(pinger, "pingServer", server, (Runnable) this::rebuildRows);
     }
 
     /**
@@ -606,6 +663,9 @@ public class ServersScreen extends Screen {
             Backdrop.draw(graphics, this.width, this.height);
         }
         graphics.fill(0, 0, this.width, this.height, 0x60000000);
+
+        texturesThisFrame = 0;
+        drainPings();
 
         drag.update(mouseX, mouseY);
         applyDrag();

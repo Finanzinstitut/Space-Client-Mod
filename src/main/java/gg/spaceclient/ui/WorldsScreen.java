@@ -61,6 +61,9 @@ public class WorldsScreen extends Screen {
     private final DragScroll drag = new DragScroll();
     private int dragCarry = 0;
 
+    /** New thumbnails decoded on this frame. */
+    private static int texturesThisFrame = 0;
+
     public WorldsScreen(Screen parent) {
         super(Component.literal("Singleplayer"));
         this.parent = parent;
@@ -228,6 +231,12 @@ public class WorldsScreen extends Screen {
         Identifier known = TEXTURES.get(entry.id());
         if (known != null) return known;
 
+        // One per frame, for the same reason the server list holds its icons
+        // back: reading a PNG off disk and uploading it is not free, and doing
+        // it for every world the first time the row draws is a visible stall.
+        if (texturesThisFrame >= 1) return null;
+        texturesThisFrame++;
+
         try {
             byte[] bytes = Files.readAllBytes(entry.icon());
 
@@ -297,6 +306,7 @@ public class WorldsScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+        texturesThisFrame = 0;
         drag.update(mouseX, mouseY);
         applyDrag();
 

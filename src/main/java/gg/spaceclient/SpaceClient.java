@@ -158,6 +158,25 @@ public class SpaceClient implements ClientModInitializer {
                 return;
             }
 
+            // The disconnect screen is where a failed login actually leaves
+            // you, so that is where the retry belongs. Large networks put a
+            // proxy in front of several backends, and when one is out of step
+            // the login fails on that one and succeeds on the next - which is
+            // why pressing this two or three times works where the first
+            // attempt did not.
+            if (screen.getClass().getName().endsWith("DisconnectedScreen")
+                    && settings.customMenu()
+                    && gg.spaceclient.ui.ServersScreen.hasLastServer()) {
+                ScreenInjector.addWidget(screen, new FlatButton(
+                        screen.width / 2 - 100, screen.height / 2 + 40, 200, 20,
+                        () -> "Reconnect to "
+                                + gg.spaceclient.ui.ServersScreen.lastServerName(),
+                        () -> false,
+                        gg.spaceclient.ui.ServersScreen::reconnectLast
+                ).asAction());
+                return;
+            }
+
             // The disconnect screen goes back to the game's server list, not
             // to wherever you left from, so returning from a server dropped
             // you into vanilla's. Catching that screen wherever it appears is
