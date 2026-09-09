@@ -399,12 +399,19 @@ public class SessionManager {
                 // Verify the token landed where it belongs, rather than trusting
                 // the ordering. A wrong slot is silent otherwise.
                 if (!token.equals(readToken(built))) {
-                    SpaceClient.LOGGER.warn(
-                            "Built a User but the access token is not where expected - fixing by field");
-                    if (!writeTokenByField(built, token)) {
-                        SpaceClient.LOGGER.warn("Could not place the access token");
+                    // The accessor did not give the token back. That is either
+                    // a wrong constructor slot or an accessor whose name has
+                    // moved - and those need different answers, so the check
+                    // below only says whether the token is anywhere on the
+                    // object at all. It does not move it.
+                    if (!tokenPresentInAnyField(built, token)) {
+                        SpaceClient.LOGGER.warn(
+                                "Built a User but the access token is nowhere on it");
                         continue;
                     }
+                    SpaceClient.LOGGER.warn(
+                            "Access token is on the User but not where readToken looks"
+                                    + " - accepting it, the accessor is probably renamed");
                 }
                 return built;
 
@@ -513,10 +520,18 @@ public class SessionManager {
     /**
      * Last resort: write the token straight into the field.
      *
-     * Records and final fields usually refuse this, which is why it is only a
-     * fallback and its failure is reported rather than swallowed.
+     * Named for what it does. It was called writeTokenByField and it never
+     * wrote anything - it walked the String fields and returned true when one
+     * of them already held the token. As a repair step that was a lie: it
+     * reported success without changing a thing, so a User with the token in
+     * the wrong slot was accepted as fixed.
+     *
+     * Actually writing would mean picking a field to overwrite, and on a record
+     * with final fields there is no honest way to choose. So this stays a
+     * check, the caller treats it as one, and a token that is genuinely absent
+     * now rejects the constructor instead of passing.
      */
-    private static boolean writeTokenByField(User user, String token) {
+    private static boolean tokenPresentInAnyField(User user, String token) {
         for (Field field : User.class.getDeclaredFields()) {
             if (field.getType() != String.class) continue;
             try {

@@ -88,8 +88,24 @@ public class ServerModule extends HudModule {
 
     // --- reading the connection ---
 
+    private Object cachedServer = null;
+    private long serverCachedAt = 0L;
+
+    /**
+     * The connection, looked up once per refresh rather than once per call.
+     *
+     * getWidth, getHeight and render each asked separately, and so did the
+     * icon lookup - four reflective calls per frame for something that changes
+     * when you join a server and not otherwise. The element that reports which
+     * server you are on should not itself be a reason to drop frames.
+     */
     private Object serverData() {
-        return Reflect.call(mc, "getCurrentServer", "getCurrentServerEntry");
+        long now = System.currentTimeMillis();
+        if (now - serverCachedAt >= refreshMillis()) {
+            cachedServer = Reflect.call(mc, "getCurrentServer", "getCurrentServerEntry");
+            serverCachedAt = now;
+        }
+        return cachedServer;
     }
 
     private String readString(Object target, String field, String... methods) {
@@ -223,13 +239,8 @@ public class ServerModule extends HudModule {
         return out;
     }
 
-    private String cached() {
-        return cachedText(() -> String.join("\n", lines()));
-    }
-
     private String[] rows() {
-        String text = cached();
-        return text.isEmpty() ? new String[0] : text.split("\n");
+        return cachedLines(() -> String.join("\n", lines()));
     }
 
     private int iconWidth() {

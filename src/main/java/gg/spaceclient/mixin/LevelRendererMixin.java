@@ -30,6 +30,7 @@ public class LevelRendererMixin {
                                             CallbackInfo ci) {
         try {
             HitboxRenderer.submit(collector);
+            gg.spaceclient.render.BlockHighlightRenderer.submit(collector);
         } catch (Throwable ignored) {
             // A hitbox problem must never take the world renderer down with it
         }

@@ -50,6 +50,11 @@ public class ModuleManager {
         register(new SaturationModule());
         register(new NutritionModule());
         register(new ServerModule());
+        register(new ItemPhysicsModule());
+        register(new FpsBoostModule());
+        register(new ReachModule());
+        register(new BlockHighlightModule());
+        register(new EffectsModule());
     }
 
     private void register(Module module) {

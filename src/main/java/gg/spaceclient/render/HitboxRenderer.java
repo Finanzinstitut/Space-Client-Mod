@@ -130,7 +130,7 @@ public final class HitboxRenderer {
     }
 
     /** Twelve edges of a box, written as line pairs. */
-    private static void submitBox(SubmitNodeCollector collector, RenderType type,
+    static void submitBox(SubmitNodeCollector collector, RenderType type,
                                   AABB box, int argb, double thickness) {
         double x1 = box.minX, y1 = box.minY, z1 = box.minZ;
         double x2 = box.maxX, y2 = box.maxY, z2 = box.maxZ;
@@ -167,7 +167,7 @@ public final class HitboxRenderer {
      * and a box the size of the hitbox is close enough to it that the tint
      * reads as the entity glowing.
      */
-    private static void submitFilled(SubmitNodeCollector collector, RenderType type,
+    static void submitFilled(SubmitNodeCollector collector, RenderType type,
                                      AABB box, int argb) {
         double x1 = box.minX, y1 = box.minY, z1 = box.minZ;
         double x2 = box.maxX, y2 = box.maxY, z2 = box.maxZ;
@@ -320,7 +320,7 @@ public final class HitboxRenderer {
     }
 
     /** The render type used for debug style lines, whatever it is called here. */
-    private static RenderType lineType() {
+    static RenderType lineType() {
         if (lookedUp && renderTypeGetter == null) return null;
 
         if (!lookedUp) {
@@ -353,7 +353,7 @@ public final class HitboxRenderer {
         }
     }
 
-    private static Vec3 cameraPosition(Minecraft mc) {
+    static Vec3 cameraPosition(Minecraft mc) {
         Object camera = Reflect.call(mc.gameRenderer, "getMainCamera", "mainCamera");
         Object position = Reflect.call(camera, "getPosition", "position");
         return position instanceof Vec3 vec ? vec : null;

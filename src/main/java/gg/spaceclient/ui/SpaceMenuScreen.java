@@ -198,6 +198,7 @@ public class SpaceMenuScreen extends Screen {
                 {"Cosmetica", "cosmetica"},
                 {"Appearance", "appearance"},
                 {"Diagnostics", "diagnostics"},
+                {"Credits", "credits"},
         };
 
         for (String[] entry : entries) {
@@ -222,6 +223,7 @@ public class SpaceMenuScreen extends Screen {
             case "cosmetica" -> mc.gui.setScreen(new CosmeticsScreen(this));
             case "appearance" -> mc.gui.setScreen(new AppearanceScreen(this));
             case "diagnostics" -> mc.gui.setScreen(new DiagnosticsScreen(this));
+            case "credits" -> mc.gui.setScreen(new CreditsScreen(this));
             default -> {
                 section = name;
                 this.rebuildWidgets();

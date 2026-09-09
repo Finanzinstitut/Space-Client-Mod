@@ -50,9 +50,48 @@ public class TokenStore {
         try {
             JsonObject root = new JsonObject();
             tokens.forEach(root::addProperty);
-            Files.writeString(file(), root.toString());
+
+            java.nio.file.Path path = file();
+            Files.writeString(path, root.toString());
+            restrictToOwner(path);
+
         } catch (Exception e) {
             SpaceClient.LOGGER.warn("Could not store the refreshed token: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Takes the file away from everyone but its owner.
+     *
+     * These are refresh tokens: whoever holds one can mint new sessions for
+     * the account until it is revoked. Written with default permissions they
+     * are readable by every account on the machine, which on a shared or
+     * family computer is a real difference and costs one call to avoid.
+     *
+     * Not a substitute for keeping them out of plain text altogether - that is
+     * a larger change and belongs in the launcher - but there is no reason to
+     * leave the weaker version in place while waiting for it.
+     */
+    private static void restrictToOwner(java.nio.file.Path path) {
+        try {
+            var view = Files.getFileAttributeView(path,
+                    java.nio.file.attribute.PosixFileAttributeView.class);
+            if (view != null) {
+                Files.setPosixFilePermissions(path,
+                        java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+                return;
+            }
+
+            // Windows has no POSIX bits; the ACL equivalent is a larger job, so
+            // this at least keeps the file out of casual reach
+            java.io.File asFile = path.toFile();
+            asFile.setReadable(false, false);
+            asFile.setReadable(true, true);
+            asFile.setWritable(false, false);
+            asFile.setWritable(true, true);
+
+        } catch (Throwable ignored) {
+            // Permissions are a hardening step, not a reason to lose the token
         }
     }
 

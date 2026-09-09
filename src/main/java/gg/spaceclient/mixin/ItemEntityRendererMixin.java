@@ -1,6 +1,7 @@
 package gg.spaceclient.mixin;
 
 import gg.spaceclient.access.ItemIdHolder;
+import gg.spaceclient.access.ItemPhysicsHolder;
 import gg.spaceclient.access.ItemScaleReport;
 import gg.spaceclient.config.ItemSizes;
 
@@ -16,6 +17,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * Scales dropped items.
@@ -32,6 +34,42 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(ItemEntityRenderer.class)
 public class ItemEntityRendererMixin {
 
+    /**
+     * Drops far and surplus items before any work is done on them.
+     *
+     * Deliberately here rather than in the drawing method. Refusing to draw
+     * would still have cost the extraction, the pose and the model lookup, and
+     * cancelling half way through a method that pushes a matrix is how a whole
+     * frame ends up rendered inside somebody else's transform. Saying no at
+     * this gate means the game never starts.
+     *
+     * Named without a descriptor and not required: the shape of this method
+     * has not been established on this version, and a mixin that quietly does
+     * not apply is a module that does nothing rather than a game that will not
+     * start.
+     */
+    @Inject(method = "shouldRender", at = @At("HEAD"), cancellable = true, require = 0)
+    private void spaceclient$cull(ItemEntity entity, Object frustum,
+                                  double cameraX, double cameraY, double cameraZ,
+                                  CallbackInfoReturnable<Boolean> cir) {
+        try {
+            var manager = gg.spaceclient.SpaceClient.getModuleManager();
+            if (manager == null) return;
+
+            var module = manager.get("fpsboost");
+            if (!(module instanceof gg.spaceclient.modules.FpsBoostModule boost)) return;
+
+            if (!boost.allowItem(entity)) {
+                gg.spaceclient.render.CullReport.culledItem();
+                cir.setReturnValue(false);
+            } else {
+                gg.spaceclient.render.CullReport.keptItem();
+            }
+        } catch (Throwable ignored) {
+            // Draw it, as the game would have
+        }
+    }
+
     @Inject(method = "extractRenderState(Lnet/minecraft/world/entity/item/ItemEntity;"
             + "Lnet/minecraft/client/renderer/entity/state/ItemEntityRenderState;F)V",
             at = @At("TAIL"))
@@ -44,6 +82,45 @@ public class ItemEntityRendererMixin {
                     .spaceclient$setItemId(ItemSizes.keyFor(entity.getItem()));
         } catch (Throwable ignored) {
             // Without an id the item simply draws at its normal size
+        }
+
+        spaceclient$settle(entity, state);
+    }
+
+    /**
+     * Works out how this item is lying, once, while the entity is still here.
+     *
+     * Both halves have to happen at this point rather than at drawing time.
+     * The yaw has to be stable across frames or the item shivers, and the spin
+     * can only be cancelled by emptying what it is computed from - which the
+     * drawing step has already read by the time it runs.
+     */
+    private void spaceclient$settle(ItemEntity entity, ItemEntityRenderState state) {
+        try {
+            var manager = gg.spaceclient.SpaceClient.getModuleManager();
+            if (manager == null) return;
+
+            var module = manager.get("itemphysics");
+            if (!(module instanceof gg.spaceclient.modules.ItemPhysicsModule physics)) return;
+            if (!physics.isEnabled()) return;
+
+            var holder = (ItemPhysicsHolder) (Object) state;
+
+            // Settled means resting on something. An item still falling keeps
+            // vanilla's behaviour, because a thing that lies flat in mid air
+            // looks more wrong than one that spins.
+            Object grounded = gg.spaceclient.util.Reflect.call(entity, "onGround", "isOnGround");
+            boolean settled = !(grounded instanceof Boolean flag) || flag;
+
+            holder.spaceclient$setSettled(settled);
+            holder.spaceclient$setRestYaw(physics.restYawFor(entity.getId()));
+
+            if (settled && (physics.stopsSpin() || physics.stopsBob())) {
+                gg.spaceclient.render.ItemStateFields.still(state);
+            }
+
+        } catch (Throwable ignored) {
+            // Physics is a nicety; drawing the item is not
         }
     }
 
@@ -67,6 +144,11 @@ public class ItemEntityRendererMixin {
         poseStack.pushPose();
         float scale = spaceclient$scaleFor(state);
         if (scale != 1f) poseStack.scale(scale, scale, scale);
+
+        // After the scale on purpose: the sink is a distance in world blocks,
+        // and applying it inside a scaled pose would bury a large item deeper
+        // than a small one.
+        spaceclient$lay(state, poseStack);
     }
 
     @Inject(method = "submit(Lnet/minecraft/client/renderer/entity/state/ItemEntityRenderState;"
@@ -78,6 +160,38 @@ public class ItemEntityRendererMixin {
                                     SubmitNodeCollector collector, CameraRenderState camera,
                                     CallbackInfo ci) {
         poseStack.popPose();
+    }
+
+    /** Turns a settled item onto its face and lowers it onto the ground. */
+    private static void spaceclient$lay(ItemEntityRenderState state, PoseStack poseStack) {
+        try {
+            var manager = gg.spaceclient.SpaceClient.getModuleManager();
+            if (manager == null) return;
+
+            var module = manager.get("itemphysics");
+            if (!(module instanceof gg.spaceclient.modules.ItemPhysicsModule physics)) return;
+            if (!physics.laysFlat()) return;
+
+            var holder = (ItemPhysicsHolder) (Object) state;
+            float yaw = holder.spaceclient$restYaw();
+
+            if (!holder.spaceclient$isSettled()) {
+                // Still in the air: a lean rather than a lie, so it reads as
+                // tumbling towards the ground instead of sitting on nothing
+                float tilt = physics.airTilt();
+                if (tilt > 0f) gg.spaceclient.render.PoseOps.rotate(poseStack, yaw, tilt);
+                return;
+            }
+
+            // Down first, then over. Rotating about the item's own centre and
+            // then dropping it keeps the contact point on the floor whichever
+            // way it happens to be facing.
+            poseStack.translate(0f, -0.18f - physics.sinkDepth(), 0f);
+            gg.spaceclient.render.PoseOps.rotate(poseStack, yaw, 90f);
+
+        } catch (Throwable ignored) {
+            // The item draws upright, as it always did
+        }
     }
 
     private static float spaceclient$scaleFor(ItemEntityRenderState state) {

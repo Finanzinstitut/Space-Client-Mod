@@ -84,6 +84,8 @@ public abstract class EntityRendererMixin {
                                           SubmitNodeCollector outerCollector,
                                           CameraRenderState outerCamera,
                                           int color) {
+        if (spaceclient$tagTooFar(state)) return;
+
         collector.submitNameTag(poseStack, position, background,
                 NameBadge.decorate(state, text), flag, light, camera);
         addSong(collector, poseStack, position, background, flag, light, camera, state, true);
@@ -109,9 +111,46 @@ public abstract class EntityRendererMixin {
                                            PoseStack outerPose,
                                            SubmitNodeCollector outerCollector,
                                            CameraRenderState outerCamera) {
+        if (spaceclient$tagTooFar(state)) return;
+
         collector.submitNameTag(poseStack, position, background,
                 NameBadge.decorate(state, text), flag, light, camera);
         addSong(collector, poseStack, position, background, flag, light, camera, state, false);
+    }
+
+    /**
+     * Whether this tag is too far away to be worth laying out.
+     *
+     * Skipped by simply not making the redirected call. That is the whole
+     * saving: the text is composed, measured and placed in world space inside
+     * that call, so the cost is avoided rather than drawn and thrown away.
+     *
+     * The distance comes off the render state, which already carries it -
+     * asking the entity again would mean finding the entity, and by this point
+     * there is only a state.
+     */
+    private boolean spaceclient$tagTooFar(EntityRenderState state) {
+        try {
+            var manager = gg.spaceclient.SpaceClient.getModuleManager();
+            if (manager == null) return false;
+
+            var module = manager.get("fpsboost");
+            if (!(module instanceof gg.spaceclient.modules.FpsBoostModule boost)) return false;
+
+            Object distance = gg.spaceclient.util.Reflect.call(state,
+                    "distanceToCameraSq", "distanceToCamera", "cameraDistanceSq");
+
+            Double value = gg.spaceclient.util.Reflect.asDouble(distance);
+            if (value == null) {
+                // Nothing to judge by, so nothing is hidden
+                return false;
+            }
+
+            return !boost.allowNameTag(value);
+
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     /** Draws the song line, if this player has one to show. */

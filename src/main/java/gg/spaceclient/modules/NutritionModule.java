@@ -269,24 +269,24 @@ public class NutritionModule extends HudModule {
     @Override
     public int getWidth() {
         int width = 0;
-        for (String line : cached().split("\n")) width = Math.max(width, mc.font.width(line));
+        for (String line : rows()) width = Math.max(width, mc.font.width(line));
         return Math.max(width, 40);
     }
 
     @Override
     public int getHeight() {
-        return cached().split("\n").length * (mc.font.lineHeight + 1);
+        return rows().length * (mc.font.lineHeight + 1);
     }
 
-    /** One rebuild per refresh window, shared by measuring and drawing. */
-    private String cached() {
-        return cachedText(() -> String.join("\n", lines()));
+    /** One rebuild and one split per refresh window, shared by all three. */
+    private String[] rows() {
+        return cachedLines(() -> String.join("\n", lines()));
     }
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {
         int colour = colour();
-        String[] rows = cached().split("\n");
+        String[] rows = rows();
         for (int i = 0; i < rows.length; i++) {
             graphics.text(mc.font, rows[i], x, y + i * (mc.font.lineHeight + 1), colour, true);
         }

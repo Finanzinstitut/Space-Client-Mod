@@ -79,13 +79,41 @@ public abstract class HudModule extends Module {
         long now = System.currentTimeMillis();
         if (cachedText == null || now - cachedAt >= refreshMillis()) {
             cachedText = builder.get();
+            cachedLines = null;
             cachedAt = now;
         }
         return cachedText;
     }
 
+    private String[] cachedLines = null;
+
+    /**
+     * The same text, already split into lines.
+     *
+     * Worth its own cache because caching the string alone did not finish the
+     * job. A multi line element calls split in getWidth, again in getHeight and
+     * a third time while drawing - three arrays per module per frame, for a
+     * string that had not changed since the last refresh. With forty modules
+     * on screen that is a steady stream of garbage produced by the very client
+     * that also ships an FPS module, which is not a good look.
+     *
+     * Split once when the text is rebuilt, handed out until then.
+     */
+    protected String[] cachedLines(java.util.function.Supplier<String> builder) {
+        String text = cachedText(builder);
+        if (cachedLines == null) {
+            cachedLines = text.isEmpty() ? EMPTY_LINES : text.split("\n");
+        }
+        return cachedLines;
+    }
+
+    private static final String[] EMPTY_LINES = new String[0];
+
     /** Drops the cache, for when a setting changes what the text should say. */
-    protected void invalidateText() { cachedText = null; }
+    protected void invalidateText() {
+        cachedText = null;
+        cachedLines = null;
+    }
 
     /**
      * Draws the plate, then the element itself. Subclasses implement render();
@@ -135,6 +163,12 @@ public abstract class HudModule extends Module {
     public float getScale() { return scale; }
 
     public void setScale(float value) {
+        // Not finite means a corrupt config, and clamping does not catch it:
+        // Math.min and Math.max hand NaN straight back, so a NaN would sail
+        // through the bounds and end up as the scale. From there the element
+        // draws nowhere and cannot be dragged back, because the editor needs a
+        // position to grab and there isn't one.
+        if (!Float.isFinite(value)) return;
         this.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, value));
     }
 
@@ -150,8 +184,10 @@ public abstract class HudModule extends Module {
     public int getScaledHeight() { return Math.round(getHeight() * scale); }
 
     public void setPosition(float x, float y) {
-        this.xPercent = Math.max(0f, Math.min(1f, x));
-        this.yPercent = Math.max(0f, Math.min(1f, y));
+        // Same reasoning as setScale: a non finite value survives the clamp
+        // and puts the element somewhere it can never be recovered from
+        if (Float.isFinite(x)) this.xPercent = Math.max(0f, Math.min(1f, x));
+        if (Float.isFinite(y)) this.yPercent = Math.max(0f, Math.min(1f, y));
     }
 
     /** The stored fractions, for anything saving a layout of its own. */

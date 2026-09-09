@@ -79,6 +79,30 @@ public final class Diagnostics {
                 !gg.spaceclient.modules.SaturationModule.lastResult().contains("no effect"),
                 gg.spaceclient.modules.SaturationModule.lastResult()));
 
+        // Two separate unknowns behind one feature, so two lines: whether the
+        // pose can be turned at all, and whether the idle motion could be
+        // silenced. Either one missing leaves items looking half done.
+        checks.add(new Check("Item physics rotation",
+                gg.spaceclient.render.PoseOps.canRotate(),
+                gg.spaceclient.render.PoseOps.canRotate()
+                        ? "mulPose resolved"
+                        : "no mulPose(Quaternionf) - items cannot be laid down"));
+
+        checks.add(new Check("Item physics stillness",
+                !gg.spaceclient.render.ItemStateFields.status().startsWith("no age"),
+                gg.spaceclient.render.ItemStateFields.status()));
+
+        // The culling hook is declared loosely on purpose, so a hook that never
+        // applied looks the same as one with nothing to do. The count is what
+        // separates them.
+        checks.add(new Check("FPS boost hook",
+                gg.spaceclient.render.CullReport.hooked(),
+                gg.spaceclient.render.CullReport.status()));
+
+        checks.add(new Check("Block highlight",
+                !gg.spaceclient.render.BlockHighlightRenderer.hasFailed(),
+                gg.spaceclient.render.BlockHighlightRenderer.status()));
+
         boolean musicSupported = gg.spaceclient.music.MusicWatcher.isSupported();
         // Which route the track came from, since the two differ in what they see
         checks.add(new Check("Music route", true, gg.spaceclient.music.MusicWatcher.status()));
