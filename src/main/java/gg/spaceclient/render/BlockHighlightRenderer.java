@@ -61,10 +61,21 @@ public final class BlockHighlightRenderer {
             Object hit = readField(mc, "hitResult");
             if (hit == null) return;
 
-            // Only a block counts. Pointing at an entity or at nothing gives a
-            // result of a different kind, and asking it for a position throws.
+            // Only an actual block counts. A result of type MISS still answers
+            // getBlockPos - with the empty space the ray stopped in - so asking
+            // for a position is not enough of a test on its own, and the
+            // marker ended up floating in mid air whenever nothing was hit.
+            Object kind = Reflect.call(hit, "getType");
+            if (kind == null || !"BLOCK".equalsIgnoreCase(String.valueOf(kind))) return;
+
             Object pos = Reflect.call(hit, "getBlockPos");
             if (pos == null) return;
+
+            // Belt and braces: an air block means the ray landed on nothing
+            // worth marking even if the result claims otherwise
+            Object state = Reflect.callWith(mc.level, "getBlockState", pos);
+            Object empty = Reflect.call(state, "isAir");
+            if (empty instanceof Boolean air && air) return;
 
             Vec3 camera = HitboxRenderer.cameraPosition(mc);
             if (camera == null) return;

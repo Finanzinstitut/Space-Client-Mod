@@ -103,6 +103,14 @@ public final class Diagnostics {
                 !gg.spaceclient.render.BlockHighlightRenderer.hasFailed(),
                 gg.spaceclient.render.BlockHighlightRenderer.status()));
 
+        checks.add(new Check("Cape hook",
+                gg.spaceclient.render.CapeReport.hooked(),
+                gg.spaceclient.render.CapeReport.status()));
+
+        checks.add(new Check("Reach target",
+                !gg.spaceclient.modules.ReachModule.lastRoute().startsWith("no target"),
+                gg.spaceclient.modules.ReachModule.lastRoute()));
+
         boolean musicSupported = gg.spaceclient.music.MusicWatcher.isSupported();
         // Which route the track came from, since the two differ in what they see
         checks.add(new Check("Music route", true, gg.spaceclient.music.MusicWatcher.status()));

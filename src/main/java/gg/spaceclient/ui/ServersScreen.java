@@ -350,7 +350,22 @@ public class ServersScreen extends Screen {
 
     private static final java.util.Map<Integer, Identifier> ICONS = new java.util.HashMap<>();
 
+    /**
+     * The icon already worked out for a given server object.
+     *
+     * Keyed by identity rather than by content, and this is the fix for the
+     * stutter. Every completed ping rebuilt the whole list, and rebuilding
+     * hashed each server's PNG again to look it up - a few kilobytes per
+     * server per rebuild, times a rebuild per ping. A dozen servers answering
+     * at once turned into a hundred and forty of those in the same second.
+     */
+    private static final java.util.Map<Object, Identifier> BY_SERVER =
+            new java.util.IdentityHashMap<>();
+
     private Identifier icon(Object server, String address) {
+        Identifier settled = BY_SERVER.get(server);
+        if (settled != null) return settled;
+
         Object value = readAny(server, "iconBytes", "getIconBytes", "getIcon");
 
         byte[] bytes = null;
@@ -364,7 +379,10 @@ public class ServersScreen extends Screen {
 
         int key = java.util.Arrays.hashCode(bytes);
         Identifier known = ICONS.get(key);
-        if (known != null) return known;
+        if (known != null) {
+            BY_SERVER.put(server, known);
+            return known;
+        }
 
         // Held back rather than decoded now: the row draws without a picture
         // this frame and with one on the next, which nobody notices, and no
@@ -608,16 +626,29 @@ public class ServersScreen extends Screen {
         }
     }
 
+    /**
+     * Marks the list as needing a rebuild without doing one.
+     *
+     * Pings answer on their own threads and each answer used to rebuild the
+     * whole list immediately - so twelve servers replying meant twelve full
+     * rebuilds, several of them inside the same frame. The flag collapses a
+     * burst into one rebuild on the next draw, which is the soonest anything
+     * could be seen anyway.
+     */
+    private volatile boolean rowsDirty = false;
+
+    private void markDirty() { rowsDirty = true; }
+
     private void ping(Object server) {
         if (pinger == null) return;
 
         // Asked whether it ran: callWith cannot say, so the shorter shape
         // used to be skipped even when the longer one had not matched
         if (Construct.invokedOn(pinger, "pingServer", server,
-                (Runnable) this::rebuildRows, (Runnable) this::rebuildRows)) {
+                (Runnable) this::markDirty, (Runnable) this::markDirty)) {
             return;
         }
-        Construct.invokedOn(pinger, "pingServer", server, (Runnable) this::rebuildRows);
+        Construct.invokedOn(pinger, "pingServer", server, (Runnable) this::markDirty);
     }
 
     /**
@@ -665,6 +696,11 @@ public class ServersScreen extends Screen {
         graphics.fill(0, 0, this.width, this.height, 0x60000000);
 
         texturesThisFrame = 0;
+
+        if (rowsDirty) {
+            rowsDirty = false;
+            rebuildRows();
+        }
         drainPings();
 
         drag.update(mouseX, mouseY);

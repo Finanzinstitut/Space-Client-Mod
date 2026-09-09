@@ -41,6 +41,15 @@ public class ItemEntityRenderStateMixin implements ItemIdHolder, ItemPhysicsHold
     @Override
     public void spaceclient$setRestYaw(float yaw) { this.spaceclient$restYaw = yaw; }
 
+    @Unique
+    private boolean spaceclient$skipped = false;
+
+    @Override
+    public boolean spaceclient$isSkipped() { return spaceclient$skipped; }
+
+    @Override
+    public void spaceclient$setSkipped(boolean skipped) { this.spaceclient$skipped = skipped; }
+
     @Override
     public boolean spaceclient$isSettled() { return spaceclient$settled; }
 

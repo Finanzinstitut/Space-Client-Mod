@@ -21,6 +21,17 @@ public interface ItemPhysicsHolder {
 
     void spaceclient$setRestYaw(float yaw);
 
+    /**
+     * Whether the boost decided this item is not worth drawing.
+     *
+     * Kept on the state rather than decided while drawing because the decision
+     * needs the entity - its distance and its place in the frame's budget -
+     * and by the time anything is submitted the entity is gone.
+     */
+    boolean spaceclient$isSkipped();
+
+    void spaceclient$setSkipped(boolean skipped);
+
     /** Whether the item is settled rather than still falling or floating. */
     boolean spaceclient$isSettled();
 

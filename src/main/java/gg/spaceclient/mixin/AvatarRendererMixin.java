@@ -21,12 +21,32 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(AvatarRenderer.class)
 public class AvatarRendererMixin {
 
-    @Inject(method = "extractRenderState", at = @At("TAIL"), require = 0)
+    /**
+     * Hooked onto the cape's own extraction, not the general one.
+     *
+     * The general one is why this never worked. extractRenderState exists three
+     * times on this class - once for the avatar, once for the living entity it
+     * inherits from, and once for the plain entity - so naming it without a
+     * descriptor gave the injector three candidates and no way to choose. With
+     * require = 0 that resolved to doing nothing at all, silently, which is
+     * exactly what it looked like in game.
+     *
+     * extractCapeState is a single private method that exists for this and
+     * nothing else, so there is nothing to disambiguate. The descriptor is
+     * spelled out anyway: the entity parameter is a type variable bounded by
+     * Avatar, and erasure turns that into Avatar itself.
+     */
+    @Inject(
+            method = "extractCapeState(Lnet/minecraft/world/entity/Avatar;"
+                    + "Lnet/minecraft/client/renderer/entity/state/AvatarRenderState;F)V",
+            at = @At("TAIL"),
+            require = 0)
     private void spaceclient$waveCape(Avatar avatar,
                                       AvatarRenderState state,
                                       float partialTick,
                                       CallbackInfo ci) {
         try {
+            gg.spaceclient.render.CapeReport.ran();
             var manager = gg.spaceclient.SpaceClient.getModuleManager();
             if (manager == null) return;
 

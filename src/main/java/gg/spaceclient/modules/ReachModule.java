@@ -40,7 +40,7 @@ public class ReachModule extends HudModule {
 
     private final BooleanSetting holdLast = new BooleanSetting(
             "hold_last", "Hold last hit",
-            "Keep showing the last hit instead of the live distance", true);
+            "Keep a landed hit on screen instead of following the crosshair", true);
 
     private final IntSetting holdFor = new IntSetting(
             "hold_for", "Hold for",
@@ -172,14 +172,53 @@ public class ReachModule extends HudModule {
         return Double.NaN;
     }
 
+    /**
+     * Whatever the crosshair is on, by whichever route answers.
+     *
+     * Two of them, because the first was a guess that produced nothing on this
+     * version: crosshairPickEntity is a field name that has come and gone, and
+     * a module that reports "--" forever is indistinguishable from one that
+     * works and has nothing to say.
+     *
+     * The second route goes through the hit result, which the block highlight
+     * already reads successfully - so it is known to be reachable here.
+     */
     private Entity crosshairEntity() {
-        Class<?> current = mc.getClass();
+        Object picked = readField(mc, "crosshairPickEntity");
+        if (picked instanceof Entity entity) {
+            route = "crosshairPickEntity";
+            return entity;
+        }
+
+        Object hit = readField(mc, "hitResult");
+        if (hit != null) {
+            Object kind = gg.spaceclient.util.Reflect.call(hit, "getType");
+            if (kind != null && "ENTITY".equalsIgnoreCase(String.valueOf(kind))) {
+                Object target = gg.spaceclient.util.Reflect.call(hit, "getEntity");
+                if (target instanceof Entity entity) {
+                    route = "hitResult";
+                    return entity;
+                }
+            }
+        }
+
+        route = "nothing in the crosshair";
+        return null;
+    }
+
+    private static String route = "not looked up yet";
+
+    /** Which route found the target, for the diagnostics screen. */
+    public static String lastRoute() { return route; }
+
+    private static Object readField(Object target, String name) {
+        if (target == null) return null;
+        Class<?> current = target.getClass();
         while (current != null) {
             try {
-                Field field = current.getDeclaredField("crosshairPickEntity");
+                Field field = current.getDeclaredField(name);
                 field.setAccessible(true);
-                Object picked = field.get(mc);
-                return picked instanceof Entity entity ? entity : null;
+                return field.get(target);
             } catch (NoSuchFieldException ignored) {
                 current = current.getSuperclass();
             } catch (Throwable ignored) {
@@ -199,14 +238,17 @@ public class ReachModule extends HudModule {
                     && lastHit >= 0
                     && System.currentTimeMillis() - lastHitAt < holdFor.get() * 100L;
 
+            // A hit, if there is a recent one; otherwise whatever the crosshair
+            // is on. The first version showed nothing at all between hits,
+            // which is technically what "hold last hit" means and not at all
+            // what somebody pointing at a player expects to see. Holding a hit
+            // should outrank the live reading, not replace it.
             if (fresh) {
                 out.append(String.format(Locale.ROOT, "%.2f m", lastHit));
-            } else if (!holdLast.get()) {
+            } else {
                 Entity target = crosshairEntity();
                 double live = target == null ? -1 : measure(target);
                 out.append(live < 0 ? "-- m" : String.format(Locale.ROOT, "%.2f m", live));
-            } else {
-                out.append("-- m");
             }
 
             if (showBest.get() && best >= 0) {

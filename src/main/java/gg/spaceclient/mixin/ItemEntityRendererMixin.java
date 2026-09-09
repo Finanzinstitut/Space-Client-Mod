@@ -34,42 +34,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(ItemEntityRenderer.class)
 public class ItemEntityRendererMixin {
 
-    /**
-     * Drops far and surplus items before any work is done on them.
-     *
-     * Deliberately here rather than in the drawing method. Refusing to draw
-     * would still have cost the extraction, the pose and the model lookup, and
-     * cancelling half way through a method that pushes a matrix is how a whole
-     * frame ends up rendered inside somebody else's transform. Saying no at
-     * this gate means the game never starts.
-     *
-     * Named without a descriptor and not required: the shape of this method
-     * has not been established on this version, and a mixin that quietly does
-     * not apply is a module that does nothing rather than a game that will not
-     * start.
-     */
-    @Inject(method = "shouldRender", at = @At("HEAD"), cancellable = true, require = 0)
-    private void spaceclient$cull(ItemEntity entity, Object frustum,
-                                  double cameraX, double cameraY, double cameraZ,
-                                  CallbackInfoReturnable<Boolean> cir) {
-        try {
-            var manager = gg.spaceclient.SpaceClient.getModuleManager();
-            if (manager == null) return;
-
-            var module = manager.get("fpsboost");
-            if (!(module instanceof gg.spaceclient.modules.FpsBoostModule boost)) return;
-
-            if (!boost.allowItem(entity)) {
-                gg.spaceclient.render.CullReport.culledItem();
-                cir.setReturnValue(false);
-            } else {
-                gg.spaceclient.render.CullReport.keptItem();
-            }
-        } catch (Throwable ignored) {
-            // Draw it, as the game would have
-        }
-    }
-
     @Inject(method = "extractRenderState(Lnet/minecraft/world/entity/item/ItemEntity;"
             + "Lnet/minecraft/client/renderer/entity/state/ItemEntityRenderState;F)V",
             at = @At("TAIL"))
@@ -85,6 +49,39 @@ public class ItemEntityRendererMixin {
         }
 
         spaceclient$settle(entity, state);
+        spaceclient$judge(entity, state);
+    }
+
+    /**
+     * Decides here whether this item is worth drawing at all.
+     *
+     * Moved from shouldRender, which never matched: the diagnostics said so
+     * plainly - "hook never ran". Rather than guess that method's shape a
+     * second time, the decision rides on the one injection in this class whose
+     * descriptor is spelled out and proven to apply.
+     *
+     * The verdict cannot cancel anything from here, so it is carried on the
+     * render state and acted on when the item is submitted. That costs the
+     * extraction of an item that will not be drawn, which is a fraction of
+     * what drawing it costs.
+     */
+    private void spaceclient$judge(ItemEntity entity, ItemEntityRenderState state) {
+        try {
+            var manager = gg.spaceclient.SpaceClient.getModuleManager();
+            if (manager == null) return;
+
+            var module = manager.get("fpsboost");
+            if (!(module instanceof gg.spaceclient.modules.FpsBoostModule boost)) return;
+
+            boolean draw = boost.allowItem(entity);
+            ((ItemPhysicsHolder) (Object) state).spaceclient$setSkipped(!draw);
+
+            if (draw) gg.spaceclient.render.CullReport.keptItem();
+            else gg.spaceclient.render.CullReport.culledItem();
+
+        } catch (Throwable ignored) {
+            // Draw it, as the game would have
+        }
     }
 
     /**
@@ -136,10 +133,22 @@ public class ItemEntityRendererMixin {
             + "Lcom/mojang/blaze3d/vertex/PoseStack;"
             + "Lnet/minecraft/client/renderer/SubmitNodeCollector;"
             + "Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V",
-            at = @At("HEAD"))
+            at = @At("HEAD"), cancellable = true)
     private void spaceclient$grow(ItemEntityRenderState state, PoseStack poseStack,
                                   SubmitNodeCollector collector, CameraRenderState camera,
                                   CallbackInfo ci) {
+        // Before anything is pushed. Cancelling after a pushPose would leave
+        // the matrix stack unbalanced and every later draw inside a transform
+        // that was never meant for it - a whole frame ruined to save one item.
+        try {
+            if (((ItemPhysicsHolder) (Object) state).spaceclient$isSkipped()) {
+                ci.cancel();
+                return;
+            }
+        } catch (Throwable ignored) {
+            // Draw it
+        }
+
         ItemScaleReport.sawGround();
         poseStack.pushPose();
         float scale = spaceclient$scaleFor(state);
