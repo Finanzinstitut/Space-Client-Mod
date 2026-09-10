@@ -232,31 +232,87 @@ public class ServersScreen extends Screen {
 
     // --- reading the list ---
 
+    /**
+     * The list, kept for the rest of the session.
+     *
+     * Reading it means reading servers.dat off disk, and doing that on the
+     * render thread is what froze the screen on the way in. Once it has been
+     * read there is no reason to read it again - edits go through this same
+     * object and are written back from it, so a second load would only find
+     * what is already here.
+     */
+    private static Object sharedList = null;
+    private static Object sharedPinger = null;
+
+    /** Whether a background read is on its way. */
+    private volatile boolean loading = false;
+
+    /**
+     * Starts reading the list, off the render thread.
+     *
+     * The parsing happens on a worker and only the finished object comes back;
+     * building the rows from it stays here, on the thread that draws them.
+     * That keeps everything touching the screen single threaded while the part
+     * that waits on a disk does not.
+     */
     private void loadList() {
-        try {
-            Object list = Construct.of("net.minecraft.client.multiplayer.ServerList",
-                    Minecraft.getInstance());
-            if (list == null) throw new IllegalStateException("no server list");
-
-            Construct.invokedOn(list, "load");
-            serverList = list;
-
-            pinger = Construct.of("net.minecraft.client.multiplayer.ServerStatusPinger");
-
+        if (sharedList != null) {
+            serverList = sharedList;
+            pinger = sharedPinger;
             rebuildRows();
-
-            // Not pinged here. Asking every saved server at once is what made
-            // opening this screen freeze for about a second - each ping does
-            // its own name lookup, and a dozen of those land on the frame that
-            // is trying to draw the list. They are spread out instead, a
-            // couple per frame, from the queue below.
-            pending.clear();
-            pending.addAll(servers);
-
-        } catch (Throwable t) {
-            failure = "Could not read the server list on this version";
-            SpaceClient.LOGGER.warn("Server list unavailable: {}", String.valueOf(t));
+            refresh();
+            return;
         }
+
+        if (loading) return;
+        loading = true;
+
+        Thread worker = new Thread(() -> {
+            Object list = null;
+            Object ping = null;
+            String problem = null;
+
+            try {
+                list = Construct.of("net.minecraft.client.multiplayer.ServerList",
+                        Minecraft.getInstance());
+                if (list == null) throw new IllegalStateException("no server list");
+
+                Construct.invokedOn(list, "load");
+                ping = Construct.of("net.minecraft.client.multiplayer.ServerStatusPinger");
+
+            } catch (Throwable t) {
+                problem = "Could not read the server list on this version";
+                SpaceClient.LOGGER.warn("Server list unavailable: {}", String.valueOf(t));
+            }
+
+            final Object builtList = list;
+            final Object builtPinger = ping;
+            final String builtProblem = problem;
+
+            // Handed back onto the game's own thread. Touching the widgets from
+            // the worker would be the kind of bug that shows up once a week on
+            // somebody else's machine.
+            Minecraft.getInstance().execute(() -> {
+                loading = false;
+
+                if (builtProblem != null) {
+                    failure = builtProblem;
+                    return;
+                }
+
+                sharedList = builtList;
+                sharedPinger = builtPinger;
+                serverList = builtList;
+                pinger = builtPinger;
+
+                rebuildRows();
+                refresh();
+                this.rebuildWidgets();
+            });
+        }, "space-client-server-list");
+
+        worker.setDaemon(true);
+        worker.start();
     }
 
     private void rebuildRows() {
@@ -720,7 +776,9 @@ public class ServersScreen extends Screen {
                 0xFFFFFFFF, false);
         if (scaled) Scale.pop(graphics);
 
-        String hint = failure != null
+        String hint = loading
+                ? "Reading your server list"
+                : failure != null
                 ? failure
                 : rows.isEmpty()
                     ? "No servers saved yet - add one below"
