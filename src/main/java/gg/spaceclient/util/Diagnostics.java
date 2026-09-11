@@ -103,6 +103,14 @@ public final class Diagnostics {
                 !gg.spaceclient.render.BlockHighlightRenderer.hasFailed(),
                 gg.spaceclient.render.BlockHighlightRenderer.status()));
 
+        // The icons have failed twice now for two different reasons, and both
+        // times the only evidence was that nothing appeared. This says which
+        // step of decode, wrap and register got as far as it did.
+        checks.add(new Check("Menu icons",
+                !gg.spaceclient.ui.TextureLoader.status().startsWith("no ")
+                        || gg.spaceclient.ui.TextureLoader.working(),
+                gg.spaceclient.ui.TextureLoader.status()));
+
         checks.add(new Check("Cape hook",
                 gg.spaceclient.render.CapeReport.hooked(),
                 gg.spaceclient.render.CapeReport.status()));

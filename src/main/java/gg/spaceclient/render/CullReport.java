@@ -30,8 +30,22 @@ public final class CullReport {
 
     public static boolean hooked() { return everRan; }
 
+    /**
+     * What the boost has actually done, in words that are true.
+     *
+     * The previous version of this line said "shouldRender did not match" for
+     * any state where nothing had been counted - including the ordinary case of
+     * standing somewhere with no dropped items in sight. It named a method the
+     * hook no longer even uses, and it reported a failure where there was
+     * nothing to do. Three states, three answers.
+     */
     public static String status() {
-        if (!everRan) return "hook never ran - shouldRender did not match";
+        if (!everRan) {
+            return "no dropped items seen yet - drop something to check";
+        }
+        if (culled == 0) {
+            return "hooked, " + kept + " drawn, none worth skipping yet";
+        }
         return culled + " skipped, " + kept + " drawn since start";
     }
 }

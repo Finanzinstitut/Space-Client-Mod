@@ -47,6 +47,13 @@ public final class TextureLoader {
 
     private static boolean reported = false;
 
+    /** What happened the first time an icon was asked for. */
+    private static String status = "no icon requested yet";
+
+    public static String status() { return status; }
+
+    public static boolean working() { return status.startsWith("using "); }
+
     private TextureLoader() {}
 
     /**
@@ -122,10 +129,12 @@ public final class TextureLoader {
         reported = true;
 
         if (problem != null) {
+            status = problem;
             SpaceClient.LOGGER.warn("Menu icons unavailable: {} (tried {} and {})",
                     problem, String.join(", ", IMAGE_CLASSES),
                     String.join(", ", TEXTURE_CLASSES));
         } else {
+            status = "using " + used;
             SpaceClient.LOGGER.info("Menu icons using {}", used);
         }
     }
