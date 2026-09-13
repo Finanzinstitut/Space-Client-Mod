@@ -56,18 +56,19 @@ public class MainMenuScreen extends Screen {
     private long openedAt = 0L;
 
     /**
-     * When the introduction last ran.
+     * Whether the greeting has run since the game was started.
      *
-     * Time rather than a played-once flag. The flag was set the first time any
-     * main menu was built, and from then on the greeting never appeared again -
-     * including on the next launch if anything had touched the menu first. A
-     * quiet period is the rule that actually matches the intent: greet me when
-     * I arrive, do not greet me for coming back from the server list.
+     * Static, and never reset. Two rules were tried before this one and both
+     * were wrong in the same way - they described when to replay it rather than
+     * what it is for.
+     *
+     * A quiet period brought it back after every session, because an hour on a
+     * server is longer than any sensible timeout: you would leave a server and
+     * be welcomed as though you had just arrived. The rule is not about elapsed
+     * time at all. The greeting belongs to opening the game, and the game is
+     * opened once.
      */
-    private static long introLastPlayed = 0L;
-
-    /** How long the menu has to have been away before it greets again. */
-    private static final long INTRO_QUIET_MS = 5 * 60 * 1000L;
+    private static boolean introShown = false;
 
     /**
      * Chosen once per screen rather than per frame, so the greeting does not
@@ -89,15 +90,11 @@ public class MainMenuScreen extends Screen {
         if (openedAt == 0L) {
             greeting = pickGreeting();
 
-            // Coming back from the server list to watch the same seven seconds
-            // again is where an introduction becomes a toll booth, so a recent
-            // one is skipped to its end. Arriving fresh gets the whole thing.
+            // Everything after the first time - back from the server list,
+            // back from a world - lands on the finished menu straight away.
             long now = System.currentTimeMillis();
-            boolean recent = introLastPlayed != 0L
-                    && now - introLastPlayed < INTRO_QUIET_MS;
-
-            openedAt = recent ? now - DONE : now;
-            introLastPlayed = now;
+            openedAt = introShown ? now - DONE : now;
+            introShown = true;
         }
 
         icons.clear();
