@@ -96,8 +96,15 @@ public final class Diagnostics {
         // applied looks the same as one with nothing to do. The count is what
         // separates them.
         checks.add(new Check("FPS boost hook",
-                gg.spaceclient.render.CullReport.hooked(),
+                gg.spaceclient.render.CullReport.healthy(),
                 gg.spaceclient.render.CullReport.status()));
+
+        // The other half of the same module, and the half that carries a busy
+        // server. It was reported nowhere at all until now, which is how it
+        // managed to do nothing for this long without anyone noticing.
+        checks.add(new Check("Name tag culling",
+                gg.spaceclient.render.TagReport.working(),
+                gg.spaceclient.render.TagReport.status()));
 
         checks.add(new Check("Block highlight",
                 !gg.spaceclient.render.BlockHighlightRenderer.hasFailed(),
@@ -117,6 +124,10 @@ public final class Diagnostics {
                 !gg.spaceclient.ui.TextureLoader.status().startsWith("no ")
                         || gg.spaceclient.ui.TextureLoader.working(),
                 gg.spaceclient.ui.TextureLoader.status()));
+
+        checks.add(new Check("Menu intro",
+                gg.spaceclient.ui.IntroReport.ok(),
+                gg.spaceclient.ui.IntroReport.status()));
 
         checks.add(new Check("Cape hook",
                 gg.spaceclient.render.CapeReport.hooked(),

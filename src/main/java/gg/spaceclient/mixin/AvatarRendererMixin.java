@@ -77,7 +77,12 @@ public class AvatarRendererMixin {
             float leanBefore = state.capeLean;
             float lean2Before = state.capeLean2;
 
-            float[] shaped = wavey.shape(flapBefore, leanBefore, lean2Before);
+            // Identity, not the entity id: it is stable for as long as the
+            // avatar is in view, which is exactly how long its cape needs to
+            // remember which way it was swinging, and it needs no method this
+            // version has not been checked for.
+            float[] shaped = wavey.shape(System.identityHashCode(avatar),
+                    flapBefore, leanBefore, lean2Before);
             if (shaped == null) {
                 if (isSelf) gg.spaceclient.render.CapeReport.skipped("the Wavey Cape module is switched off");
                 return;
