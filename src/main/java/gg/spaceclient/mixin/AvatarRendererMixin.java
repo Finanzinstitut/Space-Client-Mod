@@ -47,18 +47,51 @@ public class AvatarRendererMixin {
                                       CallbackInfo ci) {
         try {
             gg.spaceclient.render.CapeReport.ran();
+
+            // Everything reported below is about the cape you can actually see.
+            // This hook runs for every player in view, so without this the
+            // report would be describing somebody else's cape on a server.
+            // Held as Object because the comparison is identity, not type: the
+            // local player's class is one more name that moved in 26.2.
+            Object self = net.minecraft.client.Minecraft.getInstance().player;
+            boolean isSelf = self != null && self == avatar;
+            if (isSelf) {
+                gg.spaceclient.render.CapeReport.sawSelf();
+                // Before the write, so the reading is vanilla's and not ours
+                gg.spaceclient.render.CapeReport.snapshot(state);
+            }
+
             var manager = gg.spaceclient.SpaceClient.getModuleManager();
-            if (manager == null) return;
+            if (manager == null) {
+                if (isSelf) gg.spaceclient.render.CapeReport.skipped("the module manager is not up yet");
+                return;
+            }
 
             var module = manager.get("waveycape");
-            if (!(module instanceof gg.spaceclient.modules.WaveyCapeModule wavey)) return;
+            if (!(module instanceof gg.spaceclient.modules.WaveyCapeModule wavey)) {
+                if (isSelf) gg.spaceclient.render.CapeReport.skipped("the Wavey Cape module was not found");
+                return;
+            }
 
-            float[] shaped = wavey.shape(state.capeFlap, state.capeLean, state.capeLean2);
-            if (shaped == null) return;
+            float flapBefore = state.capeFlap;
+            float leanBefore = state.capeLean;
+            float lean2Before = state.capeLean2;
+
+            float[] shaped = wavey.shape(flapBefore, leanBefore, lean2Before);
+            if (shaped == null) {
+                if (isSelf) gg.spaceclient.render.CapeReport.skipped("the Wavey Cape module is switched off");
+                return;
+            }
 
             state.capeFlap = shaped[0];
             state.capeLean = shaped[1];
             state.capeLean2 = shaped[2];
+
+            if (isSelf) {
+                gg.spaceclient.render.CapeReport.applied(
+                        flapBefore, leanBefore, lean2Before,
+                        shaped[0], shaped[1], shaped[2]);
+            }
 
         } catch (Throwable ignored) {
             // Motion is a nicety; rendering the player is not
