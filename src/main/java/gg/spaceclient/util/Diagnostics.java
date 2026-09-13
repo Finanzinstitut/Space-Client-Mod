@@ -106,6 +106,13 @@ public final class Diagnostics {
         // The icons have failed twice now for two different reasons, and both
         // times the only evidence was that nothing appeared. This says which
         // step of decode, wrap and register got as far as it did.
+        // Four attempts at the server screen stutter have each fixed something
+        // real and none has fixed the complaint. This says which section is
+        // actually slow instead of offering a fifth theory.
+        checks.add(new Check("Slowest sections",
+                gg.spaceclient.util.Timings.clean(),
+                gg.spaceclient.util.Timings.report()));
+
         checks.add(new Check("Menu icons",
                 !gg.spaceclient.ui.TextureLoader.status().startsWith("no ")
                         || gg.spaceclient.ui.TextureLoader.working(),

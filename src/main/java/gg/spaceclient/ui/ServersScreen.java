@@ -90,6 +90,10 @@ public class ServersScreen extends Screen {
 
     @Override
     protected void init() {
+        gg.spaceclient.util.Timings.measure("servers:init", this::buildScreen);
+    }
+
+    private void buildScreen() {
         if (openedAt == 0L) openedAt = System.currentTimeMillis();
         if (serverList == null) loadList();
 
@@ -316,6 +320,10 @@ public class ServersScreen extends Screen {
     }
 
     private void rebuildRows() {
+        gg.spaceclient.util.Timings.measure("servers:rows", this::rebuildRowsNow);
+    }
+
+    private void rebuildRowsNow() {
         rows.clear();
         servers.clear();
         if (serverList == null) return;
@@ -752,6 +760,12 @@ public class ServersScreen extends Screen {
         graphics.fill(0, 0, this.width, this.height, 0x60000000);
 
         texturesThisFrame = 0;
+
+        gg.spaceclient.util.Timings.measure("servers:frame", () -> {
+            // Measured as a whole first. If the frame itself is fine then the
+            // stutter is not in here at all, and that is worth knowing before
+            // taking the inside of it apart.
+        });
 
         if (rowsDirty) {
             rowsDirty = false;

@@ -43,6 +43,37 @@ public final class BlockHighlightRenderer {
         return everDrew ? "drawing" : "nothing selected yet";
     }
 
+    // --- what is on screen right now, as opposed to what is aimed at ---
+
+    /**
+     * The box being drawn, in world coordinates.
+     *
+     * World coordinates rather than camera relative on purpose. The camera
+     * moves every frame, so easing a camera relative box would chase the
+     * camera as well as the target and the marker would lag behind the world
+     * while standing still.
+     */
+    private static AABB shown = null;
+
+    /** The face being shaded, carried alongside so it fades with the rest. */
+    private static AABB shownFace = null;
+
+    /** How present the marker is, from gone to fully there. */
+    private static float presence = 0f;
+
+    private static long lastFrameNanos = 0L;
+
+    /**
+     * How far apart two blocks have to be before the marker jumps instead of
+     * travelling.
+     *
+     * Sliding is right for the block next door - it reads as the same marker
+     * moving with your crosshair. Across a room it reads as an object flying
+     * through the world, which is worse than a cut, so past this distance the
+     * old one fades where it stands and the new one fades in where it is.
+     */
+    private static final double SLIDE_LIMIT = 2.5;
+
     /** Called once per frame from the world renderer's tail. */
     public static void submit(SubmitNodeCollector collector) {
         if (failed) return;
@@ -53,29 +84,42 @@ public final class BlockHighlightRenderer {
 
             var module = manager.get("blockhighlight");
             if (!(module instanceof BlockHighlightModule highlight)) return;
-            if (!highlight.wantsOutline() && !highlight.wantsOverlay()) return;
+            if (!highlight.wantsOutline() && !highlight.wantsOverlay()) {
+                shown = null;
+                presence = 0f;
+                return;
+            }
 
             Minecraft mc = Minecraft.getInstance();
             if (mc.level == null || mc.player == null) return;
 
+            AABB target = null;
+            AABB targetFace = null;
+
             Object hit = readField(mc, "hitResult");
-            if (hit == null) return;
+            Object kind = hit == null ? null : Reflect.call(hit, "getType");
 
-            // Only an actual block counts. A result of type MISS still answers
-            // getBlockPos - with the empty space the ray stopped in - so asking
-            // for a position is not enough of a test on its own, and the
-            // marker ended up floating in mid air whenever nothing was hit.
-            Object kind = Reflect.call(hit, "getType");
-            if (kind == null || !"BLOCK".equalsIgnoreCase(String.valueOf(kind))) return;
+            if (kind != null && "BLOCK".equalsIgnoreCase(String.valueOf(kind))) {
+                Object pos = Reflect.call(hit, "getBlockPos");
+                if (pos != null && !isAir(mc, pos)) {
+                    target = shapeOf(mc, pos);
+                    if (target != null && highlight.facesOnly()) {
+                        targetFace = faceOf(target.inflate(0.002), hit);
+                    }
+                }
+            }
 
-            Object pos = Reflect.call(hit, "getBlockPos");
-            if (pos == null) return;
+            float step = frameStep(highlight);
+            advance(target, targetFace, step);
 
-            // Belt and braces: an air block means the ray landed on nothing
-            // worth marking even if the result claims otherwise
-            Object state = Reflect.callWith(mc.level, "getBlockState", pos);
-            Object empty = Reflect.call(state, "isAir");
-            if (empty instanceof Boolean air && air) return;
+            // Gone completely. Dropped rather than drawn at zero, so a marker
+            // that is not there costs nothing at all.
+            if (presence <= 0.02f || shown == null) {
+                shown = null;
+                shownFace = null;
+                presence = 0f;
+                return;
+            }
 
             Vec3 camera = HitboxRenderer.cameraPosition(mc);
             if (camera == null) return;
@@ -83,42 +127,140 @@ public final class BlockHighlightRenderer {
             RenderType type = HitboxRenderer.lineType();
             if (type == null) return;
 
-            AABB shape = shapeOf(mc, pos);
-            if (shape == null) return;
-
-            AABB box = shape.move(-camera.x, -camera.y, -camera.z);
             everDrew = true;
-
-            if (highlight.wantsOverlay()) {
-                // Grown by a hair so the shading sits just outside the block's
-                // own surface. Drawn exactly on it, the two fight for the same
-                // depth and the face flickers as the camera moves.
-                AABB shaded = box.inflate(0.002);
-
-                if (highlight.facesOnly()) {
-                    AABB face = faceOf(shaded, hit);
-                    if (face != null) {
-                        HitboxRenderer.submitFilled(collector, type, face,
-                                highlight.overlayColor());
-                    }
-                } else {
-                    HitboxRenderer.submitFilled(collector, type, shaded,
-                            highlight.overlayColor());
-                }
-            }
-
-            if (highlight.wantsOutline()) {
-                double thickness = highlight.edgeThickness();
-                HitboxRenderer.submitBox(collector, type,
-                        box.inflate(thickness / 2 + 0.001),
-                        highlight.outlineColor(), thickness);
-            }
+            draw(collector, type, highlight, camera);
 
         } catch (Throwable t) {
             failed = true;
             failure = "stopped after " + t.getClass().getSimpleName();
             SpaceClient.LOGGER.warn("Block highlight disabled: {}", String.valueOf(t));
         }
+    }
+
+    /**
+     * How much to move this frame.
+     *
+     * Worked out from real elapsed time rather than assumed. A fixed step per
+     * frame makes the marker crawl at 30fps and snap at 240, and the whole
+     * point of easing it is that it should feel the same either way.
+     */
+    private static float frameStep(BlockHighlightModule highlight) {
+        long now = System.nanoTime();
+        long elapsed = lastFrameNanos == 0L ? 16_000_000L : now - lastFrameNanos;
+        lastFrameNanos = now;
+
+        // Clamped, because a frame that took half a second - a chunk load, a
+        // window drag - should not teleport the marker to make up for it
+        double seconds = Math.min(0.1, elapsed / 1_000_000_000.0);
+
+        if (!highlight.animates()) return 1f;
+
+        // Speed is "how much of the remaining distance per second"; the
+        // exponential keeps that true whatever the frame rate happens to be
+        double rate = highlight.animationSpeed();
+        return (float) (1.0 - Math.exp(-rate * seconds));
+    }
+
+    /** Moves what is shown towards what is aimed at. */
+    private static void advance(AABB target, AABB targetFace, float step) {
+        if (target == null) {
+            // Nothing aimed at: fade where it stands. Its own box is left alone
+            // so it shrinks from where it was rather than drifting first.
+            presence = presence - step * (presence + 0.15f);
+            if (presence < 0f) presence = 0f;
+            return;
+        }
+
+        if (shown == null || centreDistance(shown, target) > SLIDE_LIMIT) {
+            shown = target;
+            shownFace = targetFace;
+            // Started from nothing rather than from full, so a jump to a
+            // distant block still arrives rather than appearing
+            if (shown == null) presence = 0f;
+        } else {
+            shown = ease(shown, target, step);
+            shownFace = targetFace == null ? null
+                    : (shownFace == null ? targetFace : ease(shownFace, targetFace, step));
+        }
+
+        presence = presence + (1f - presence) * step;
+        if (presence > 1f) presence = 1f;
+    }
+
+    private static double centreDistance(AABB a, AABB b) {
+        double dx = (a.minX + a.maxX) / 2 - (b.minX + b.maxX) / 2;
+        double dy = (a.minY + a.maxY) / 2 - (b.minY + b.maxY) / 2;
+        double dz = (a.minZ + a.maxZ) / 2 - (b.minZ + b.maxZ) / 2;
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    /**
+     * Moves every edge of a box a fraction of the way to another.
+     *
+     * Edge by edge rather than centre plus size, so a slab becoming a full
+     * block grows upward from the floor it is standing on instead of expanding
+     * about its middle and sinking into the ground on the way.
+     */
+    private static AABB ease(AABB from, AABB to, float step) {
+        return new AABB(
+                from.minX + (to.minX - from.minX) * step,
+                from.minY + (to.minY - from.minY) * step,
+                from.minZ + (to.minZ - from.minZ) * step,
+                from.maxX + (to.maxX - from.maxX) * step,
+                from.maxY + (to.maxY - from.maxY) * step,
+                from.maxZ + (to.maxZ - from.maxZ) * step
+        );
+    }
+
+    /**
+     * Shrinks a box towards its own centre.
+     *
+     * What makes the disappearance read as the marker letting go rather than
+     * the screen simply dimming. Paired with the fade it is the difference
+     * between something leaving and something being switched off.
+     */
+    private static AABB shrink(AABB box, double factor) {
+        double cx = (box.minX + box.maxX) / 2;
+        double cy = (box.minY + box.maxY) / 2;
+        double cz = (box.minZ + box.maxZ) / 2;
+
+        double hx = (box.maxX - box.minX) / 2 * factor;
+        double hy = (box.maxY - box.minY) / 2 * factor;
+        double hz = (box.maxZ - box.minZ) / 2 * factor;
+
+        return new AABB(cx - hx, cy - hy, cz - hz, cx + hx, cy + hy, cz + hz);
+    }
+
+    private static void draw(SubmitNodeCollector collector, RenderType type,
+                             BlockHighlightModule highlight, Vec3 camera) {
+        // Never all the way to nothing: a marker at four fifths reads as
+        // receding, one at a tenth reads as broken
+        double scale = 0.82 + 0.18 * presence;
+        int alpha = Math.round(255 * presence);
+
+        AABB box = shrink(shown, scale).move(-camera.x, -camera.y, -camera.z);
+
+        if (highlight.wantsOverlay()) {
+            AABB shaded = highlight.facesOnly() && shownFace != null
+                    ? shrink(shownFace, scale).move(-camera.x, -camera.y, -camera.z)
+                    : box.inflate(0.002);
+
+            HitboxRenderer.submitFilled(collector, type, shaded,
+                    fade(highlight.overlayColor(), alpha));
+        }
+
+        if (highlight.wantsOutline()) {
+            double thickness = highlight.edgeThickness();
+            HitboxRenderer.submitBox(collector, type,
+                    box.inflate(thickness / 2 + 0.001),
+                    fade(highlight.outlineColor(), alpha), thickness);
+        }
+    }
+
+    /** Scales a colour's existing transparency by how present the marker is. */
+    private static int fade(int colour, int alpha) {
+        int existing = (colour >>> 24) & 0xFF;
+        return ((existing * alpha / 255) << 24) | (colour & 0xFFFFFF);
     }
 
     /**
@@ -179,6 +321,25 @@ public final class BlockHighlightRenderer {
             case "EAST" -> new AABB(box.maxX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ);
             default -> null;
         };
+    }
+
+    /**
+     * Whether there is genuinely nothing at that position.
+     *
+     * Still needed even though the hit type is checked: the ray can report a
+     * block on a position that has since been broken, and an outline around
+     * air is the one thing this must never draw.
+     */
+    private static boolean isAir(Minecraft mc, Object pos) {
+        try {
+            Object state = Reflect.callWith(mc.level, "getBlockState", pos);
+            if (state == null) return false;
+
+            Object air = Reflect.call(state, "isAir");
+            return air instanceof Boolean flag && flag;
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     private static int intOf(Object value) {

@@ -61,6 +61,24 @@ public class BlockHighlightModule extends Module {
             "face_only", "Only the aimed face",
             "Shade the side you are pointing at instead of the whole block", true);
 
+    // --- movement ---
+
+    private final BooleanSetting animate = new BooleanSetting(
+            "animate", "Animate", "Let the marker travel and fade instead of jumping", true);
+
+    /**
+     * How quickly the marker catches up, as a share of the remaining distance
+     * per second.
+     *
+     * Expressed that way rather than as a duration because it is what the
+     * easing actually uses, and because a marker that always takes the same
+     * fraction per second feels identical whether it is moving one block or
+     * fading out - which is the point of animating it at all.
+     */
+    private final IntSetting animationSpeed = new IntSetting(
+            "animation_speed", "Speed", "How quickly the marker follows your aim",
+            18, 4, 40);
+
     public BlockHighlightModule() {
         super("blockhighlight", "Block Highlight",
                 "Marks the block under your crosshair more clearly than vanilla", false);
@@ -68,9 +86,15 @@ public class BlockHighlightModule extends Module {
                 SettingGroup.of("Outline", "The edges of the block",
                         outline, outlineColor, thickness),
                 SettingGroup.of("Overlay", "Shading on the block itself",
-                        overlay, overlayColor, faceOnly)
+                        overlay, overlayColor, faceOnly),
+                SettingGroup.of("Movement", "How it arrives and leaves",
+                        animate, animationSpeed)
         );
     }
+
+    public boolean animates() { return animate.get(); }
+
+    public double animationSpeed() { return animationSpeed.get(); }
 
     public boolean wantsOutline() { return isEnabled() && outline.get(); }
 
