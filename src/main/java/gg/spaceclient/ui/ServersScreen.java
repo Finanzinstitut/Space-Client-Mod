@@ -76,7 +76,17 @@ public class ServersScreen extends Screen {
      * stall. One per frame means a full list is dressed within a second
      * without any single frame carrying the whole cost.
      */
-    private int texturesThisFrame = 0;
+    /**
+     * Servers whose icon has not been turned into a texture yet.
+     *
+     * A queue rather than a per frame counter, and that swap is the fix for
+     * icons appearing one per visit. The counter assumed icons were asked for
+     * every frame, which they were - until the list stopped being rebuilt every
+     * frame. Two correct changes that were wrong together: the throttle allowed
+     * one per frame, the debounce left one frame's worth of asking, so exactly
+     * one icon got made each time the screen opened.
+     */
+    private final java.util.Deque<Object> iconQueue = new java.util.ArrayDeque<>();
 
     private final DragScroll drag = new DragScroll();
 
@@ -448,17 +458,48 @@ public class ServersScreen extends Screen {
             return known;
         }
 
-        // Held back rather than decoded now: the row draws without a picture
-        // this frame and with one on the next, which nobody notices, and no
-        // single frame pays for a whole list of them
-        if (texturesThisFrame >= 1) return null;
-        texturesThisFrame++;
+        // Not decoded here. Queued instead, and worked through a couple per
+        // frame from the draw loop, so a list of twenty fills in over half a
+        // second without any single frame paying for all of them.
+        if (!iconQueue.contains(server)) iconQueue.add(server);
+        return null;
+    }
+
+    /**
+     * Actually decodes and registers one server's icon.
+     *
+     * Split out from the lookup because the two happen at different times now:
+     * the lookup runs while rows are built and must be instant, this runs from
+     * the draw loop and is allowed to cost something.
+     */
+    private Identifier registerIcon(Object server) {
+        Object value = readAny(server, "iconBytes", "getIconBytes", "getIcon");
+
+        byte[] bytes = null;
+        if (value instanceof byte[] raw) {
+            bytes = raw;
+        } else if (value != null) {
+            Object unwrapped = Reflect.call(value, "iconBytes", "bytes", "getBytes");
+            if (unwrapped instanceof byte[] raw) bytes = raw;
+        }
+        if (bytes == null || bytes.length == 0) return null;
+
+        int key = java.util.Arrays.hashCode(bytes);
+
+        Identifier known = ICONS.get(key);
+        if (known != null) {
+            BY_SERVER.put(server, known);
+            return known;
+        }
 
         Identifier id = Identifier.fromNamespaceAndPath(
                 SpaceClient.MOD_ID, "server_list/" + Integer.toHexString(key));
 
         Identifier registered = TextureLoader.register(bytes, id);
-        if (registered != null) ICONS.put(key, registered);
+        if (registered != null) {
+            ICONS.put(key, registered);
+            BY_SERVER.put(server, registered);
+        }
         return registered;
     }
 
@@ -679,14 +720,55 @@ public class ServersScreen extends Screen {
         pending.addAll(servers);
     }
 
-    /** Asks the next couple of servers, keeping any one frame cheap. */
+    /**
+     * Turns a couple of queued icons into textures.
+     *
+     * Two per frame: enough that a full list is dressed within a second, few
+     * enough that no frame carries more than two PNG decodes and uploads.
+     */
+    private void drainIcons() {
+        for (int i = 0; i < 2 && !iconQueue.isEmpty(); i++) {
+            Object server = iconQueue.poll();
+            if (server == null) continue;
+
+            Identifier made = gg.spaceclient.util.Timings.measure(
+                    "servers:icon", () -> registerIcon(server));
+
+            // Only worth rebuilding when something actually changed
+            if (made != null) rowsDirty = true;
+        }
+    }
+
+    /**
+     * Threads for pinging, so no ping ever runs on the thread that draws.
+     *
+     * The pings were meant to be asynchronous already - the game's pinger
+     * submits its own work - but which method the reflective call lands on is
+     * not something this code chooses. If it picks one that resolves a hostname
+     * before handing off, that resolution happens wherever it was called from,
+     * and a handful of servers that do not answer is several seconds of frozen
+     * window. Calling from a worker makes that impossible rather than unlikely.
+     */
+    private static final java.util.concurrent.ExecutorService PING_POOL =
+            java.util.concurrent.Executors.newFixedThreadPool(3, runnable -> {
+                Thread thread = new Thread(runnable, "space-client-ping");
+                thread.setDaemon(true);
+                return thread;
+            });
+
+    /** Hands the next couple of servers to the pool. */
     private void drainPings() {
         if (pinger == null) { pending.clear(); return; }
 
         for (int i = 0; i < 2 && !pending.isEmpty(); i++) {
             Object server = pending.poll();
             if (server == null) continue;
-            ping(server);
+
+            try {
+                PING_POOL.submit(() -> ping(server));
+            } catch (Throwable ignored) {
+                // A refused ping costs the bars for that row, nothing else
+            }
         }
     }
 
@@ -759,13 +841,7 @@ public class ServersScreen extends Screen {
         }
         graphics.fill(0, 0, this.width, this.height, 0x60000000);
 
-        texturesThisFrame = 0;
-
-        gg.spaceclient.util.Timings.measure("servers:frame", () -> {
-            // Measured as a whole first. If the frame itself is fine then the
-            // stutter is not in here at all, and that is worth knowing before
-            // taking the inside of it apart.
-        });
+        drainIcons();
 
         if (rowsDirty) {
             rowsDirty = false;

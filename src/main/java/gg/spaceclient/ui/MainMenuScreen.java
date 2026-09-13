@@ -55,8 +55,19 @@ public class MainMenuScreen extends Screen {
 
     private long openedAt = 0L;
 
-    /** Whether the introduction has already run since the game started. */
-    private static boolean introPlayed = false;
+    /**
+     * When the introduction last ran.
+     *
+     * Time rather than a played-once flag. The flag was set the first time any
+     * main menu was built, and from then on the greeting never appeared again -
+     * including on the next launch if anything had touched the menu first. A
+     * quiet period is the rule that actually matches the intent: greet me when
+     * I arrive, do not greet me for coming back from the server list.
+     */
+    private static long introLastPlayed = 0L;
+
+    /** How long the menu has to have been away before it greets again. */
+    private static final long INTRO_QUIET_MS = 5 * 60 * 1000L;
 
     /**
      * Chosen once per screen rather than per frame, so the greeting does not
@@ -78,15 +89,15 @@ public class MainMenuScreen extends Screen {
         if (openedAt == 0L) {
             greeting = pickGreeting();
 
-            // Played once per session, not once per visit. Coming back from
-            // the server list to watch the same four seconds again is the
-            // point at which an introduction becomes a toll booth, and every
-            // way of skipping it goes through the input API - which changed
-            // shape in this version and is not worth guessing at.
-            openedAt = introPlayed
-                    ? System.currentTimeMillis() - DONE
-                    : System.currentTimeMillis();
-            introPlayed = true;
+            // Coming back from the server list to watch the same seven seconds
+            // again is where an introduction becomes a toll booth, so a recent
+            // one is skipped to its end. Arriving fresh gets the whole thing.
+            long now = System.currentTimeMillis();
+            boolean recent = introLastPlayed != 0L
+                    && now - introLastPlayed < INTRO_QUIET_MS;
+
+            openedAt = recent ? now - DONE : now;
+            introLastPlayed = now;
         }
 
         icons.clear();
