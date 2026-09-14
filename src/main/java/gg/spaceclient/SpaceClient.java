@@ -230,6 +230,16 @@ public class SpaceClient implements ClientModInitializer {
                 inWorld = false;
             }
             gg.spaceclient.net.Badges.tick();
+
+            if (client.player != null) {
+                String name;
+                try {
+                    name = client.player.getName().getString();
+                } catch (Throwable ignored) {
+                    name = null;
+                }
+                gg.spaceclient.net.Badges.checkOwn(client.player.getUUID(), name);
+            }
             gg.spaceclient.net.Twitch.tick();
 
             // The window only exists once the game is running, so the hook is
@@ -280,15 +290,20 @@ public class SpaceClient implements ClientModInitializer {
     private static boolean inWorld = false;
 
     private static void renderTotem(GuiGraphicsExtractor graphics, DeltaTracker tickCounter) {
+        Minecraft client = Minecraft.getInstance();
+        int width = client.getWindow().getGuiScaledWidth();
+        int height = client.getWindow().getGuiScaledHeight();
+
+        // Above the rest of the HUD, same as the totem: a message that only
+        // shows for five seconds cannot afford to be drawn under a chat line.
+        gg.spaceclient.render.RankToast.draw(graphics, width, height);
+
         if (!(moduleManager.get("totempop") instanceof gg.spaceclient.modules.TotemPopModule totem)) {
             return;
         }
         if (!totem.isEnabled()) return;
 
-        Minecraft client = Minecraft.getInstance();
-        totem.draw(graphics,
-                client.getWindow().getGuiScaledWidth(),
-                client.getWindow().getGuiScaledHeight());
+        totem.draw(graphics, width, height);
     }
 
     private static void renderHud(GuiGraphicsExtractor graphics, DeltaTracker tickCounter) {
