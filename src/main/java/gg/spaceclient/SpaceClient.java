@@ -256,5 +256,12 @@ public class SpaceClient implements ClientModInitializer {
             if (!module.isEnabled()) continue;
             module.draw(graphics, module.getX(width), module.getY(height));
         }
+
+        // Not a HUD element: it belongs in the middle of the screen rather than
+        // somewhere the user dragged it, so it is not something to position.
+        if (moduleManager.get("totempop") instanceof gg.spaceclient.modules.TotemPopModule totem
+                && totem.isEnabled()) {
+            totem.draw(graphics, width, height);
+        }
     }
 }

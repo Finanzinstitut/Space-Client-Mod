@@ -57,6 +57,7 @@ public class ModuleManager {
         register(new ReachModule());
         register(new BlockHighlightModule());
         register(new EffectsModule());
+        register(new TotemPopModule());
     }
 
     private void register(Module module) {

@@ -37,23 +37,29 @@ public final class Scale {
     /** True when the transforms take two arguments rather than three. */
     private static boolean flat = true;
 
+    /** Only meaningful when not flat: the old PoseStack spells translate in
+     *  doubles, the newer one in floats, and both shapes exist in the wild. */
+    private static boolean translateTakesDouble = true;
+
     private static synchronized void resolve(Object pose) {
         if (resolved) return;
         resolved = true;
 
         Class<?> type = pose.getClass();
 
-        push = find(type, 0, "pushMatrix", "pushPose");
-        pop = find(type, 0, "popMatrix", "popPose");
+        push = find(type, "pushMatrix", "pushPose");
+        pop = find(type, "popMatrix", "popPose");
 
         // Two argument transforms mean the newer flat matrix stack
-        translate = find(type, 2, "translate");
-        scale = find(type, 2, "scale");
+        translate = find(type, FLOAT2, "translate");
+        scale = find(type, FLOAT2, "scale");
         flat = translate != null && scale != null;
 
         if (!flat) {
-            translate = find(type, 3, "translate");
-            scale = find(type, 3, "scale");
+            translate = find(type, DOUBLE3, "translate");
+            translateTakesDouble = translate != null;
+            if (translate == null) translate = find(type, FLOAT3, "translate");
+            scale = find(type, FLOAT3, "scale");
         }
 
         usable = push != null && pop != null && translate != null && scale != null;
@@ -65,17 +71,41 @@ public final class Scale {
         }
     }
 
-    private static Method find(Class<?> type, int argCount, String... names) {
+    /**
+     * The shapes the two matrix stacks spell their transforms in.
+     *
+     * Named rather than counted, and that is the whole point of them. The flat
+     * stack is a JOML matrix, and JOML gives nearly every transform a second
+     * overload that writes into a destination matrix - translate(Vector2fc,
+     * Matrix3x2f) and scale(float, Matrix3x2f) both take two arguments, exactly
+     * like the two the mod wants. getMethods() has no defined order, so a
+     * search on argument count alone picks whichever the JVM happens to list
+     * first. When it picks the destination overload the reflective call throws,
+     * the catch marks scaling unusable, and every scaled element - the hotbar
+     * item among them - silently draws at 1x for the rest of the session.
+     */
+    private static final Class<?>[] FLOAT2 = { float.class, float.class };
+    private static final Class<?>[] FLOAT3 = { float.class, float.class, float.class };
+    private static final Class<?>[] DOUBLE3 = { double.class, double.class, double.class };
+
+    private static Method find(Class<?> type, Class<?>[] params, String... names) {
         for (String name : names) {
             for (Method method : type.getMethods()) {
-                if (method.getName().equals(name) && method.getParameterCount() == argCount) {
-                    method.setAccessible(true);
-                    return method;
-                }
+                if (!method.getName().equals(name)) continue;
+                if (!java.util.Arrays.equals(method.getParameterTypes(), params)) continue;
+                method.setAccessible(true);
+                return method;
             }
         }
         return null;
     }
+
+    /** The no-argument case, where there is nothing to confuse. */
+    private static Method find(Class<?> type, String... names) {
+        return find(type, NONE, names);
+    }
+
+    private static final Class<?>[] NONE = {};
 
     /**
      * Scales subsequent drawing around a point.
@@ -105,8 +135,11 @@ public final class Scale {
             if (flat) {
                 translate.invoke(pose, (float) x, (float) y);
                 scale.invoke(pose, value, value);
-            } else {
+            } else if (translateTakesDouble) {
                 translate.invoke(pose, (double) x, (double) y, 0.0d);
+                scale.invoke(pose, value, value, 1.0f);
+            } else {
+                translate.invoke(pose, (float) x, (float) y, 0.0f);
                 scale.invoke(pose, value, value, 1.0f);
             }
             return true;
@@ -137,7 +170,8 @@ public final class Scale {
         if (pose == null) return;
         try {
             if (flat) translate.invoke(pose, (float) x, (float) y);
-            else translate.invoke(pose, (double) x, (double) y, 0.0d);
+            else if (translateTakesDouble) translate.invoke(pose, (double) x, (double) y, 0.0d);
+            else translate.invoke(pose, (float) x, (float) y, 0.0f);
         } catch (Throwable ignored) {
             // The item draws unscaled, which is the same as before
         }
@@ -153,6 +187,19 @@ public final class Scale {
             // A failed pop cannot be recovered from here; the frame is already
             // whatever it is
         }
+    }
+
+    /**
+     * What the resolution found, for the diagnostics page.
+     *
+     * Reading it is the difference between "the hotbar setting does nothing"
+     * and knowing whether the transform was never found, was found and threw,
+     * or was applied and simply is not visible.
+     */
+    public static String status() {
+        if (!resolved) return "not used yet";
+        if (!usable) return "unavailable - elements draw at 1x";
+        return flat ? "ok (flat matrix)" : "ok (pose stack)";
     }
 
     private Scale() {}
