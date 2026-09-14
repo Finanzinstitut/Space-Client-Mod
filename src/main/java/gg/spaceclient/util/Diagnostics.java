@@ -96,8 +96,15 @@ public final class Diagnostics {
         // applied looks the same as one with nothing to do. The count is what
         // separates them.
         checks.add(new Check("FPS boost hook",
-                gg.spaceclient.render.CullReport.hooked(),
+                gg.spaceclient.render.CullReport.healthy(),
                 gg.spaceclient.render.CullReport.status()));
+
+        // The other half of the same module, and the half that carries a busy
+        // server. It was reported nowhere at all until now, which is how it
+        // managed to do nothing for this long without anyone noticing.
+        checks.add(new Check("Name tag culling",
+                gg.spaceclient.render.TagReport.working(),
+                gg.spaceclient.render.TagReport.status()));
 
         checks.add(new Check("Block highlight",
                 !gg.spaceclient.render.BlockHighlightRenderer.hasFailed(),
@@ -118,9 +125,53 @@ public final class Diagnostics {
                         || gg.spaceclient.ui.TextureLoader.working(),
                 gg.spaceclient.ui.TextureLoader.status()));
 
+        // Reads what the warning itself sees, so "it never warned me" can be
+        // told apart from "it warned and you were not looking".
+        {
+            var warn = gg.spaceclient.SpaceClient.getModuleManager() == null ? null
+                    : gg.spaceclient.SpaceClient.getModuleManager().get("memorywarn");
+            if (warn instanceof gg.spaceclient.modules.MemoryWarnModule memory) {
+                checks.add(new Check("Memory warning", memory.isEnabled(), memory.status()));
+            }
+        }
+
+        {
+            var hud = gg.spaceclient.SpaceClient.getModuleManager() == null ? null
+                    : gg.spaceclient.SpaceClient.getModuleManager().get("serverhud");
+            if (hud instanceof gg.spaceclient.modules.ServerHudModule layouts) {
+                checks.add(new Check("Server layouts", layouts.isEnabled(), layouts.status()));
+            }
+        }
+
+        // The singleplayer buttons go through reflection and used to fail into
+        // a log line, which on screen is a button that does nothing at all.
+        checks.add(new Check("World creator",
+                gg.spaceclient.ui.WorldReport.createWorks(),
+                gg.spaceclient.ui.WorldReport.createStatus()));
+
+        checks.add(new Check("World opening",
+                gg.spaceclient.ui.WorldReport.openWorks(),
+                gg.spaceclient.ui.WorldReport.openStatus()));
+
+        checks.add(new Check("Menu intro",
+                gg.spaceclient.ui.IntroReport.ok(),
+                gg.spaceclient.ui.IntroReport.status()));
+
         checks.add(new Check("Cape hook",
                 gg.spaceclient.render.CapeReport.hooked(),
                 gg.spaceclient.render.CapeReport.status()));
+
+        // What vanilla itself still has for the cape. A state with no cape in
+        // it is a cape this module cannot steer, whoever drew the cloth.
+        checks.add(new Check("Cape render state",
+                gg.spaceclient.render.CapeReport.sawSelfYet(),
+                gg.spaceclient.render.CapeReport.stateReport()));
+
+        // The question the hook cannot answer about itself: the angles are
+        // written, and something downstream may be ignoring them.
+        String capeOwner = capeOwner();
+        checks.add(new Check("Cape drawn by",
+                !capeOwner.startsWith("Cosmetica is wearing"), capeOwner));
 
         checks.add(new Check("Reach target",
                 !gg.spaceclient.modules.ReachModule.lastRoute().startsWith("no target"),
@@ -232,6 +283,48 @@ public final class Diagnostics {
             return "takes (" + shape + ")";
         }
         return "no constructors at all";
+    }
+
+    /**
+     * Who is likely putting the cape on screen, which decides whether steering
+     * vanilla's angles can be seen at all.
+     *
+     * This module works by nudging the three angles vanilla keeps on the render
+     * state. That only reaches the screen if vanilla is the thing drawing the
+     * cape. A cosmetics mod that draws its own cloth reads its own state, and
+     * the angles here are written, correct and invisible - which is exactly the
+     * report we had: a hook that provably ran and a cape that provably did not
+     * move.
+     *
+     * Cosmetica is the one worth naming because Space Client already talks to
+     * it. Note what this can and cannot say: that a Cosmetica cape is worn is
+     * read out of Cosmetica, so it is a fact; that Cosmetica is therefore the
+     * thing drawing it is the likely reading, not a measurement, and the line
+     * says so.
+     */
+    private static String capeOwner() {
+        if (!gg.spaceclient.ui.CosmeticaBridge.modLoaded()) {
+            return "nothing else is installed that draws capes - vanilla's angles are what you see";
+        }
+        if (!gg.spaceclient.ui.CosmeticaBridge.installed()) {
+            return "Cosmetica is loaded but its 26.2 classes were not found - cannot tell what it draws";
+        }
+        if (!gg.spaceclient.ui.CosmeticaBridge.authenticated()) {
+            return "Cosmetica is installed but not signed in - it should not be drawing a cape";
+        }
+
+        String cape = null;
+        for (gg.spaceclient.ui.CosmeticaBridge.Worn worn : gg.spaceclient.ui.CosmeticaBridge.worn()) {
+            if ("Cape".equals(worn.slot())) {
+                cape = worn.name();
+                break;
+            }
+        }
+        if (cape == null) {
+            return "Cosmetica is signed in but wearing no cape - vanilla should still be drawing yours";
+        }
+        return "Cosmetica is wearing \"" + cape + "\" - likely drawing it itself, in which case "
+                + "it never reads the angles above. Turn that cape off in Cosmetica to check.";
     }
 
     private static Class<?> findClass(String... names) {

@@ -29,14 +29,21 @@ import net.minecraft.network.chat.Component;
  */
 public class SettingsHubScreen extends Screen {
 
-    private static final int TILE_W = 230;
-    private static final int TILE_H = 54;
-    private static final int GAP = 10;
+    // Measurements live in ScreenChrome now, so this screen and the account
+    // screen cannot drift apart by one edit.
+    private static final int TILE_W = ScreenChrome.TILE_W;
+    private static final int TILE_H = ScreenChrome.TILE_H;
+    private static final int GAP = ScreenChrome.GAP;
+    private static final int TOP = ScreenChrome.TOP;
 
     private final Screen parent;
     private final java.util.List<SettingsTile> tiles = new java.util.ArrayList<>();
 
     private long openedAt = 0L;
+
+    /** First row on screen, and how many there are in total. */
+    private int scrollRow = 0;
+    private int rowCount = 0;
 
     public SettingsHubScreen(Screen parent) {
         super(Component.literal("Settings"));
@@ -63,6 +70,12 @@ public class SettingsHubScreen extends Screen {
 
         plan.add(new Plan("HUD editor", "Move and scale what sits on screen",
                 SettingsTile.Mark.HUD, this::openHudEditor));
+
+        // Missing until now, which is why this screen could be described as
+        // "the settings menu where the account switch also is" by somebody who
+        // had to reach it from somewhere else entirely.
+        plan.add(new Plan("Accounts", "Switch account or refresh the session",
+                SettingsTile.Mark.SKIN, () -> Screens.open(new AccountsScreen(this))));
 
         vanilla(plan, "Video", "Render distance, brightness and frame rate",
                 SettingsTile.Mark.SCREEN,
@@ -98,30 +111,80 @@ public class SettingsHubScreen extends Screen {
                 SettingsTile.Mark.INFO,
                 "net.minecraft.client.gui.screens.options.OptionsScreen");
 
-        // Two columns, centred as a block
-        int columns = 2;
-        int blockWidth = columns * TILE_W + (columns - 1) * GAP;
-        int left = (this.width - blockWidth) / 2;
-        int top = 88;
+        // Two columns where there is room for two, one where there is not.
+        //
+        // The width was fixed at two before, and two columns of 230 plus the
+        // gap need 470 points of screen. At a large GUI scale there are not 470
+        // - the game reports a few hundred - so the right-hand column sat off
+        // the edge with half its tiles unreachable.
+        int columns = ScreenChrome.columnsFor(this.width);
+        int left = ScreenChrome.blockLeft(this.width, columns);
 
-        for (int i = 0; i < plan.size(); i++) {
-            Plan entry = plan.get(i);
-            int column = i % columns;
-            int row = i / columns;
+        rowCount = (plan.size() + columns - 1) / columns;
+        scrollRow = Math.max(0, Math.min(maxScrollRow(columns), scrollRow));
 
-            SettingsTile tile = new SettingsTile(
-                    left + column * (TILE_W + GAP),
-                    top + row * (TILE_H + GAP),
-                    TILE_W, TILE_H,
-                    entry.title(), entry.subtitle(), entry.mark(), entry.action());
-            tile.setAppear(0f);
-            tiles.add(tile);
-            this.addRenderableWidget(tile);
+        int visible = visibleRows();
+        for (int slot = 0; slot < visible; slot++) {
+            int row = scrollRow + slot;
+            if (row >= rowCount) break;
+
+            for (int column = 0; column < columns; column++) {
+                int index = row * columns + column;
+                if (index >= plan.size()) break;
+
+                Plan entry = plan.get(index);
+                SettingsTile tile = new SettingsTile(
+                        left + column * (TILE_W + GAP),
+                        TOP + slot * (TILE_H + GAP),
+                        TILE_W, TILE_H,
+                        entry.title(), entry.subtitle(), entry.mark(), entry.action());
+                tile.setAppear(0f);
+                tiles.add(tile);
+                this.addRenderableWidget(tile);
+            }
         }
 
         this.addRenderableWidget(new FlatButton(
-                left, this.height - 40, 110, 24,
+                left, ScreenChrome.bottomRow(this.height), 110, 24,
                 () -> "Back", () -> false, this::onClose).asAction());
+    }
+
+    /**
+     * How many rows of tiles fit between the heading and the Back button.
+     *
+     * Worked out from the screen rather than assumed. The list is eleven tiles
+     * long and the space for them is whatever the player's GUI scale leaves -
+     * which at the larger scales is less than the list needs, and the tiles
+     * that did not fit were simply drawn past the bottom edge with no way to
+     * reach them.
+     */
+    private int visibleRows() {
+        return ScreenChrome.rowsBetween(ScreenChrome.bottomRow(this.height) - GAP, TILE_H);
+    }
+
+    private int maxScrollRow(int columns) {
+        return Math.max(0, rowCount - visibleRows());
+    }
+
+    private boolean scrollBy(double amount) {
+        int max = Math.max(0, rowCount - visibleRows());
+        if (max <= 0) return false;
+
+        int before = scrollRow;
+        scrollRow = Math.max(0, Math.min(max, scrollRow - (int) Math.signum(amount)));
+        if (scrollRow != before) this.rebuildWidgets();
+        return true;
+    }
+
+    // Two shapes, neither annotated: the wheel callback gained a second axis
+    // and whichever one this version declares is the one that gets called.
+    // Copied from ServersScreen, where it is already proven on this version.
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        return scrollBy(scrollY);
+    }
+
+    public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+        return scrollBy(amount);
     }
 
     /**
@@ -170,38 +233,20 @@ public class SettingsHubScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-        if (!MenuWallpaper.draw(graphics, this.width, this.height, mouseX, mouseY, delta)) {
-            Backdrop.draw(graphics, this.width, this.height);
-        }
-        graphics.fill(0, 0, this.width, this.height, 0x60000000);
+        ScreenChrome.background(graphics, this.width, this.height, mouseX, mouseY, delta);
 
         long now = System.currentTimeMillis() - openedAt;
         for (int i = 0; i < tiles.size(); i++) {
-            // Down the columns rather than across, so the eye follows the
-            // same path the grid is read in
-            long start = 45L * i;
-            tiles.get(i).setAppear(span(now, start, start + 240));
+            // Staggered over what is on screen, not over the whole list: with
+            // scrolling, the tiles further down would otherwise carry the delay
+            // of a position they no longer have and arrive long after the rest.
+            tiles.get(i).setAppear(ScreenChrome.appearAt(now, i));
         }
 
-        String title = "Settings";
-        int titleWidth = this.font.width(title) * 2;
-        boolean scaled = Scale.push(graphics, (this.width - titleWidth) / 2, 30, 2f);
-        graphics.text(this.font, title,
-                scaled ? 0 : (this.width - titleWidth) / 2, scaled ? 0 : 30,
-                0xFFFFFFFF, false);
-        if (scaled) Scale.pop(graphics);
-
-        String hint = "Space Client " + SpaceClient.VERSION;
-        graphics.text(this.font, hint,
-                (this.width - this.font.width(hint)) / 2, 56, 0xFFB9B4DC, false);
+        ScreenChrome.header(graphics, this.font, this.width,
+                "Settings", "Space Client " + SpaceClient.VERSION);
 
         super.extractRenderState(graphics, mouseX, mouseY, delta);
-    }
-
-    private static float span(long now, long from, long to) {
-        if (now <= from) return 0f;
-        if (now >= to) return 1f;
-        return (now - from) / (float) (to - from);
     }
 
     @Override

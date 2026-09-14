@@ -22,6 +22,8 @@ public class ModuleManager {
         register(new KeystrokesModule());
         register(new MouseTrackerModule());
         register(new MemoryModule());
+        register(new MemoryWarnModule());
+        register(new ServerHudModule());
         register(new CompassModule());
         register(new TravelModule());
         register(new ZoomModule());

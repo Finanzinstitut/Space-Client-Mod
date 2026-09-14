@@ -87,14 +87,15 @@ public class MainMenuScreen extends Screen {
         // Only on the first build. rebuildWidgets runs on every resize, and
         // replaying the introduction because someone dragged the window edge
         // is the kind of thing that makes people turn a menu off.
-        if (openedAt == 0L) {
+        //
+        // The clock deliberately does NOT start here. Building a screen is not
+        // the same as showing one: this menu replaces the title screen from
+        // inside the game's own init event, and on the way up the title screen
+        // can be built more than once. Marking the introduction as shown here
+        // meant a copy that was discarded a moment later used it up, and the
+        // copy you actually saw skipped straight to the finished menu.
+        if (greeting.isEmpty()) {
             greeting = pickGreeting();
-
-            // Everything after the first time - back from the server list,
-            // back from a world - lands on the finished menu straight away.
-            long now = System.currentTimeMillis();
-            openedAt = introShown ? now - DONE : now;
-            introShown = true;
         }
 
         icons.clear();
@@ -214,6 +215,53 @@ public class MainMenuScreen extends Screen {
         return openedAt == 0L ? 0L : System.currentTimeMillis() - openedAt;
     }
 
+    /**
+     * Starts the sequence on the first frame that anybody could actually see.
+     *
+     * Tied to drawing rather than to building, so a screen that is created and
+     * replaced before it is ever shown costs nothing. And held back while the
+     * game's loading overlay is still up, because the menu renders normally
+     * underneath it - a clock started there would run the greeting out behind
+     * a cover and hand you the finished menu the moment the cover lifted.
+     */
+    private void startClock() {
+        if (openedAt != 0L) return;
+
+        if (overlayUp()) {
+            IntroReport.waitedForOverlay();
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        if (introShown) {
+            // Back from the server list, back from a world: straight to the
+            // finished menu, which is the behaviour this always wanted.
+            openedAt = now - DONE;
+            IntroReport.skipped();
+        } else {
+            openedAt = now;
+            introShown = true;
+            IntroReport.played();
+        }
+    }
+
+    /**
+     * Whether something is covering the screen.
+     *
+     * getOverlay has never been compiled against on this version, so it goes
+     * through Reflect and a missing method reads as "nothing covering us". That
+     * is the right way round: the wrong answer then costs the greeting behind a
+     * splash, and not a menu that waits forever for a cover to lift.
+     */
+    private static boolean overlayUp() {
+        try {
+            return gg.spaceclient.util.Reflect.call(
+                    Minecraft.getInstance(), "getOverlay") != null;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
     private static float span(long now, long from, long to) {
         if (now <= from) return 0f;
         if (now >= to) return 1f;
@@ -222,6 +270,7 @@ public class MainMenuScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+        startClock();
         long now = elapsed();
 
         // Held still through the greeting, then eased in with the icons

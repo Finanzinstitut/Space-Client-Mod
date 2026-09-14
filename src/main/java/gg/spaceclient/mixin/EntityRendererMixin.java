@@ -137,16 +137,21 @@ public abstract class EntityRendererMixin {
             var module = manager.get("fpsboost");
             if (!(module instanceof gg.spaceclient.modules.FpsBoostModule boost)) return false;
 
-            Object distance = gg.spaceclient.util.Reflect.call(state,
-                    "distanceToCameraSq", "distanceToCamera", "cameraDistanceSq");
-
-            Double value = gg.spaceclient.util.Reflect.asDouble(distance);
+            // Resolved even while the module is off, so the diagnostics line
+            // can say whether the distance is readable at all rather than only
+            // once somebody switches the feature on.
+            Double value = gg.spaceclient.render.TagReport.distanceSqOf(state);
             if (value == null) {
                 // Nothing to judge by, so nothing is hidden
                 return false;
             }
 
-            return !boost.allowNameTag(value);
+            if (!boost.isEnabled()) return false;
+
+            boolean tooFar = !boost.allowNameTag(value);
+            if (tooFar) gg.spaceclient.render.TagReport.hidden();
+            else gg.spaceclient.render.TagReport.kept();
+            return tooFar;
 
         } catch (Throwable ignored) {
             return false;

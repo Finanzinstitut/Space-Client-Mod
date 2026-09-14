@@ -24,6 +24,11 @@ public final class ItemScaleReport {
     public static void sawHand() { hand = true; }
     public static void sawHotbar() { hotbar = true; }
 
+    /** Whether a dropped item was ever submitted, which is what makes the
+     *  culling report's silence readable: no item drawn means nothing to
+     *  judge, an item drawn with nothing judged means the hook is dead. */
+    public static boolean sawGroundItem() { return ground; }
+
     /**
      * Reads as a list of what has been seen so far.
      *

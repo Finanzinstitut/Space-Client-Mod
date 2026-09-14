@@ -31,6 +31,20 @@ public final class CullReport {
     public static boolean hooked() { return everRan; }
 
     /**
+     * Whether anything here looks broken, as opposed to merely untested.
+     *
+     * The screen used to mark this red whenever nothing had been counted,
+     * which is the ordinary state of standing somewhere with no dropped items
+     * in sight. Red for "not tested yet" is how a working feature gets reported
+     * as a fault - so the two are separated: an item that was drawn while
+     * nothing was judged is a dead hook, an item that was never drawn is
+     * simply no evidence either way.
+     */
+    public static boolean healthy() {
+        return everRan || !gg.spaceclient.access.ItemScaleReport.sawGroundItem();
+    }
+
+    /**
      * What the boost has actually done, in words that are true.
      *
      * The previous version of this line said "shouldRender did not match" for

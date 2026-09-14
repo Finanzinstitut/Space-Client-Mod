@@ -24,6 +24,17 @@ public class SettingsTile extends Button {
     private float hover = 0f;
     private float appear = 0f;
 
+    /**
+     * Whether this tile is the one currently in force, or null when the idea
+     * does not apply.
+     *
+     * Added so the account list can be built out of these instead of a second
+     * kind of row: an account list has to show which account you are actually
+     * playing as, and a destination tile has nothing to be current about. Null
+     * rather than a constant false so the two cases stay distinguishable.
+     */
+    private java.util.function.BooleanSupplier selected = null;
+
     public SettingsTile(int x, int y, int width, int height,
                         String title, String subtitle, Mark mark, Runnable onPress) {
         super(x, y, width, height, Component.empty(),
@@ -36,6 +47,12 @@ public class SettingsTile extends Button {
 
     public void setAppear(float value) {
         this.appear = Ease.clamp01(value);
+    }
+
+    /** Marks this tile as showing a state rather than leading somewhere. */
+    public SettingsTile withSelected(java.util.function.BooleanSupplier selected) {
+        this.selected = selected;
+        return this;
     }
 
     @Override
@@ -66,23 +83,31 @@ public class SettingsTile extends Button {
         int w = this.width - shrink * 2;
         int h = this.height - shrink * 2;
 
-        Glass.panel(graphics, x1, y1, w, h,
-                MenuIcon.scaleAlpha(Ease.color(0x50100D2A, 0x90221C58, hover), alpha), 8);
+        boolean current = selected != null && selected.getAsBoolean();
 
-        int ink = MenuIcon.scaleAlpha(Ease.color(0xFF8B84C8, Theme.CYAN, hover), alpha);
+        // A tile that is in force reads as hovered even when it is not, so the
+        // one you are using is the bright one on the screen whatever the mouse
+        // is doing. Taking the larger of the two rather than overriding, or
+        // pointing at it would make it duller than its neighbours.
+        float lit = current ? Math.max(hover, 1f) : hover;
+
+        Glass.panel(graphics, x1, y1, w, h,
+                MenuIcon.scaleAlpha(Ease.color(0x50100D2A, 0x90221C58, lit), alpha), 8);
+
+        int ink = MenuIcon.scaleAlpha(Ease.color(0xFF8B84C8, Theme.CYAN, lit), alpha);
         drawMark(graphics, x1 + 26, y1 + h / 2, ink);
 
         var font = Minecraft.getInstance().font;
         int textX = x1 + 50;
 
         graphics.text(font, title, textX, y1 + h / 2 - font.lineHeight - 1,
-                MenuIcon.scaleAlpha(Ease.color(0xFFE9E6FF, 0xFFFFFFFF, hover), alpha), false);
+                MenuIcon.scaleAlpha(Ease.color(0xFFE9E6FF, 0xFFFFFFFF, lit), alpha), false);
 
         graphics.text(font, subtitle, textX, y1 + h / 2 + 2,
                 MenuIcon.scaleAlpha(0xFF9A95C9, alpha), false);
 
-        if (hover > 0.01f) {
-            int edge = MenuIcon.scaleAlpha(Theme.CYAN, Math.round(alpha * hover));
+        if (lit > 0.01f) {
+            int edge = MenuIcon.scaleAlpha(Theme.CYAN, Math.round(alpha * lit));
             graphics.fill(x1 + 6, y1 + h - 1, x1 + w - 6, y1 + h, edge);
         }
     }
