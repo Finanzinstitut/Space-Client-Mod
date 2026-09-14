@@ -244,7 +244,36 @@ public class SpaceClient implements ClientModInitializer {
                 SpaceClient::renderHud
         );
 
+        // The totem pop goes after, not before. It marks the moment you did not
+        // die, and a line of chat arriving at the same time should not be drawn
+        // over the top of it - which is exactly what happens to anything sitting
+        // in the layer above.
+        HudElementRegistry.attachElementAfter(
+                VanillaHudElements.CHAT,
+                Identifier.fromNamespaceAndPath(MOD_ID, "totem"),
+                SpaceClient::renderTotem
+        );
+
         LOGGER.info("Space Client {} ready", VERSION);
+    }
+
+    /**
+     * The totem pop, in its own pass above everything else the HUD draws.
+     *
+     * Not a HUD element in the draggable sense: it belongs in the middle of the
+     * screen rather than wherever somebody put it, so there is nothing to
+     * position and no place for it in the loop below.
+     */
+    private static void renderTotem(GuiGraphicsExtractor graphics, DeltaTracker tickCounter) {
+        if (!(moduleManager.get("totempop") instanceof gg.spaceclient.modules.TotemPopModule totem)) {
+            return;
+        }
+        if (!totem.isEnabled()) return;
+
+        Minecraft client = Minecraft.getInstance();
+        totem.draw(graphics,
+                client.getWindow().getGuiScaledWidth(),
+                client.getWindow().getGuiScaledHeight());
     }
 
     private static void renderHud(GuiGraphicsExtractor graphics, DeltaTracker tickCounter) {
@@ -255,13 +284,6 @@ public class SpaceClient implements ClientModInitializer {
         for (HudModule module : moduleManager.getHudModules()) {
             if (!module.isEnabled()) continue;
             module.draw(graphics, module.getX(width), module.getY(height));
-        }
-
-        // Not a HUD element: it belongs in the middle of the screen rather than
-        // somewhere the user dragged it, so it is not something to position.
-        if (moduleManager.get("totempop") instanceof gg.spaceclient.modules.TotemPopModule totem
-                && totem.isEnabled()) {
-            totem.draw(graphics, width, height);
         }
     }
 }
