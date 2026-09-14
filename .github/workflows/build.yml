@@ -59,6 +59,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v.${{ steps.version.outputs.value }}
+          # The commit this run built, not the repository's default branch.
+          # Without it the new tag is created wherever main happens to be, so
+          # checking out the tag gives source that never produced this jar -
+          # which is the one thing a tag is for.
+          target_commitish: ${{ github.sha }}
           name: Release v${{ steps.version.outputs.value }}
           files: build/libs/spaceclient-${{ steps.version.outputs.value }}.jar
           fail_on_unmatched_files: true
