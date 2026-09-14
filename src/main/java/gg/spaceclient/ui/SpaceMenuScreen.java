@@ -278,6 +278,45 @@ public class SpaceMenuScreen extends Screen {
                     this.rebuildWidgets();
                 }
         ));
+
+        buildPinButton(x + w + 6, y, h);
+    }
+
+    /**
+     * Ties the layout you are looking at to the place you are standing in.
+     *
+     * Next to the layout switcher rather than on a screen of its own, because
+     * the decision is made at the moment you have just finished arranging
+     * things for where you are - and a settings page you have to go and find
+     * afterwards is a page nobody goes and finds.
+     *
+     * One button, three states: nothing pinned here, this layout pinned here,
+     * or a different one pinned here. Clicking pins the active layout, or
+     * unpins when what is pinned is already the one you are using.
+     */
+    private void buildPinButton(int x, int y, int h) {
+        this.addRenderableWidget(new NavButton(
+                x, y, 118, h, NavButton.Style.CHIP,
+                () -> {
+                    String here = gg.spaceclient.util.CurrentServer.address();
+                    String pinned = gg.spaceclient.config.HudServerProfiles.profileFor(here);
+                    if (pinned == null) return "Pin here";
+                    return pinned.equals(Profiles.active()) ? "Pinned here" : "Pinned: " + pinned;
+                },
+                () -> gg.spaceclient.config.HudServerProfiles.profileFor(
+                        gg.spaceclient.util.CurrentServer.address()) != null,
+                () -> {
+                    String here = gg.spaceclient.util.CurrentServer.address();
+                    String pinned = gg.spaceclient.config.HudServerProfiles.profileFor(here);
+
+                    if (pinned != null && pinned.equals(Profiles.active())) {
+                        gg.spaceclient.config.HudServerProfiles.clear(here);
+                    } else {
+                        gg.spaceclient.config.HudServerProfiles.assign(here, Profiles.active());
+                    }
+                    this.rebuildWidgets();
+                }
+        ));
     }
 
     private void buildChips() {

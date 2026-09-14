@@ -125,6 +125,24 @@ public final class Diagnostics {
                         || gg.spaceclient.ui.TextureLoader.working(),
                 gg.spaceclient.ui.TextureLoader.status()));
 
+        // Reads what the warning itself sees, so "it never warned me" can be
+        // told apart from "it warned and you were not looking".
+        {
+            var warn = gg.spaceclient.SpaceClient.getModuleManager() == null ? null
+                    : gg.spaceclient.SpaceClient.getModuleManager().get("memorywarn");
+            if (warn instanceof gg.spaceclient.modules.MemoryWarnModule memory) {
+                checks.add(new Check("Memory warning", memory.isEnabled(), memory.status()));
+            }
+        }
+
+        {
+            var hud = gg.spaceclient.SpaceClient.getModuleManager() == null ? null
+                    : gg.spaceclient.SpaceClient.getModuleManager().get("serverhud");
+            if (hud instanceof gg.spaceclient.modules.ServerHudModule layouts) {
+                checks.add(new Check("Server layouts", layouts.isEnabled(), layouts.status()));
+            }
+        }
+
         checks.add(new Check("Menu intro",
                 gg.spaceclient.ui.IntroReport.ok(),
                 gg.spaceclient.ui.IntroReport.status()));
