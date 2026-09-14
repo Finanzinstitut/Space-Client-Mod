@@ -219,8 +219,16 @@ public class SpaceClient implements ClientModInitializer {
             // in a world. Its own timers keep it to a couple of calls an hour.
             gg.spaceclient.net.Presence.tick();
 
-            // Who wears which mark. Its own clock, because the list changes a
-            // few times a year and the roster changes every ninety seconds.
+            // Who wears which mark. Its own clock, because the list changes far
+            // more slowly than the roster does.
+            if (client.level != null && !inWorld) {
+                inWorld = true;
+                // Joining is the moment the list is about to matter, so it is
+                // re-read here rather than at the next turn of its own clock.
+                gg.spaceclient.net.Badges.refreshSoon();
+            } else if (client.level == null) {
+                inWorld = false;
+            }
             gg.spaceclient.net.Badges.tick();
             gg.spaceclient.net.Twitch.tick();
 
@@ -268,6 +276,9 @@ public class SpaceClient implements ClientModInitializer {
      * screen rather than wherever somebody put it, so there is nothing to
      * position and no place for it in the loop below.
      */
+    /** Whether the last tick was inside a world, so joining can be spotted. */
+    private static boolean inWorld = false;
+
     private static void renderTotem(GuiGraphicsExtractor graphics, DeltaTracker tickCounter) {
         if (!(moduleManager.get("totempop") instanceof gg.spaceclient.modules.TotemPopModule totem)) {
             return;

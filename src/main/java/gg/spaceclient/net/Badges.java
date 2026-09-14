@@ -71,11 +71,12 @@ public final class Badges {
     /**
      * How often the list is re-read.
      *
-     * Twenty minutes, and that is already generous for something that changes a
-     * few times a year. The file is served from a cache that holds it for about
-     * five anyway, so a shorter interval would mostly re-fetch the same bytes.
+     * Five minutes, which is the floor worth using: the file is served from a
+     * cache that holds it for about that long, so asking more often mostly
+     * re-fetches the same bytes. It was twenty, and twenty is the wrong number
+     * for somebody who has just changed the list and wants to see it.
      */
-    private static final long REFRESH_MS = 20 * 60 * 1000L;
+    private static final long REFRESH_MS = 5 * 60 * 1000L;
 
     private static final Map<UUID, Rank> byUuid = new ConcurrentHashMap<>();
     private static final Map<String, Rank> byName = new ConcurrentHashMap<>();
@@ -113,6 +114,17 @@ public final class Badges {
      * Called from the client tick. Loads the bundled copy once, then refreshes
      * from the branch on its own schedule.
      */
+    /**
+     * Fetches again on the next tick, whatever the clock says.
+     *
+     * Called on joining a world: that is the moment the list is about to be
+     * used, and waiting out the rest of an interval there would mean playing
+     * for minutes with yesterday's answer.
+     */
+    public static void refreshSoon() {
+        nextRefresh = 0L;
+    }
+
     public static void tick() {
         if (!bundledLoaded) {
             bundledLoaded = true;
