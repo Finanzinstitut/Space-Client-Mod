@@ -42,8 +42,9 @@ public class ItemEntityRendererMixin {
         try {
             // Über ItemSizes.keyFor, nicht stack.getDescriptionId(): das gibt
             // es auf 26.2 nicht, die Id sitzt am Item statt am Stack.
-            ((ItemIdHolder) (Object) state)
-                    .spaceclient$setItemId(ItemSizes.keyFor(entity.getItem()));
+            String id = ItemSizes.keyFor(entity.getItem());
+            ((ItemIdHolder) (Object) state).spaceclient$setItemId(id);
+            ItemScaleReport.sawId(id);
         } catch (Throwable ignored) {
             // Without an id the item simply draws at its normal size
         }
@@ -204,6 +205,14 @@ public class ItemEntityRendererMixin {
     }
 
     private static float spaceclient$scaleFor(ItemEntityRenderState state) {
+        // Asked rather than caught. A failed cast here used to be swallowed
+        // like any other, which turned "the state mixin never applied" into
+        // "the size setting does nothing" - the same symptom as a setting left
+        // at 100%, and no way to tell the two apart from inside the game.
+        boolean holder = state instanceof ItemIdHolder;
+        ItemScaleReport.sawHolder(holder);
+        if (!holder) return 1f;
+
         try {
             String id = ((ItemIdHolder) (Object) state).spaceclient$itemId();
             return ItemSizes.get(id).ground();

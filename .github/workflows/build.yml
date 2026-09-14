@@ -3,7 +3,19 @@ name: Build Space Client Mod
 on:
   push:
     branches: [main]
+    # A tag is what publishes. The build itself is unchanged - the same jar
+    # that the artifact carries is the one that gets attached - so a release
+    # can never be built from something other than what was tested.
+    tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish this build as a release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -23,9 +35,35 @@ jobs:
       - name: Build
         run: gradle build --no-daemon --stacktrace
 
+      # From gradle.properties rather than from the tag. The file name Loom
+      # writes comes from this value, so reading it here is the only way the
+      # attached asset and the jar on disk cannot drift apart.
+      - name: Read mod version
+        id: version
+        run: echo "value=$(grep '^mod_version=' gradle.properties | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+
       - name: Upload jar
         uses: actions/upload-artifact@v4
         with:
           name: spaceclient-mod
           path: build/libs/*.jar
           if-no-files-found: warn
+
+      # Named exactly, not globbed: build/libs also holds the sources jar, and
+      # the launcher picks the first .jar it finds in a release.
+      # Two ways in, because a tag cannot always be pushed from outside: a
+      # token scoped to one branch is refused on refs/tags. The release API
+      # creates the tag itself, and the token inside a run is allowed to.
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/') || inputs.release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v.${{ steps.version.outputs.value }}
+          # The commit this run built, not the repository's default branch.
+          # Without it the new tag is created wherever main happens to be, so
+          # checking out the tag gives source that never produced this jar -
+          # which is the one thing a tag is for.
+          target_commitish: ${{ github.sha }}
+          name: Release v${{ steps.version.outputs.value }}
+          files: build/libs/spaceclient-${{ steps.version.outputs.value }}.jar
+          fail_on_unmatched_files: true

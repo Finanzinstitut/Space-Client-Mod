@@ -19,7 +19,19 @@ import java.util.List;
  * twelve rows.
  */
 public class SettingsScreen extends Screen {
-    private static final int ROW_H = 26;
+    /**
+     * Tall enough to carry a name and the setting's own description.
+     *
+     * Every setting in this client has a description and none of them was ever
+     * shown, which left a row reading "Weight" to be understood by moving it
+     * and watching. Twenty-six pixels had room for one line of text; this has
+     * room for the answer.
+     */
+    private static final int ROW_H = ToggleRow.TALL;
+
+    /** Sliders carry a track under their text, so they need the extra room. */
+    private static final int SLIDER_H = ToggleRow.TALL + 10;
+
     private static final int GAP = 6;
     private static final int PANEL_W = 340;
 
@@ -73,14 +85,13 @@ public class SettingsScreen extends Screen {
         int y = top - scroll;
 
         for (SettingGroup group : groups) {
-            this.addRenderableWidget(new FlatButton(
+            this.addRenderableWidget(new GroupRow(
                     left, y, PANEL_W, ROW_H,
-                    () -> group.name() + "  >",
-                    () -> false,
+                    group.name(), group.description(),
                     () -> Minecraft.getInstance().gui.setScreen(new SettingsScreen(
                             this, group.name(), group.description(),
                             group.settings(), List.of()))
-            ).asAction());
+            ));
             y += ROW_H + GAP;
         }
         if (!groups.isEmpty()) y += GAP;
@@ -89,9 +100,9 @@ public class SettingsScreen extends Screen {
 
         for (Setting setting : settings) {
             if (setting instanceof BooleanSetting b) {
-                this.addRenderableWidget(new FlatButton(
+                this.addRenderableWidget(new ToggleRow(
                         left, y, PANEL_W, ROW_H,
-                        setting::getName, b::get,
+                        setting::getName, setting.getDescription(), b::get,
                         () -> {
                             b.toggle();
                             SpaceClient.getConfigManager().save();
@@ -100,12 +111,17 @@ public class SettingsScreen extends Screen {
                 y += ROW_H + GAP;
 
             } else if (setting instanceof ModeSetting m) {
-                this.addRenderableWidget(new FlatButton(
+                this.addRenderableWidget(new ChoiceRow(
                         left, y, PANEL_W, ROW_H,
-                        () -> setting.getName() + ": " + m.get(),
-                        () -> false,
-                        () -> {
-                            m.cycle();
+                        setting.getName(), setting.getDescription(),
+                        m.getOptions(), m::get,
+                        step -> {
+                            // Forwards is the cycle the setting already has;
+                            // backwards is that cycle run the rest of the way
+                            // round, so there is only ever one way to move an
+                            // index and it stays the setting's own.
+                            int steps = step >= 0 ? 1 : m.getOptions().size() - 1;
+                            for (int n = 0; n < steps; n++) m.cycle();
                             SpaceClient.getConfigManager().save();
                         }
                 ));
@@ -113,14 +129,14 @@ public class SettingsScreen extends Screen {
 
             } else if (setting instanceof IntSetting i) {
                 this.addRenderableWidget(new SliderRow(
-                        left, y, PANEL_W, ROW_H,
+                        left, y, PANEL_W, SLIDER_H,
                         setting.getName(), i.get(), i.getMax(),
                         value -> {
                             i.set(value);
                             SpaceClient.getConfigManager().save();
                         }
-                ));
-                y += ROW_H + GAP;
+                ).withDescription(setting.getDescription()));
+                y += SLIDER_H + GAP;
 
             } else if (setting instanceof ColorSetting c) {
                 colourRows.add(new int[]{y});

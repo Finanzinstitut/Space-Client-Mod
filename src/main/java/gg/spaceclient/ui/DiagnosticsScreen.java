@@ -153,8 +153,13 @@ public class DiagnosticsScreen extends Screen {
         y = line(graphics, left, y, "Lyric line", NowPlayingShare.lyricStatus());
         y = line(graphics, left, y, "Name tag hook", NowPlayingShare.hookStatus());
         y = line(graphics, left, y, "Badges", Presence.status());
+        y = line(graphics, left, y, "Badge ranks", gg.spaceclient.net.Badges.status());
         y = line(graphics, left, y, "Item scaling",
                 gg.spaceclient.access.ItemScaleReport.status());
+        y = line(graphics, left, y, "Dropped item chain",
+                gg.spaceclient.access.ItemScaleReport.groundChain());
+        y = line(graphics, left, y, "HUD scaling", gg.spaceclient.ui.Scale.status());
+        y = line(graphics, left, y, "Totem pop", gg.spaceclient.render.TotemActivation.status());
 
         contentBottom = y + (int) scroll;
 

@@ -218,6 +218,18 @@ public class SpaceClient implements ClientModInitializer {
             // and has no setting behind it, so it ticks whenever the game is
             // in a world. Its own timers keep it to a couple of calls an hour.
             gg.spaceclient.net.Presence.tick();
+
+            // Who wears which mark. Its own clock, because the list changes far
+            // more slowly than the roster does.
+            if (client.level != null && !inWorld) {
+                inWorld = true;
+                // Joining is the moment the list is about to matter, so it is
+                // re-read here rather than at the next turn of its own clock.
+                gg.spaceclient.net.Badges.refreshSoon();
+            } else if (client.level == null) {
+                inWorld = false;
+            }
+            gg.spaceclient.net.Badges.tick();
             gg.spaceclient.net.Twitch.tick();
 
             // The window only exists once the game is running, so the hook is
@@ -244,7 +256,39 @@ public class SpaceClient implements ClientModInitializer {
                 SpaceClient::renderHud
         );
 
+        // The totem pop goes after, not before. It marks the moment you did not
+        // die, and a line of chat arriving at the same time should not be drawn
+        // over the top of it - which is exactly what happens to anything sitting
+        // in the layer above.
+        HudElementRegistry.attachElementAfter(
+                VanillaHudElements.CHAT,
+                Identifier.fromNamespaceAndPath(MOD_ID, "totem"),
+                SpaceClient::renderTotem
+        );
+
         LOGGER.info("Space Client {} ready", VERSION);
+    }
+
+    /**
+     * The totem pop, in its own pass above everything else the HUD draws.
+     *
+     * Not a HUD element in the draggable sense: it belongs in the middle of the
+     * screen rather than wherever somebody put it, so there is nothing to
+     * position and no place for it in the loop below.
+     */
+    /** Whether the last tick was inside a world, so joining can be spotted. */
+    private static boolean inWorld = false;
+
+    private static void renderTotem(GuiGraphicsExtractor graphics, DeltaTracker tickCounter) {
+        if (!(moduleManager.get("totempop") instanceof gg.spaceclient.modules.TotemPopModule totem)) {
+            return;
+        }
+        if (!totem.isEnabled()) return;
+
+        Minecraft client = Minecraft.getInstance();
+        totem.draw(graphics,
+                client.getWindow().getGuiScaledWidth(),
+                client.getWindow().getGuiScaledHeight());
     }
 
     private static void renderHud(GuiGraphicsExtractor graphics, DeltaTracker tickCounter) {

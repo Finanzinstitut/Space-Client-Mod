@@ -1,0 +1,16 @@
+{
+  "_comment": [
+    "Who wears which mark in front of their name.",
+    "",
+    "This copy is the one inside the jar and is only the starting point. The",
+    "client refreshes it from the same file on the repository's main branch, so",
+    "changing who has what needs a commit rather than a release.",
+    "",
+    "rank is one of: standard, dev, owner, vip.",
+    "",
+    "uuid wins where it is given, because a name can be changed by anybody and",
+    "a uuid cannot. An entry with only a name still works and is matched case",
+    "insensitively - it is the convenient form, not the safe one."
+  ],
+  "badges": []
+}
