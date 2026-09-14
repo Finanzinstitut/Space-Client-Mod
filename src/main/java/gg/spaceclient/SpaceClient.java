@@ -218,6 +218,10 @@ public class SpaceClient implements ClientModInitializer {
             // and has no setting behind it, so it ticks whenever the game is
             // in a world. Its own timers keep it to a couple of calls an hour.
             gg.spaceclient.net.Presence.tick();
+
+            // Who wears which mark. Its own clock, because the list changes a
+            // few times a year and the roster changes every ninety seconds.
+            gg.spaceclient.net.Badges.tick();
             gg.spaceclient.net.Twitch.tick();
 
             // The window only exists once the game is running, so the hook is

@@ -1,6 +1,7 @@
 package gg.spaceclient.render;
 
 import gg.spaceclient.SpaceClient;
+import gg.spaceclient.net.Badges;
 import gg.spaceclient.net.Presence;
 
 import net.minecraft.client.Minecraft;
@@ -36,7 +37,13 @@ import java.util.UUID;
  */
 public final class NameBadge {
 
-    /** Matches the "chars" entry in assets/spaceclient/font/badge.json. */
+    /**
+     * Matches the "chars" entry in assets/spaceclient/font/badge.json.
+     *
+     * The one everybody on the roster gets. The other three live on the ranks
+     * in Badges, because which mark somebody wears is a piece of list
+     * membership rather than something this class decides.
+     */
     private static final String STANDARD = "\uE000";
 
     private static final Identifier BADGE_FONT =
@@ -71,13 +78,28 @@ public final class NameBadge {
             if (!(entity instanceof Player player)) return name;
 
             UUID uuid = player.getUUID();
+
+            // Presence still decides whether any mark is drawn: the roster
+            // means "playing with this client right now", and a mark on
+            // somebody who is not would be a claim this client cannot make.
+            // The rank only decides which mark that is.
             if (!Presence.hasBadge(uuid)) return name;
+
+            String playerName;
+            try {
+                playerName = player.getName().getString();
+            } catch (Throwable ignored) {
+                playerName = null;
+            }
+
+            Badges.Rank rank = Badges.rankFor(uuid, playerName);
+            String glyph = rank == null ? STANDARD : rank.glyph();
 
             // Three parts rather than one string, because the separating space
             // must not be in the badge font - that font has a single glyph and
             // anything else in it renders as a missing character box.
             MutableComponent out = Component.literal("");
-            out.append(Component.literal(STANDARD).setStyle(BADGE_STYLE));
+            out.append(Component.literal(glyph).setStyle(BADGE_STYLE));
             out.append(Component.literal(" "));
             out.append(name);
             return out;
