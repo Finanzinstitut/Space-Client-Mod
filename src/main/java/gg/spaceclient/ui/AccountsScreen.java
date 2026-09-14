@@ -20,8 +20,12 @@ public class AccountsScreen extends Screen {
     private static final int GAP = 6;
     private static final int PANEL_W = 340;
 
+    /** Where the account rows start, under the heading. */
+    private static final int TOP = 96;
+
     private final Screen parent;
     private List<LauncherAccount> accounts = List.of();
+    private int scrollRow = 0;
 
     public AccountsScreen(Screen parent) {
         super(Component.literal("Accounts"));
@@ -37,9 +41,41 @@ public class AccountsScreen extends Screen {
         String playing = Minecraft.getInstance().getUser().getName();
 
         int left = panelLeft();
-        int y = 96;
 
-        for (LauncherAccount account : accounts) {
+        // The two buttons that must always be reachable are placed first, from
+        // the bottom up. Everything else gets the room that is left.
+        //
+        // They used to be stacked after the account rows, which works exactly
+        // as long as the accounts fit: with enough of them the Back button was
+        // drawn below the bottom edge, and the only way out of this screen was
+        // the escape key.
+        int backY = this.height - 34;
+        int refreshY = backY - ROW_H - GAP;
+
+        this.addRenderableWidget(new FlatButton(
+                left, refreshY, PANEL_W, ROW_H,
+                () -> "Refresh current session",
+                () -> false,
+                () -> SessionManager.refreshCurrent()
+                        .thenRun(() -> Minecraft.getInstance().execute(this::rebuildWidgets))
+        ).asAction());
+
+        this.addRenderableWidget(new FlatButton(
+                left, backY, PANEL_W, ROW_H,
+                () -> "Back",
+                () -> false,
+                this::onClose
+        ).asAction());
+
+        int visible = visibleRows(refreshY);
+        scrollRow = Math.max(0, Math.min(Math.max(0, accounts.size() - visible), scrollRow));
+
+        int y = TOP;
+        for (int slot = 0; slot < visible; slot++) {
+            int index = scrollRow + slot;
+            if (index >= accounts.size()) break;
+
+            LauncherAccount account = accounts.get(index);
             boolean current = account.username().equalsIgnoreCase(playing);
 
             this.addRenderableWidget(new FlatButton(
@@ -51,29 +87,42 @@ public class AccountsScreen extends Screen {
             ));
             y += ROW_H + GAP;
         }
+    }
 
-        y += GAP;
+    /** How many account rows fit between the heading and the buttons below. */
+    private int visibleRows(int floor) {
+        int room = floor - TOP - GAP;
+        return Math.max(1, room / (ROW_H + GAP));
+    }
 
-        this.addRenderableWidget(new FlatButton(
-                left, y, PANEL_W, ROW_H,
-                () -> "Refresh current session",
-                () -> false,
-                () -> SessionManager.refreshCurrent()
-                        .thenRun(() -> Minecraft.getInstance().execute(this::rebuildWidgets))
-        ).asAction());
-        y += ROW_H + GAP * 2;
+    private boolean scrollBy(double amount) {
+        int max = Math.max(0, accounts.size() - visibleRows(this.height - 34 - ROW_H - GAP));
+        if (max <= 0) return false;
 
-        this.addRenderableWidget(new FlatButton(
-                left, y, PANEL_W, ROW_H,
-                () -> "Back",
-                () -> false,
-                this::onClose
-        ).asAction());
+        int before = scrollRow;
+        scrollRow = Math.max(0, Math.min(max, scrollRow - (int) Math.signum(amount)));
+        if (scrollRow != before) this.rebuildWidgets();
+        return true;
+    }
+
+    // Both shapes, for the same reason as everywhere else in this mod: the
+    // wheel callback gained a second axis and only one of these is real here.
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        return scrollBy(scrollY);
+    }
+
+    public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+        return scrollBy(amount);
     }
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-        Backdrop.draw(graphics, this.width, this.height);
+        // The same backdrop as the menus this is reached from. It was the only
+        // screen in the flow still drawing the plain fallback, which read as
+        // arriving somewhere that belonged to a different program.
+        if (!MenuWallpaper.draw(graphics, this.width, this.height, mouseX, mouseY, delta)) {
+            Backdrop.draw(graphics, this.width, this.height);
+        }
 
         int left = panelLeft();
         graphics.fill(left - 18, 20, left + PANEL_W + 18, this.height - 20, Theme.PANEL);

@@ -33,10 +33,17 @@ public class SettingsHubScreen extends Screen {
     private static final int TILE_H = 54;
     private static final int GAP = 10;
 
+    /** Where the grid starts, under the heading. */
+    private static final int TOP = 88;
+
     private final Screen parent;
     private final java.util.List<SettingsTile> tiles = new java.util.ArrayList<>();
 
     private long openedAt = 0L;
+
+    /** First row on screen, and how many there are in total. */
+    private int scrollRow = 0;
+    private int rowCount = 0;
 
     public SettingsHubScreen(Screen parent) {
         super(Component.literal("Settings"));
@@ -98,30 +105,82 @@ public class SettingsHubScreen extends Screen {
                 SettingsTile.Mark.INFO,
                 "net.minecraft.client.gui.screens.options.OptionsScreen");
 
-        // Two columns, centred as a block
-        int columns = 2;
+        // Two columns where there is room for two, one where there is not.
+        //
+        // The width was fixed at two before, and two columns of 230 plus the
+        // gap need 470 points of screen. At a large GUI scale there are not 470
+        // - the game reports a few hundred - so the right-hand column sat off
+        // the edge with half its tiles unreachable.
+        int columns = this.width >= TILE_W * 2 + GAP + 40 ? 2 : 1;
         int blockWidth = columns * TILE_W + (columns - 1) * GAP;
         int left = (this.width - blockWidth) / 2;
-        int top = 88;
 
-        for (int i = 0; i < plan.size(); i++) {
-            Plan entry = plan.get(i);
-            int column = i % columns;
-            int row = i / columns;
+        rowCount = (plan.size() + columns - 1) / columns;
+        scrollRow = Math.max(0, Math.min(maxScrollRow(columns), scrollRow));
 
-            SettingsTile tile = new SettingsTile(
-                    left + column * (TILE_W + GAP),
-                    top + row * (TILE_H + GAP),
-                    TILE_W, TILE_H,
-                    entry.title(), entry.subtitle(), entry.mark(), entry.action());
-            tile.setAppear(0f);
-            tiles.add(tile);
-            this.addRenderableWidget(tile);
+        int visible = visibleRows();
+        for (int slot = 0; slot < visible; slot++) {
+            int row = scrollRow + slot;
+            if (row >= rowCount) break;
+
+            for (int column = 0; column < columns; column++) {
+                int index = row * columns + column;
+                if (index >= plan.size()) break;
+
+                Plan entry = plan.get(index);
+                SettingsTile tile = new SettingsTile(
+                        left + column * (TILE_W + GAP),
+                        TOP + slot * (TILE_H + GAP),
+                        TILE_W, TILE_H,
+                        entry.title(), entry.subtitle(), entry.mark(), entry.action());
+                tile.setAppear(0f);
+                tiles.add(tile);
+                this.addRenderableWidget(tile);
+            }
         }
 
         this.addRenderableWidget(new FlatButton(
-                left, this.height - 40, 110, 24,
+                left, this.height - 34, 110, 24,
                 () -> "Back", () -> false, this::onClose).asAction());
+    }
+
+    /**
+     * How many rows of tiles fit between the heading and the Back button.
+     *
+     * Worked out from the screen rather than assumed. The list is eleven tiles
+     * long and the space for them is whatever the player's GUI scale leaves -
+     * which at the larger scales is less than the list needs, and the tiles
+     * that did not fit were simply drawn past the bottom edge with no way to
+     * reach them.
+     */
+    private int visibleRows() {
+        int room = this.height - TOP - 46;
+        return Math.max(1, room / (TILE_H + GAP));
+    }
+
+    private int maxScrollRow(int columns) {
+        return Math.max(0, rowCount - visibleRows());
+    }
+
+    private boolean scrollBy(double amount) {
+        int max = Math.max(0, rowCount - visibleRows());
+        if (max <= 0) return false;
+
+        int before = scrollRow;
+        scrollRow = Math.max(0, Math.min(max, scrollRow - (int) Math.signum(amount)));
+        if (scrollRow != before) this.rebuildWidgets();
+        return true;
+    }
+
+    // Two shapes, neither annotated: the wheel callback gained a second axis
+    // and whichever one this version declares is the one that gets called.
+    // Copied from ServersScreen, where it is already proven on this version.
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        return scrollBy(scrollY);
+    }
+
+    public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+        return scrollBy(amount);
     }
 
     /**
@@ -177,8 +236,9 @@ public class SettingsHubScreen extends Screen {
 
         long now = System.currentTimeMillis() - openedAt;
         for (int i = 0; i < tiles.size(); i++) {
-            // Down the columns rather than across, so the eye follows the
-            // same path the grid is read in
+            // Staggered over what is on screen, not over the whole list: with
+            // scrolling, the tiles further down would otherwise carry the delay
+            // of a position they no longer have and arrive long after the rest.
             long start = 45L * i;
             tiles.get(i).setAppear(span(now, start, start + 240));
         }
