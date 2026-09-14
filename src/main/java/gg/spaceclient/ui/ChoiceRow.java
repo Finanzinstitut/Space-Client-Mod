@@ -39,7 +39,13 @@ public class ChoiceRow extends Button {
                      String name, String description, List<String> options,
                      java.util.function.Supplier<String> current,
                      Consumer<Integer> onStep) {
-        super(x, y, width, height, Component.empty(), btn -> {}, DEFAULT_NARRATION);
+        // The press arrives through the handler the constructor takes, not
+        // through an override: Button on this version declares no onPress of
+        // its own for a subclass to replace, and the build said so in as many
+        // words. The handler is given the button it fired on, which is enough
+        // to get back here.
+        super(x, y, width, height, Component.empty(),
+                btn -> { if (btn instanceof ChoiceRow row) row.step(); }, DEFAULT_NARRATION);
         this.name = name;
         this.description = description == null ? "" : description;
         this.options = options;
@@ -47,11 +53,12 @@ public class ChoiceRow extends Button {
         this.onStep = onStep;
     }
 
-    @Override
-    public void onPress() {
-        // The chip spans the right hand end; its left half steps back and its
-        // right half steps on. A click anywhere else on the row steps on too,
-        // which keeps the old one-click habit working.
+    /**
+     * The chip spans the right hand end; its left half steps back and its right
+     * half steps on. A click anywhere else on the row steps on too, which keeps
+     * the old one-click habit working.
+     */
+    private void step() {
         int chipLeft = getX() + this.width - chipWidth() - 12;
         int middle = chipLeft + chipWidth() / 2;
         onStep.accept(lastMouseX >= chipLeft && lastMouseX < middle ? -1 : 1);
