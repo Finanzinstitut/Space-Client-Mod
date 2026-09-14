@@ -143,6 +143,16 @@ public final class Diagnostics {
             }
         }
 
+        // The singleplayer buttons go through reflection and used to fail into
+        // a log line, which on screen is a button that does nothing at all.
+        checks.add(new Check("World creator",
+                gg.spaceclient.ui.WorldReport.createWorks(),
+                gg.spaceclient.ui.WorldReport.createStatus()));
+
+        checks.add(new Check("World opening",
+                gg.spaceclient.ui.WorldReport.openWorks(),
+                gg.spaceclient.ui.WorldReport.openStatus()));
+
         checks.add(new Check("Menu intro",
                 gg.spaceclient.ui.IntroReport.ok(),
                 gg.spaceclient.ui.IntroReport.status()));

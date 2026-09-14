@@ -258,7 +258,10 @@ public class WorldsScreen extends Screen {
     private void open(String levelId) {
         try {
             Object flows = Reflect.call(Minecraft.getInstance(), "createWorldOpenFlows");
-            if (flows == null) return;
+            if (flows == null) {
+                WorldReport.openFailed("createWorldOpenFlows not found on Minecraft");
+                return;
+            }
 
             // Asked whether it ran rather than what it returned: openWorld is
             // void, so a null answer meant "try the other shape" and the world
@@ -266,11 +269,15 @@ public class WorldsScreen extends Screen {
             boolean opened = Construct.invokedOn(flows, "openWorld",
                     levelId, (Runnable) () -> Screens.open(this));
 
-            if (!opened) {
+            if (opened) {
+                WorldReport.opened();
+            } else {
+                WorldReport.openFailed("openWorld matched no shape on this version");
                 SpaceClient.LOGGER.warn("Could not open the world on this version");
             }
 
         } catch (Throwable t) {
+            WorldReport.openFailed(String.valueOf(t));
             SpaceClient.LOGGER.warn("Could not open the world: {}", String.valueOf(t));
         }
     }
@@ -292,9 +299,11 @@ public class WorldsScreen extends Screen {
                 Minecraft.getInstance(), this);
 
         if (used != null) {
+            WorldReport.created(used);
             SpaceClient.LOGGER.info("World creator opened through {}", used);
             return;
         }
+        WorldReport.createFailed();
 
         // Deliberately no constructor fallback. Building this screen directly
         // succeeds and produces something that opens and then ignores every

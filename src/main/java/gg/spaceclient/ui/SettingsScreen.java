@@ -30,16 +30,19 @@ public class SettingsScreen extends Screen {
     private final List<SettingGroup> groups;
 
     /**
-     * Which page of settings is shown.
+     * How far down the list we are, in pixels.
      *
-     * Paging rather than scrolling on purpose: a scroll wheel handler would
-     * need the mouse event signature, which changed in this version, while
-     * buttons are already known to work.
+     * This used to page instead, and the comment here said why: a wheel
+     * handler needs the mouse event signature, and that signature changed in
+     * this version. That is no longer a reason - ServersScreen answers it by
+     * declaring both shapes and letting the version pick, and has been doing so
+     * in the shipped client for a while. Paging through three pages to reach an
+     * opacity slider is the kind of thing that reads as unfinished, so it goes.
      */
-    private int page = 0;
-    private int pageCount = 1;
+    private int scroll = 0;
+    private int contentHeight = 0;
 
-    /** The settings laid out on the current page. */
+    /** The settings this screen lays out, kept for the colour labels. */
     private List<Setting> visibleSettings = List.of();
 
     /** Y positions of colour wheels, so their names can be drawn above them. */
@@ -57,46 +60,19 @@ public class SettingsScreen extends Screen {
 
     private int panelLeft() { return (this.width - PANEL_W) / 2; }
 
-    /** How much vertical room a setting takes, so a page can be filled exactly. */
-    private static int heightOf(Setting setting) {
-        if (setting instanceof ColorSetting) return 84 + 22 + ROW_H + GAP;
-        return ROW_H + GAP;
-    }
-
     @Override
     protected void init() {
         colourRows.clear();
         int left = panelLeft();
-        int y = 92;
 
-        // Everything that has to fit: the group buttons, then the settings
-        int room = this.height - 92 - 70;
+        int top = ScreenChrome.TOP;
+        int bottom = ScreenChrome.bottomRow(this.height);
 
-        // Split the settings into pages that fit the window
-        List<List<Setting>> pages = new ArrayList<>();
-        List<Setting> currentPage = new ArrayList<>();
-        int used = 0;
+        // Laid out as one continuous list and then shifted by the scroll, so
+        // the geometry does not have to know anything about pages.
+        int y = top - scroll;
 
-        for (Setting setting : settings) {
-            int needed = heightOf(setting);
-            if (used + needed > room && !currentPage.isEmpty()) {
-                pages.add(currentPage);
-                currentPage = new ArrayList<>();
-                used = 0;
-            }
-            currentPage.add(setting);
-            used += needed;
-        }
-        if (!currentPage.isEmpty()) pages.add(currentPage);
-        if (pages.isEmpty()) pages.add(List.of());
-
-        pageCount = pages.size();
-        page = Math.max(0, Math.min(page, pageCount - 1));
-        List<Setting> visible = pages.get(page);
-        visibleSettings = visible;
-
-        // Sub-groups first, and only on the first page
-        for (SettingGroup group : page == 0 ? groups : List.<SettingGroup>of()) {
+        for (SettingGroup group : groups) {
             this.addRenderableWidget(new FlatButton(
                     left, y, PANEL_W, ROW_H,
                     () -> group.name() + "  >",
@@ -109,7 +85,9 @@ public class SettingsScreen extends Screen {
         }
         if (!groups.isEmpty()) y += GAP;
 
-        for (Setting setting : visible) {
+        visibleSettings = settings;
+
+        for (Setting setting : settings) {
             if (setting instanceof BooleanSetting b) {
                 this.addRenderableWidget(new FlatButton(
                         left, y, PANEL_W, ROW_H,
@@ -146,73 +124,72 @@ public class SettingsScreen extends Screen {
 
             } else if (setting instanceof ColorSetting c) {
                 colourRows.add(new int[]{y});
+
+                // The wheel and its opacity sit side by side now. The wheel is
+                // square and the panel is not, so a wheel on its own left most
+                // of the row empty and pushed everything below it down a
+                // screen's worth for no gain.
+                int wheel = 84;
                 this.addRenderableWidget(new ColorWheel(
-                        left, y + 14, 84, c,
+                        left, y + 14, wheel, c,
                         () -> SpaceClient.getConfigManager().save()
                 ));
-                y += 84 + 22;
 
-                // Opacity keeps a slider; it has no place on a hue wheel
-                this.addRenderableWidget(new SliderRow(left, y, PANEL_W, ROW_H,
-                        setting.getName() + " opacity", c.getAlpha(), 255, value -> {
+                int sliderX = left + wheel + GAP * 2;
+                int sliderW = PANEL_W - wheel - GAP * 2;
+                this.addRenderableWidget(new SliderRow(
+                        sliderX, y + 14 + wheel / 2 - ROW_H / 2, sliderW, ROW_H,
+                        "Opacity", c.getAlpha(), 255, value -> {
                     c.setComponents(value, c.getRed(), c.getGreen(), c.getBlue());
                     SpaceClient.getConfigManager().save();
                 }));
-                y += ROW_H + GAP;
+
+                y += 14 + wheel + GAP;
             }
         }
 
-        int bottom = this.height - 34;
+        contentHeight = (y + scroll) - top;
 
-        if (pageCount > 1) {
-            int third = (PANEL_W - GAP * 2) / 3;
+        this.addRenderableWidget(new FlatButton(
+                left, bottom, PANEL_W, 24,
+                () -> "Back",
+                () -> false,
+                this::onClose
+        ).asAction());
+    }
 
-            this.addRenderableWidget(new FlatButton(
-                    left, bottom, third, ROW_H,
-                    () -> "< Page",
-                    () -> false,
-                    () -> {
-                        if (page > 0) { page--; this.rebuildWidgets(); }
-                    }
-            ).asAction());
+    /** How much of the list cannot be shown at once. */
+    private int maxScroll() {
+        int room = ScreenChrome.bottomRow(this.height) - ScreenChrome.TOP - GAP;
+        return Math.max(0, contentHeight - room);
+    }
 
-            this.addRenderableWidget(new FlatButton(
-                    left + third + GAP, bottom, third, ROW_H,
-                    () -> "Back",
-                    () -> false,
-                    this::onClose
-            ).asAction());
+    private boolean scrollBy(double amount) {
+        int max = maxScroll();
+        if (max <= 0) return false;
 
-            this.addRenderableWidget(new FlatButton(
-                    left + (third + GAP) * 2, bottom, third, ROW_H,
-                    () -> "Page >",
-                    () -> false,
-                    () -> {
-                        if (page < pageCount - 1) { page++; this.rebuildWidgets(); }
-                    }
-            ).asAction());
-        } else {
-            this.addRenderableWidget(new FlatButton(
-                    left, bottom, PANEL_W, ROW_H,
-                    () -> "Back",
-                    () -> false,
-                    this::onClose
-            ).asAction());
-        }
+        int before = scroll;
+        scroll = Math.max(0, Math.min(max, scroll - (int) Math.signum(amount) * (ROW_H + GAP)));
+        if (scroll != before) this.rebuildWidgets();
+        return true;
+    }
+
+    // Both shapes, neither annotated: the wheel callback gained a second axis
+    // and whichever one this version declares is the one that gets called.
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        return scrollBy(scrollY);
+    }
+
+    public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+        return scrollBy(amount);
     }
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-        Backdrop.draw(graphics, this.width, this.height);
+        ScreenChrome.background(graphics, this.width, this.height, mouseX, mouseY, delta);
 
         int left = panelLeft();
-        graphics.fill(left - 18, 20, left + PANEL_W + 18, this.height - 20, Theme.PANEL);
-        graphics.fill(left - 18, 20, left + PANEL_W + 18, 21, Theme.BORDER);
-
-        JupiterIcon.draw(graphics, left, 34, 24);
-        graphics.text(this.font, heading.toUpperCase(), left + 34, 38, Theme.CYAN, false);
-        graphics.text(this.font, subheading, left + 34, 50, Theme.TEXT_DIM, false);
-        graphics.fill(left, 74, left + PANEL_W, 75, Theme.BORDER);
+        ScreenChrome.header(graphics, this.font, this.width, heading, subheading);
 
         super.extractRenderState(graphics, mouseX, mouseY, delta);
 
@@ -229,7 +206,7 @@ public class SettingsScreen extends Screen {
         }
 
         // Names above the colour wheels, which draw no label of their own.
-        // Only the ones on this page were laid out, so the labels follow that.
+        // Positions were recorded during layout, so they already carry the scroll.
         int index = 0;
         for (Setting setting : visibleSettings) {
             if (!(setting instanceof ColorSetting)) continue;
@@ -239,10 +216,12 @@ public class SettingsScreen extends Screen {
             index++;
         }
 
-        if (pageCount > 1) {
-            String label = "Page " + (page + 1) + " of " + pageCount;
+        // Only said when there is something below the fold, and only then.
+        if (maxScroll() > 0) {
+            String label = scroll < maxScroll() ? "scroll for more" : "end of list";
             graphics.text(this.font, label,
-                    left + PANEL_W - this.font.width(label), 60, Theme.TEXT_DIM, false);
+                    left + PANEL_W - this.font.width(label),
+                    ScreenChrome.bottomRow(this.height) - 12, Theme.TEXT_DIM, false);
         }
     }
 
