@@ -29,12 +29,12 @@ import net.minecraft.network.chat.Component;
  */
 public class SettingsHubScreen extends Screen {
 
-    private static final int TILE_W = 230;
-    private static final int TILE_H = 54;
-    private static final int GAP = 10;
-
-    /** Where the grid starts, under the heading. */
-    private static final int TOP = 88;
+    // Measurements live in ScreenChrome now, so this screen and the account
+    // screen cannot drift apart by one edit.
+    private static final int TILE_W = ScreenChrome.TILE_W;
+    private static final int TILE_H = ScreenChrome.TILE_H;
+    private static final int GAP = ScreenChrome.GAP;
+    private static final int TOP = ScreenChrome.TOP;
 
     private final Screen parent;
     private final java.util.List<SettingsTile> tiles = new java.util.ArrayList<>();
@@ -70,6 +70,12 @@ public class SettingsHubScreen extends Screen {
 
         plan.add(new Plan("HUD editor", "Move and scale what sits on screen",
                 SettingsTile.Mark.HUD, this::openHudEditor));
+
+        // Missing until now, which is why this screen could be described as
+        // "the settings menu where the account switch also is" by somebody who
+        // had to reach it from somewhere else entirely.
+        plan.add(new Plan("Accounts", "Switch account or refresh the session",
+                SettingsTile.Mark.SKIN, () -> Screens.open(new AccountsScreen(this))));
 
         vanilla(plan, "Video", "Render distance, brightness and frame rate",
                 SettingsTile.Mark.SCREEN,
@@ -111,9 +117,8 @@ public class SettingsHubScreen extends Screen {
         // gap need 470 points of screen. At a large GUI scale there are not 470
         // - the game reports a few hundred - so the right-hand column sat off
         // the edge with half its tiles unreachable.
-        int columns = this.width >= TILE_W * 2 + GAP + 40 ? 2 : 1;
-        int blockWidth = columns * TILE_W + (columns - 1) * GAP;
-        int left = (this.width - blockWidth) / 2;
+        int columns = ScreenChrome.columnsFor(this.width);
+        int left = ScreenChrome.blockLeft(this.width, columns);
 
         rowCount = (plan.size() + columns - 1) / columns;
         scrollRow = Math.max(0, Math.min(maxScrollRow(columns), scrollRow));
@@ -140,7 +145,7 @@ public class SettingsHubScreen extends Screen {
         }
 
         this.addRenderableWidget(new FlatButton(
-                left, this.height - 34, 110, 24,
+                left, ScreenChrome.bottomRow(this.height), 110, 24,
                 () -> "Back", () -> false, this::onClose).asAction());
     }
 
@@ -154,8 +159,7 @@ public class SettingsHubScreen extends Screen {
      * reach them.
      */
     private int visibleRows() {
-        int room = this.height - TOP - 46;
-        return Math.max(1, room / (TILE_H + GAP));
+        return ScreenChrome.rowsBetween(ScreenChrome.bottomRow(this.height) - GAP, TILE_H);
     }
 
     private int maxScrollRow(int columns) {
@@ -229,39 +233,20 @@ public class SettingsHubScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-        if (!MenuWallpaper.draw(graphics, this.width, this.height, mouseX, mouseY, delta)) {
-            Backdrop.draw(graphics, this.width, this.height);
-        }
-        graphics.fill(0, 0, this.width, this.height, 0x60000000);
+        ScreenChrome.background(graphics, this.width, this.height, mouseX, mouseY, delta);
 
         long now = System.currentTimeMillis() - openedAt;
         for (int i = 0; i < tiles.size(); i++) {
             // Staggered over what is on screen, not over the whole list: with
             // scrolling, the tiles further down would otherwise carry the delay
             // of a position they no longer have and arrive long after the rest.
-            long start = 45L * i;
-            tiles.get(i).setAppear(span(now, start, start + 240));
+            tiles.get(i).setAppear(ScreenChrome.appearAt(now, i));
         }
 
-        String title = "Settings";
-        int titleWidth = this.font.width(title) * 2;
-        boolean scaled = Scale.push(graphics, (this.width - titleWidth) / 2, 30, 2f);
-        graphics.text(this.font, title,
-                scaled ? 0 : (this.width - titleWidth) / 2, scaled ? 0 : 30,
-                0xFFFFFFFF, false);
-        if (scaled) Scale.pop(graphics);
-
-        String hint = "Space Client " + SpaceClient.VERSION;
-        graphics.text(this.font, hint,
-                (this.width - this.font.width(hint)) / 2, 56, 0xFFB9B4DC, false);
+        ScreenChrome.header(graphics, this.font, this.width,
+                "Settings", "Space Client " + SpaceClient.VERSION);
 
         super.extractRenderState(graphics, mouseX, mouseY, delta);
-    }
-
-    private static float span(long now, long from, long to) {
-        if (now <= from) return 0f;
-        if (now >= to) return 1f;
-        return (now - from) / (float) (to - from);
     }
 
     @Override
