@@ -110,7 +110,27 @@ public final class Glass {
     public static void pill(GuiGraphicsExtractor graphics,
                             int x, int y, int width, int height,
                             int tint, int radius) {
+        pill(graphics, x, y, width, height, tint, radius, NO_CLIP_TOP, NO_CLIP_BOTTOM);
+    }
+
+    /** Nothing is clipped away unless a caller asks for it. */
+    public static final int NO_CLIP_TOP = Integer.MIN_VALUE / 4;
+    public static final int NO_CLIP_BOTTOM = Integer.MAX_VALUE / 4;
+
+    /**
+     * The same pill, with the rows outside a horizontal band thrown away.
+     *
+     * A scrolling list needs this. Without it a card halfway out of its
+     * viewport paints over the header above it, and the usual fix - a strip
+     * drawn over the overflow - does not work on a panel whose own alpha is
+     * below 0xFF, because the strip is then as see-through as what it covers.
+     * Dropping the rows is the only version of this that is actually correct.
+     */
+    public static void pill(GuiGraphicsExtractor graphics,
+                            int x, int y, int width, int height,
+                            int tint, int radius, int clipTop, int clipBottom) {
         if (width <= 0 || height <= 0) return;
+        if (y >= clipBottom || y + height <= clipTop) return;
 
         int alpha = (tint >>> 24) & 0xFF;
         if (alpha == 0) return;
@@ -126,14 +146,14 @@ public final class Glass {
             if (shadow <= 2) continue;
             roundedRows(graphics, x - step, y - step,
                     width + step * 2, height + step * 2, radius + step,
-                    row -> shadow << 24);
+                    row -> shadow << 24, clipTop, clipBottom);
         }
 
         // The body, one flat tone. It used to lighten toward the top, which
         // read as the plate being lit from above - and the top edge then sat
         // brighter than the bottom, which is the thing that stood out.
         int body = (alpha << 24) | (red << 16) | (green << 8) | blue;
-        roundedRows(graphics, x, y, width, height, radius, row -> body);
+        roundedRows(graphics, x, y, width, height, radius, row -> body, clipTop, clipBottom);
 
         int[] insets = circleInsets(radius, height);
         int top = insets.length > 0 ? insets[0] : 0;
@@ -144,18 +164,37 @@ public final class Glass {
         // same line and the plate reads as one flat tone.
         int edge = Math.min(46, Math.round(alpha * 0.20f));
         if (edge > 2) {
-            graphics.fill(x + top + 2, y, x + width - top - 2, y + 1, edge << 24);
-            graphics.fill(x + top + 2, y + height - 1,
-                    x + width - top - 2, y + height, edge << 24);
+            band(graphics, x + top + 2, y, x + width - top - 2, y + 1,
+                    edge << 24, clipTop, clipBottom);
+            band(graphics, x + top + 2, y + height - 1,
+                    x + width - top - 2, y + height, edge << 24, clipTop, clipBottom);
         }
+    }
+
+    /** A fill that keeps only the part inside the band. */
+    public static void band(GuiGraphicsExtractor graphics,
+                            int x1, int y1, int x2, int y2,
+                            int colour, int clipTop, int clipBottom) {
+        int top = Math.max(y1, clipTop);
+        int bottom = Math.min(y2, clipBottom);
+        if (bottom <= top) return;
+        graphics.fill(x1, top, x2, bottom, colour);
     }
 
     /** Draws one rounded shape, asking the caller for each row's colour. */
     private static void roundedRows(GuiGraphicsExtractor graphics,
                                     int x, int y, int width, int height,
                                     int radius, java.util.function.IntUnaryOperator colourOf) {
+        roundedRows(graphics, x, y, width, height, radius, colourOf, NO_CLIP_TOP, NO_CLIP_BOTTOM);
+    }
+
+    private static void roundedRows(GuiGraphicsExtractor graphics,
+                                    int x, int y, int width, int height,
+                                    int radius, java.util.function.IntUnaryOperator colourOf,
+                                    int clipTop, int clipBottom) {
         int[] insets = circleInsets(radius, height);
         for (int row = 0; row < height; row++) {
+            if (y + row < clipTop || y + row >= clipBottom) continue;
             int inset = 0;
             if (row < insets.length) inset = insets[row];
             else if (row >= height - insets.length) inset = insets[height - 1 - row];
