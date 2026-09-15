@@ -92,6 +92,118 @@ public final class Glass {
         }
     }
 
+
+    /**
+     * A glass pill: rounded to any radius, with a soft edge around it.
+     *
+     * The older panel() above is built on two hand-written corner tables and
+     * stops at a radius of six, which is a rounded rectangle rather than the
+     * shape asked for. This computes the corner from a circle, so a radius of
+     * half the height gives a capsule and anything between behaves.
+     *
+     * The softness around the outside is three rings of increasing size and
+     * falling opacity. It is not a blur of what is behind the plate - that
+     * needs the frame buffer read back, which is a different and much larger
+     * piece of work - but it is what makes the plate read as lying above the
+     * world rather than being cut into it.
+     */
+    public static void pill(GuiGraphicsExtractor graphics,
+                            int x, int y, int width, int height,
+                            int tint, int radius) {
+        if (width <= 0 || height <= 0) return;
+
+        int alpha = (tint >>> 24) & 0xFF;
+        if (alpha == 0) return;
+
+        int red = (tint >> 16) & 0xFF;
+        int green = (tint >> 8) & 0xFF;
+        int blue = tint & 0xFF;
+
+        // Outward, faintest first. Each ring is the same shape one pixel
+        // larger, which is a cheap stand-in for a shadow that falls off.
+        for (int step = 3; step >= 1; step--) {
+            int shadow = Math.round(alpha * 0.055f * (4 - step));
+            if (shadow <= 2) continue;
+            roundedRows(graphics, x - step, y - step,
+                    width + step * 2, height + step * 2, radius + step,
+                    row -> shadow << 24);
+        }
+
+        // The body. The gradient lightens the colour toward the top rather
+        // than thinning the alpha - these plates are dark and sit on dark
+        // backgrounds, and a thinner top simply disappears.
+        int h = height;
+        roundedRows(graphics, x, y, width, height, radius, row -> {
+            float down = row / (float) Math.max(1, h - 1);
+            float lift = (1f - down) * 0.22f;
+            return (alpha << 24)
+                    | (lighten(red, lift) << 16)
+                    | (lighten(green, lift) << 8)
+                    | lighten(blue, lift);
+        });
+
+        int[] insets = circleInsets(radius, height);
+        int top = insets.length > 0 ? insets[0] : 0;
+
+        // Lighter along the top, darker along the bottom. Glass catches the
+        // light on its upper edge and lies in its own shadow below; a white
+        // line on both edges reads as a border instead.
+        int lit = Math.min(22, Math.round(alpha * 0.09f));
+        if (lit > 2) {
+            graphics.fill(x + top + 2, y, x + width - top - 2, y + 1,
+                    (lit << 24) | 0xFFFFFF);
+        }
+        int dark = Math.min(46, Math.round(alpha * 0.20f));
+        if (dark > 2) {
+            graphics.fill(x + top + 2, y + height - 1,
+                    x + width - top - 2, y + height, dark << 24);
+        }
+    }
+
+    /** Draws one rounded shape, asking the caller for each row's colour. */
+    private static void roundedRows(GuiGraphicsExtractor graphics,
+                                    int x, int y, int width, int height,
+                                    int radius, java.util.function.IntUnaryOperator colourOf) {
+        int[] insets = circleInsets(radius, height);
+        for (int row = 0; row < height; row++) {
+            int inset = 0;
+            if (row < insets.length) inset = insets[row];
+            else if (row >= height - insets.length) inset = insets[height - 1 - row];
+
+            int colour = colourOf.applyAsInt(row);
+            if (((colour >>> 24) & 0xFF) == 0) continue;
+            graphics.fill(x + inset, y + row, x + width - inset, y + row + 1, colour);
+        }
+    }
+
+    /**
+     * How far each row near a corner is pulled in, taken off a circle.
+     *
+     * Cached per radius: a HUD with twenty elements would otherwise work this
+     * out twenty times a frame for the same handful of numbers.
+     */
+    private static int[] circleInsets(int radius, int height) {
+        int r = Math.max(0, Math.min(radius, height / 2));
+        if (r == 0) return EMPTY_INSETS;
+
+        int[] cached = INSET_CACHE.get(r);
+        if (cached != null) return cached;
+
+        int[] out = new int[r];
+        for (int row = 0; row < r; row++) {
+            double dy = r - row - 0.5;
+            double dx = Math.sqrt(Math.max(0.0, (double) r * r - dy * dy));
+            out[row] = (int) Math.round(r - dx);
+        }
+        INSET_CACHE.put(r, out);
+        return out;
+    }
+
+    private static final int[] EMPTY_INSETS = new int[0];
+
+    private static final java.util.Map<Integer, int[]> INSET_CACHE =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     /** Moves a channel toward white by a fraction. */
     private static int lighten(int channel, float amount) {
         return Math.min(255, Math.round(channel + (255 - channel) * amount));
