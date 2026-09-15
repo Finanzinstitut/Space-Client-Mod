@@ -291,12 +291,18 @@ public class WorldsScreen extends Screen {
      * will do, and the names the class actually has are logged when none can -
      * so a miss produces the answer rather than another guess.
      */
+    /** The last thing that would not open, shown under the list. */
+    private String failed = "";
+
     private void createWorld() {
         String className = "net.minecraft.client.gui.screens.worldselection.CreateWorldScreen";
 
+        // Everything the game is holding, not just two objects. The settings
+        // tiles failed the same way: the method needed something that was
+        // never on the list, so nothing matched and the click went nowhere.
         String used = Construct.invokedBest(className,
                 new String[]{"openFresh", "createFresh", "openCreateWorldScreen"},
-                Minecraft.getInstance(), this);
+                Construct.poolFrom(Minecraft.getInstance(), this));
 
         if (used != null) {
             WorldReport.created(used);
@@ -304,6 +310,9 @@ public class WorldsScreen extends Screen {
             return;
         }
         WorldReport.createFailed();
+        // Said here, not only on the diagnostics page. A button that does
+        // nothing and says nothing is the worst of the three outcomes.
+        failed = "The world creator could not be opened on this version.";
 
         // Deliberately no constructor fallback. Building this screen directly
         // succeeds and produces something that opens and then ignores every
@@ -315,6 +324,11 @@ public class WorldsScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+        if (!failed.isEmpty()) {
+            graphics.text(this.font, failed,
+                    (this.width - this.font.width(failed)) / 2,
+                    this.height - 62, 0xFFFF9AAE, false);
+        }
         texturesThisFrame = 0;
         drag.update(mouseX, mouseY);
         applyDrag();

@@ -345,6 +345,66 @@ public final class Construct {
      * offered and null if not, which is the right answer for a parent that has
      * genuinely not been supplied.
      */
+    /**
+     * Everything one object is holding, as things to offer a constructor.
+     *
+     * The pool used to be written out by hand, and that is what made most of
+     * the settings tiles do nothing: the game's language screen wants a
+     * LanguageManager, its pack screen wants a PackRepository, and neither was
+     * on offer - so the strict pass refused and the lenient one passed null and
+     * was thrown out. Nothing on screen, one line in a log.
+     *
+     * Reading the fields instead means never having to know what a screen
+     * wants or what its getter is called on this version. Whatever the game
+     * holds is offered, and the type matching below decides.
+     *
+     * Read once and remembered: these are the game's own long-lived objects,
+     * and walking a class with a hundred fields on every button press would be
+     * work for nothing.
+     */
+    public static Object[] poolFrom(Object host, Object... extra) {
+        if (host == null) return extra;
+
+        java.util.List<Object> out = new java.util.ArrayList<>(java.util.Arrays.asList(extra));
+        out.add(host);
+
+        for (java.lang.reflect.Field field : fieldsOf(host.getClass())) {
+            try {
+                Object value = field.get(host);
+                if (value != null) out.add(value);
+            } catch (Throwable ignored) {
+                // A field that will not be read is simply not on offer
+            }
+        }
+        return out.toArray();
+    }
+
+    private static java.lang.reflect.Field[] fieldsOf(Class<?> type) {
+        java.lang.reflect.Field[] cached = FIELD_CACHE.get(type);
+        if (cached != null) return cached;
+
+        java.util.List<java.lang.reflect.Field> found = new java.util.ArrayList<>();
+        for (Class<?> current = type; current != null && current != Object.class;
+             current = current.getSuperclass()) {
+            for (java.lang.reflect.Field field : current.getDeclaredFields()) {
+                if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) continue;
+                try {
+                    field.setAccessible(true);
+                    found.add(field);
+                } catch (Throwable ignored) {
+                    // Sealed away; skip it
+                }
+            }
+        }
+
+        java.lang.reflect.Field[] array = found.toArray(new java.lang.reflect.Field[0]);
+        FIELD_CACHE.put(type, array);
+        return array;
+    }
+
+    private static final java.util.Map<Class<?>, java.lang.reflect.Field[]> FIELD_CACHE =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     private static Object[] match(Class<?>[] params, Object[] pool) {
         Object[] args = new Object[params.length];
         boolean[] used = new boolean[pool.length];

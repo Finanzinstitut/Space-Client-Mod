@@ -232,9 +232,38 @@ public final class MusicWatcher {
     private static final int PREVIOUS = 0xB1;
     private static final int PLAY_PAUSE = 0xB3;
 
-    public static void next() { sendMediaKey(NEXT); }
-    public static void previous() { sendMediaKey(PREVIOUS); }
-    public static void playPause() { sendMediaKey(PLAY_PAUSE); }
+    public static void next() { control("next", NEXT); }
+    public static void previous() { control("prev", PREVIOUS); }
+    public static void playPause() { control("toggle", PLAY_PAUSE); }
+
+    /**
+     * Tells the player directly, and only falls back to a media key.
+     *
+     * The direct route reaches Spotify or Amazon Music by name, which is the
+     * whole point: a media key goes wherever Windows last put the session, so
+     * pressing play could resume a video somebody had paused an hour ago. The
+     * key remains as a fallback because on a machine where the transport
+     * controls cannot be reached at all it is better than nothing.
+     */
+    private static void control(String command, int fallbackKey) {
+        if (!supported) return;
+
+        CompletableFuture.runAsync(() -> {
+            if (MusicHost.send(command)) {
+                // Read the new track soon, but do not sit here waiting for it:
+                // the press has already reached the player.
+                lastPoll = 0;
+                return;
+            }
+            sendMediaKey(fallbackKey);
+        });
+    }
+
+    /** Starts the control host, so the first press does not pay for it. */
+    public static void warmControls() {
+        if (!supported) return;
+        CompletableFuture.runAsync(MusicHost::warm);
+    }
 
     /**
      * Presses a media key system wide.
@@ -275,8 +304,9 @@ public final class MusicWatcher {
                     status = "media key failed: " + result.toString().trim();
                     SpaceClient.LOGGER.warn("Media key exit {}: {}", exit, result.toString().trim());
                 } else {
-                    // Give the player a moment, then read the new track
-                    Thread.sleep(600);
+                    // Re-read on the next poll rather than sleeping here. The
+                    // wait was six tenths of a second added to every press, and
+                    // nothing on this thread was waiting for the answer.
                     lastPoll = 0;
                 }
 

@@ -100,10 +100,17 @@ public class SettingsTile extends Button {
         var font = Minecraft.getInstance().font;
         int textX = x1 + 50;
 
-        graphics.text(font, title, textX, y1 + h / 2 - font.lineHeight - 1,
+        // Cut to what the tile has room for. Neither line was ever measured,
+        // so a long subtitle simply carried on past the right edge and over
+        // whatever sat beside it.
+        int room = x1 + w - textX - 10;
+
+        graphics.text(font, ToggleRow.fit(font, title, room),
+                textX, y1 + h / 2 - font.lineHeight - 1,
                 MenuIcon.scaleAlpha(Ease.color(0xFFF3F3F6, 0xFFFFFFFF, lit), alpha), false);
 
-        graphics.text(font, subtitle, textX, y1 + h / 2 + 2,
+        graphics.text(font, ToggleRow.fit(font, subtitle, room),
+                textX, y1 + h / 2 + 2,
                 MenuIcon.scaleAlpha(0xFF97979F, alpha), false);
 
         if (lit > 0.01f) {

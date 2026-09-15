@@ -215,16 +215,38 @@ public class SettingsHubScreen extends Screen {
      * mistake shows up as a tile that does not react instead of a blank screen.
      */
     private void openVanilla(String className) {
-        Object options = Minecraft.getInstance().options;
+        // Everything the game is holding, offered by type. Naming three
+        // objects by hand was what made most of these tiles do nothing: the
+        // language screen wants a LanguageManager and the pack screen a
+        // PackRepository, neither of which was on the list, so the strict pass
+        // refused and the lenient one passed null and was thrown out.
+        Object[] pool = Construct.poolFrom(Minecraft.getInstance(), this);
 
-        Object screen = Construct.strict(className, this, options, Minecraft.getInstance());
-        if (screen == null) screen = Construct.of(className, this, options, Minecraft.getInstance());
+        Object screen = Construct.strict(className, pool);
+        if (screen == null) screen = Construct.of(className, pool);
 
         if (screen instanceof Screen target) {
+            failed = "";
             Screens.open(target);
-        } else {
-            SpaceClient.LOGGER.warn("Could not open {} on this version", className);
+            return;
         }
+
+        // Said on the screen, not only in a log. A tile that swallows a click
+        // is indistinguishable from one that is broken, and this client has
+        // spent enough time on things that fail quietly.
+        failed = className.substring(className.lastIndexOf('.') + 1)
+                + " could not be opened on this version.";
+        SpaceClient.LOGGER.warn("Could not open {} on this version", className);
+    }
+
+    /** The last tile that would not open, shown under the grid. */
+    private String failed = "";
+
+    private void drawFailure(GuiGraphicsExtractor graphics) {
+        if (failed.isEmpty()) return;
+        graphics.text(this.font, failed,
+                (this.width - this.font.width(failed)) / 2,
+                ScreenChrome.bottomRow(this.height) - 14, 0xFFFF9AAE, false);
     }
 
     private void openHudEditor() {
@@ -233,6 +255,7 @@ public class SettingsHubScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+        drawFailure(graphics);
         ScreenChrome.background(graphics, this.width, this.height, mouseX, mouseY, delta);
 
         long now = System.currentTimeMillis() - openedAt;
