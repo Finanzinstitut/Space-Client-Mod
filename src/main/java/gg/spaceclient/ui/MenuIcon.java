@@ -97,7 +97,14 @@ public class MenuIcon extends Button {
 
     // --- the glyphs ---
 
-    private void glyph(GuiGraphicsExtractor graphics, int cx, int cy, int colour) {
+    /**
+     * Draws just the mark, without the plate or the ring around it.
+     *
+     * Reachable from the rest of this package rather than private: the mark is
+     * the part worth drawing on its own - in a row, beside a heading, or in
+     * front of a lens that only wants to see the shape.
+     */
+    void glyph(GuiGraphicsExtractor graphics, int cx, int cy, int colour) {
         switch (kind) {
             case WORLDS -> block(graphics, cx, cy, colour);
             case SERVERS -> globe(graphics, cx, cy, colour);
@@ -107,21 +114,30 @@ public class MenuIcon extends Button {
         }
     }
 
-    /** A block seen head on, with its top face folded over. */
+    /**
+     * A planet with a ring around it.
+     *
+     * Two earlier tries put a landscape inside a rounded frame, and both times
+     * the inside turned to mush: fourteen pixels across leaves about twelve to
+     * draw in, and a frame eats four of them. A filled disc with a ring needs
+     * no frame, is round by construction, and cannot be mistaken for the
+     * wireframe globe next to it - that one is hollow, this one is solid.
+     */
     private void block(GuiGraphicsExtractor graphics, int cx, int cy, int colour) {
-        int half = 6;
-        int top = cy - half + 2;
-        int bottom = cy + half;
-
-        // Front face
-        rect(graphics, cx - half, top, cx + half, bottom, colour);
-        // The top face, drawn as a narrowing band so it reads as depth
-        for (int i = 0; i < 3; i++) {
-            int inset = i;
-            graphics.fill(cx - half + inset, top - 3 + i, cx + half - inset, top - 2 + i, colour);
+        // The ring first, so the planet is drawn over the part that passes
+        // behind it and the two read as crossing rather than overlapping.
+        for (int i = -8; i <= 8; i++) {
+            int y = cy + 3 - Math.abs(i) / 3;
+            graphics.fill(cx + i, y, cx + i + 1, y + 1, colour);
         }
-        // A seam down the middle of the front face
-        graphics.fill(cx - 1, top + 3, cx + 1, bottom - 3, colour);
+
+        circle(graphics, cx, cy - 1, 5, colour);
+
+        // The near half of the ring, drawn back over the planet's lower edge.
+        for (int i = -4; i <= 4; i++) {
+            int y = cy + 3 - Math.abs(i) / 3;
+            graphics.fill(cx + i, y, cx + i + 1, y + 1, colour);
+        }
     }
 
     /** A globe: a ring with a waist and a meridian. */
@@ -144,24 +160,41 @@ public class MenuIcon extends Button {
         }
     }
 
-    /** A ring with eight teeth. */
+    /**
+     * A ring with six rounded teeth.
+     *
+     * The teeth were three-pixel squares, which at this size is a ring with
+     * boxes stuck to it. Round ones read as a gear and, more to the point,
+     * match everything else in the menu.
+     */
     private void gear(GuiGraphicsExtractor graphics, int cx, int cy, int colour) {
         ringOutline(graphics, cx, cy, 5, colour);
         ringOutline(graphics, cx, cy, 4, colour);
 
-        for (int i = 0; i < 8; i++) {
-            double angle = Math.PI * 2 * i / 8.0;
+        for (int i = 0; i < 6; i++) {
+            double angle = Math.PI * 2 * i / 6.0;
             int x = cx + (int) Math.round(Math.cos(angle) * 7);
             int y = cy + (int) Math.round(Math.sin(angle) * 7);
-            graphics.fill(x - 1, y - 1, x + 2, y + 2, colour);
+            circle(graphics, x, y, 2, colour);
         }
     }
 
-    /** Two strokes through the centre. */
+    /**
+     * Two strokes through the centre, with rounded ends.
+     *
+     * The stroke ran the full diagonal and finished in a hard square corner at
+     * each of the four tips. Pulling it in by one and capping it with a dot
+     * costs nothing and stops the one icon in the row from ending in points.
+     */
     private void cross(GuiGraphicsExtractor graphics, int cx, int cy, int colour) {
-        for (int i = -5; i <= 5; i++) {
+        for (int i = -4; i <= 4; i++) {
             graphics.fill(cx + i, cy + i, cx + i + 2, cy + i + 2, colour);
             graphics.fill(cx + i, cy - i, cx + i + 2, cy - i + 2, colour);
+        }
+        for (int sx = -1; sx <= 1; sx += 2) {
+            for (int sy = -1; sy <= 1; sy += 2) {
+                circle(graphics, cx + sx * 4, cy + sy * 4, 1, colour);
+            }
         }
     }
 

@@ -91,20 +91,20 @@ public class SettingsTile extends Button {
         // pointing at it would make it duller than its neighbours.
         float lit = current ? Math.max(hover, 1f) : hover;
 
-        Glass.panel(graphics, x1, y1, w, h,
-                MenuIcon.scaleAlpha(Ease.color(0x50100D2A, 0x90221C58, lit), alpha), 8);
+        Glass.pill(graphics, x1, y1, w, h,
+                MenuIcon.scaleAlpha(Ease.color(0xCC0F0F12, 0xE61C1C20, lit), alpha), 8);
 
-        int ink = MenuIcon.scaleAlpha(Ease.color(0xFF8B84C8, Theme.CYAN, lit), alpha);
+        int ink = MenuIcon.scaleAlpha(Ease.color(0xFF8E8E98, Theme.CYAN, lit), alpha);
         drawMark(graphics, x1 + 26, y1 + h / 2, ink);
 
         var font = Minecraft.getInstance().font;
         int textX = x1 + 50;
 
         graphics.text(font, title, textX, y1 + h / 2 - font.lineHeight - 1,
-                MenuIcon.scaleAlpha(Ease.color(0xFFE9E6FF, 0xFFFFFFFF, lit), alpha), false);
+                MenuIcon.scaleAlpha(Ease.color(0xFFF3F3F6, 0xFFFFFFFF, lit), alpha), false);
 
         graphics.text(font, subtitle, textX, y1 + h / 2 + 2,
-                MenuIcon.scaleAlpha(0xFF9A95C9, alpha), false);
+                MenuIcon.scaleAlpha(0xFF97979F, alpha), false);
 
         if (lit > 0.01f) {
             int edge = MenuIcon.scaleAlpha(Theme.CYAN, Math.round(alpha * lit));

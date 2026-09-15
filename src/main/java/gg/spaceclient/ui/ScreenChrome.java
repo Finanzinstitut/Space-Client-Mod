@@ -58,7 +58,7 @@ public final class ScreenChrome {
 
         if (subtitle == null || subtitle.isEmpty()) return;
         graphics.text(font, subtitle,
-                (width - font.width(subtitle)) / 2, 56, 0xFFB9B4DC, false);
+                (width - font.width(subtitle)) / 2, 56, 0xFFB4B4BC, false);
     }
 
     /** Where the bottom row of buttons sits, measured from the bottom edge. */

@@ -84,11 +84,11 @@ public class WorldCard extends Button {
         }
 
         graphics.text(font, label, x1 + 8, textY,
-                Ease.color(0xFFE9E6FF, 0xFFFFFFFF, hover), false);
+                Ease.color(0xFFF3F3F6, 0xFFFFFFFF, hover), false);
 
         if (!detail.isEmpty()) {
             graphics.text(font, detail, x1 + 8, textY + font.lineHeight + 1,
-                    0xFF9A95C9, false);
+                    0xFF97979F, false);
         }
 
         // The accent edge only on hover, so a row at rest stays calm
@@ -110,7 +110,7 @@ public class WorldCard extends Button {
             // No icon, or no usable texture call: a plain plate rather than a
             // hole, so the card still reads as a card
             graphics.fill(x1 + inset, y1 + inset,
-                    x1 + inset + width, y1 + imageHeight, 0xFF1A1640);
+                    x1 + inset + width, y1 + imageHeight, 0xFF161619);
 
             var font = Minecraft.getInstance().font;
             String mark = "?";
@@ -124,7 +124,7 @@ public class WorldCard extends Button {
     private void drawPlaceholder(GuiGraphicsExtractor graphics,
                                  int x1, int y1, int x2, int y2, int imageHeight) {
         // A dashed outline, drawn as a run of short segments
-        int colour = Ease.color(0xFF3A3560, Theme.CYAN, hover);
+        int colour = Ease.color(0xFF3A3A40, Theme.CYAN, hover);
         for (int x = x1 + 8; x < x2 - 8; x += 8) {
             graphics.fill(x, y1 + 6, Math.min(x + 4, x2 - 8), y1 + 7, colour);
             graphics.fill(x, y2 - 7, Math.min(x + 4, x2 - 8), y2 - 6, colour);

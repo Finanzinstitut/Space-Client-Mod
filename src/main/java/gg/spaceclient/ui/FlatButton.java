@@ -120,23 +120,21 @@ public class FlatButton extends Button {
         int x2 = x1 + this.width;
         int y2 = y1 + this.height;
 
-        int background = on ? Theme.accentDim() : (hovered ? Theme.PANEL_ALT : 0x30FFFFFF);
-        graphics.fill(x1, y1, x2, y2, background);
+        // A rounded plate with a soft edge, not a rectangle with a border.
+        // The state is carried by how bright the plate is rather than by a
+        // coloured outline: an outline on every button is what made the menu
+        // read as a grid of boxes.
+        int background = on ? 0xF01E1E22 : (hovered ? 0xE6161619 : 0xCC0F0F12);
+        Glass.pill(graphics, x1, y1, this.width, this.height, background,
+                Math.min(10, this.height / 2));
 
-        // A single accent bar on the left marks the active state, which reads
-        // faster than filling the whole row with colour.
+        // One short bar on the left for the active state. It is the only place
+        // the accent appears on a button, which is what keeps it meaning
+        // something.
         if (on) {
-            graphics.fill(x1, y1, x1 + 3, y2, Theme.accent());
-        } else if (hovered) {
-            graphics.fill(x1, y1, x1 + 3, y2, Theme.OFF);
+            int inset = Math.max(3, this.height / 4);
+            graphics.fill(x1 + 3, y1 + inset, x1 + 5, y2 - inset, Theme.accent());
         }
-
-        // Cyan when active, violet on hover - the launcher's two accents
-        int border = on ? Theme.CYAN : (hovered ? Theme.accent() : Theme.BORDER);
-        graphics.fill(x1, y1, x2, y1 + 1, border);
-        graphics.fill(x1, y2 - 1, x2, y2, border);
-        graphics.fill(x1, y1, x1 + 1, y2, border);
-        graphics.fill(x2 - 1, y1, x2, y2, border);
 
         var font = Minecraft.getInstance().font;
         int textY = y1 + (this.height - font.lineHeight) / 2;
@@ -155,7 +153,7 @@ public class FlatButton extends Button {
             }
             text = text + "..";
         }
-        graphics.text(font, text, x1 + 12, textY, on ? Theme.TEXT : Theme.TEXT_DIM, false);
+        graphics.text(font, text, x1 + 14, textY, on ? Theme.TEXT : Theme.TEXT_DIM, false);
         if (showState) {
             graphics.text(font, state, x2 - stateWidth - 34, textY,
                     on ? Theme.CYAN : Theme.OFF, false);
@@ -179,7 +177,10 @@ public class FlatButton extends Button {
             int alpha = (int) (110 * (1.0f - progress));
             int sweep = (int) (this.width * Math.min(1.0f, progress * 1.6f));
             if (alpha > 2) {
-                graphics.fill(x1, y1, x1 + sweep, y2, (alpha << 24) | 0xFFFFFF);
+                // Inset by a pixel so the wipe does not paint over the rounded
+                // corners and square the button off for a fifth of a second.
+                graphics.fill(x1 + 1, y1 + 1, Math.min(x2 - 1, x1 + sweep), y2 - 1,
+                        (alpha << 24) | 0xFFFFFF);
             }
         }
     }

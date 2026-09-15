@@ -104,7 +104,7 @@ public class SliderRow extends AbstractSliderButton {
         int w = this.width;
         int h = this.height;
 
-        Glass.panel(graphics, x1, y1, w, h, Ease.color(0x50100D2A, 0x90221C58, hover), 8);
+        Glass.pill(graphics, x1, y1, w, h, Ease.color(0xCC0F0F12, 0xE61C1C20, hover), 8);
 
         var font = net.minecraft.client.Minecraft.getInstance().font;
 
@@ -113,7 +113,7 @@ public class SliderRow extends AbstractSliderButton {
         int room = w - 28 - valueW - 10;
 
         graphics.text(font, ToggleRow.fit(font, name, room), x1 + 14, y1 + 6,
-                Ease.color(0xFFC9C4EE, 0xFFFFFFFF, hover), false);
+                Ease.color(0xFFC8C8D0, 0xFFFFFFFF, hover), false);
         graphics.text(font, valueText, x1 + w - 14 - valueW, y1 + 6, Theme.CYAN, false);
 
         if (!description.isEmpty() && h >= 44) {
@@ -125,17 +125,17 @@ public class SliderRow extends AbstractSliderButton {
         int trackW = w - 28;
         int trackY = y1 + h - 12;
 
-        Glass.panel(graphics, trackX, trackY, trackW, 4, 0xFF262046, 2);
+        Glass.pill(graphics, trackX, trackY, trackW, 4, 0xFF232327, 2);
 
         int filled = Math.max(0, Math.round((float) (this.value * trackW)));
         if (filled > 0) {
-            Glass.panel(graphics, trackX, trackY, filled, 4,
+            Glass.pill(graphics, trackX, trackY, filled, 4,
                     Ease.color(Theme.accent(), Theme.CYAN, hover), 2);
         }
 
         int knobX = trackX + Math.min(trackW - 8, Math.max(0, filled - 4));
-        Glass.panel(graphics, knobX, trackY - 3, 8, 10,
-                Ease.color(0xFF8B84C8, Theme.CYAN, hover), 4);
+        Glass.pill(graphics, knobX, trackY - 3, 8, 10,
+                Ease.color(0xFF8E8E98, Theme.CYAN, hover), 4);
     }
 
     /** Mouse only, for the same reason as the buttons. */
