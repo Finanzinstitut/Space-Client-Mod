@@ -129,34 +129,24 @@ public final class Glass {
                     row -> shadow << 24);
         }
 
-        // The body. The gradient lightens the colour toward the top rather
-        // than thinning the alpha - these plates are dark and sit on dark
-        // backgrounds, and a thinner top simply disappears.
-        int h = height;
-        roundedRows(graphics, x, y, width, height, radius, row -> {
-            float down = row / (float) Math.max(1, h - 1);
-            float lift = (1f - down) * 0.22f;
-            return (alpha << 24)
-                    | (lighten(red, lift) << 16)
-                    | (lighten(green, lift) << 8)
-                    | lighten(blue, lift);
-        });
+        // The body, one flat tone. It used to lighten toward the top, which
+        // read as the plate being lit from above - and the top edge then sat
+        // brighter than the bottom, which is the thing that stood out.
+        int body = (alpha << 24) | (red << 16) | (green << 8) | blue;
+        roundedRows(graphics, x, y, width, height, radius, row -> body);
 
         int[] insets = circleInsets(radius, height);
         int top = insets.length > 0 ? insets[0] : 0;
 
-        // Lighter along the top, darker along the bottom. Glass catches the
-        // light on its upper edge and lies in its own shadow below; a white
-        // line on both edges reads as a border instead.
-        int lit = Math.min(22, Math.round(alpha * 0.09f));
-        if (lit > 2) {
-            graphics.fill(x + top + 2, y, x + width - top - 2, y + 1,
-                    (lit << 24) | 0xFFFFFF);
-        }
-        int dark = Math.min(46, Math.round(alpha * 0.20f));
-        if (dark > 2) {
+        // The same dark edge top and bottom. A lighter top edge is the usual
+        // way to suggest glass catching the light, and it was what made the
+        // upper half look brighter than the lower - so both edges now get the
+        // same line and the plate reads as one flat tone.
+        int edge = Math.min(46, Math.round(alpha * 0.20f));
+        if (edge > 2) {
+            graphics.fill(x + top + 2, y, x + width - top - 2, y + 1, edge << 24);
             graphics.fill(x + top + 2, y + height - 1,
-                    x + width - top - 2, y + height, dark << 24);
+                    x + width - top - 2, y + height, edge << 24);
         }
     }
 
