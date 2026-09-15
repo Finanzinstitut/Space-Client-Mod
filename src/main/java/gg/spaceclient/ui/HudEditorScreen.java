@@ -86,6 +86,18 @@ public class HudEditorScreen extends Screen {
 
     private boolean wasDown = false;
 
+    /**
+     * Whether the first frame has read the button yet.
+     *
+     * This screen is opened by clicking something - a tile in the settings hub,
+     * a line in the menu's rail - and a Button fires on the press, not the
+     * release. So the editor's very first frame can run while that same click
+     * is still held down, and without this the poll would read it as a fresh
+     * press and grab whatever element happened to be under the cursor. The
+     * first frame therefore only records the state; it never acts on it.
+     */
+    private boolean primed = false;
+
     /** True once the pointer has moved far enough for a press to be a drag. */
     private boolean moved = false;
     private int pressX;
@@ -368,6 +380,12 @@ public class HudEditorScreen extends Screen {
      */
     private void pointer(int mouseX, int mouseY) {
         boolean down = RawKeyboard.isMouseDown(GLFW.GLFW_MOUSE_BUTTON_LEFT);
+
+        if (!primed) {
+            primed = true;
+            wasDown = down;
+            return;
+        }
 
         if (down && !wasDown) {
             pressX = mouseX;
