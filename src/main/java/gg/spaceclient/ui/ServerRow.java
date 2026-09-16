@@ -99,7 +99,7 @@ public class ServerRow extends Button {
                 && Textures.draw(graphics, row.icon(), iconX, iconY, iconSize, iconSize);
         if (!drew) {
             graphics.fill(iconX, iconY, iconX + iconSize, iconY + iconSize,
-                    MenuIcon.scaleAlpha(0xFF1A1640, alpha));
+                    MenuIcon.scaleAlpha(0xFF161619, alpha));
         }
 
         int textX = iconX + iconSize + 10;
@@ -107,10 +107,10 @@ public class ServerRow extends Button {
         int room = Math.max(20, rightEdge - textX);
 
         graphics.text(font, clip(font, row.name(), room), textX, y1 + 7,
-                MenuIcon.scaleAlpha(Ease.color(0xFFE9E6FF, 0xFFFFFFFF, hover), alpha), false);
+                MenuIcon.scaleAlpha(Ease.color(0xFFF3F3F6, 0xFFFFFFFF, hover), alpha), false);
 
         graphics.text(font, clip(font, row.address(), room), textX, y1 + 7 + font.lineHeight + 2,
-                MenuIcon.scaleAlpha(0xFF9A95C9, alpha), false);
+                MenuIcon.scaleAlpha(0xFF97979F, alpha), false);
 
         if (!row.motd().isEmpty() && this.height > 46) {
             graphics.text(font, clip(font, row.motd(), room),
@@ -123,7 +123,7 @@ public class ServerRow extends Button {
         if (row.max() > 0) {
             String count = row.online() + "/" + row.max();
             graphics.text(font, count, x2 - 12 - font.width(count), y1 + 10 + 14,
-                    MenuIcon.scaleAlpha(0xFF9A95C9, alpha), false);
+                    MenuIcon.scaleAlpha(0xFF97979F, alpha), false);
         }
     }
 

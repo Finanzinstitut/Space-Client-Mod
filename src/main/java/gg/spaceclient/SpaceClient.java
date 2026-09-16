@@ -206,6 +206,8 @@ public class SpaceClient implements ClientModInitializer {
             while (menuKey.consumeClick()) {
                 client.gui.setScreen(new SpaceMenuScreen());
             }
+
+            takeOverTitleScreen(client);
             moduleManager.onTick();
             SessionWatcher.tick(client);
 
@@ -230,6 +232,16 @@ public class SpaceClient implements ClientModInitializer {
                 inWorld = false;
             }
             gg.spaceclient.net.Badges.tick();
+
+            if (client.player != null) {
+                String name;
+                try {
+                    name = client.player.getName().getString();
+                } catch (Throwable ignored) {
+                    name = null;
+                }
+                gg.spaceclient.net.Badges.checkOwn(client.player.getUUID(), name);
+            }
             gg.spaceclient.net.Twitch.tick();
 
             // The window only exists once the game is running, so the hook is
@@ -280,15 +292,20 @@ public class SpaceClient implements ClientModInitializer {
     private static boolean inWorld = false;
 
     private static void renderTotem(GuiGraphicsExtractor graphics, DeltaTracker tickCounter) {
+        Minecraft client = Minecraft.getInstance();
+        int width = client.getWindow().getGuiScaledWidth();
+        int height = client.getWindow().getGuiScaledHeight();
+
+        // Above the rest of the HUD, same as the totem: a message that only
+        // shows for five seconds cannot afford to be drawn under a chat line.
+        gg.spaceclient.render.RankToast.draw(graphics, width, height);
+
         if (!(moduleManager.get("totempop") instanceof gg.spaceclient.modules.TotemPopModule totem)) {
             return;
         }
         if (!totem.isEnabled()) return;
 
-        Minecraft client = Minecraft.getInstance();
-        totem.draw(graphics,
-                client.getWindow().getGuiScaledWidth(),
-                client.getWindow().getGuiScaledHeight());
+        totem.draw(graphics, width, height);
     }
 
     private static void renderHud(GuiGraphicsExtractor graphics, DeltaTracker tickCounter) {
@@ -301,4 +318,34 @@ public class SpaceClient implements ClientModInitializer {
             module.draw(graphics, module.getX(width), module.getY(height));
         }
     }
+
+    /**
+     * Puts our menu back whenever the game's own title screen is showing.
+     *
+     * The swap already happens in AFTER_INIT, and on the very first screen of
+     * the session that swap did not stick: the game shows the title screen
+     * behind a loading overlay, and when the overlay finishes it sets the
+     * screen it captured - the original title screen - back over ours. So the
+     * launcher started into vanilla's menu, and ours only appeared once you
+     * had been to Multiplayer and back, because by then no overlay was left to
+     * undo it.
+     *
+     * Checking every tick fixes that without having to know which of the two
+     * ran last. It is also the same approach the multiplayer list already
+     * takes, for the same reason: catching a screen wherever it appears is
+     * steadier than trying to win a race against the code that opened it.
+     *
+     * Costs one field read and a string comparison per tick while the title
+     * screen is up, and one class-name check otherwise.
+     */
+    private static void takeOverTitleScreen(net.minecraft.client.Minecraft client) {
+        if (!settings.customMenu()) return;
+
+        net.minecraft.client.gui.screens.Screen now = gg.spaceclient.util.Screens.current();
+        if (now == null) return;
+        if (!now.getClass().getName().endsWith("TitleScreen")) return;
+
+        client.gui.setScreen(new gg.spaceclient.ui.MainMenuScreen());
+    }
+
 }

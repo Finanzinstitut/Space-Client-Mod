@@ -19,6 +19,26 @@ public class SliderRow extends AbstractSliderButton {
     /** Shown under the name where the row is tall enough to carry it. */
     private String description = "";
 
+    /**
+     * How the number is written out.
+     *
+     * A slider's stored value and the number a person is thinking of are not
+     * always the same. The HUD editor's size slider runs from zero to two
+     * hundred and fifty because a slider's knob sits at value over maximum, so
+     * a range starting at fifty would put the knob in the wrong place - but
+     * nobody wants to read "90" for an element drawn at 140%. The formatter
+     * keeps the arithmetic honest and the label readable.
+     */
+    private java.util.function.IntFunction<String> format = String::valueOf;
+
+    /** Writes the value some other way, for a slider whose range is not its label. */
+    public SliderRow withFormat(java.util.function.IntFunction<String> formatter) {
+        if (formatter != null) this.format = formatter;
+        return this;
+    }
+
+    private String valueText() { return format.apply(value()); }
+
     private float hover = 0f;
 
     public SliderRow(int x, int y, int width, int height,
@@ -66,25 +86,34 @@ public class SliderRow extends AbstractSliderButton {
         int x2 = x1 + this.width;
         int y2 = y1 + this.height;
 
-        graphics.fill(x1, y1, x2, y2, 0x30FFFFFF);
-
-        // Filled portion up to the handle
-        int filled = x1 + (int) (this.value * this.width);
-        graphics.fill(x1, y1, filled, y2, Theme.accentDim());
-        graphics.fill(filled - 2, y1, filled + 1, y2, Theme.CYAN);
-
-        int border = isHovered() ? Theme.accent() : Theme.BORDER;
-        graphics.fill(x1, y1, x2, y1 + 1, border);
-        graphics.fill(x1, y2 - 1, x2, y2, border);
-        graphics.fill(x1, y1, x1 + 1, y2, border);
-        graphics.fill(x2 - 1, y1, x2, y2, border);
+        // A capsule with a track through it, not a bordered box that fills up
+        // to the handle. The filled-box version was the last square-cornered
+        // control left in the client, and a row that is half one colour reads
+        // as a row that is half something else rather than as a slider.
+        int radius = Math.min(9, this.height / 2);
+        Glass.flat(graphics, x1, y1, this.width, this.height,
+                isHovered() ? 0xF01E1E22 : 0xE6141418, radius);
 
         var font = net.minecraft.client.Minecraft.getInstance().font;
-        int textY = y1 + (this.height - font.lineHeight) / 2;
-        graphics.text(font, name, x1 + 10, textY, Theme.TEXT, false);
+        int textY = y1 + (this.height - font.lineHeight) / 2 + 1;
 
-        String valueText = String.valueOf(value());
-        graphics.text(font, valueText, x2 - font.width(valueText) - 10, textY, Theme.TEXT_DIM, false);
+        String valueText = valueText();
+        int valueW = font.width(valueText);
+
+        int trackX = x1 + 12 + font.width(name) + 8;
+        int trackW = Math.max(12, x2 - 12 - valueW - 8 - trackX);
+        int trackY = y1 + this.height / 2 - 2;
+
+        Glass.flat(graphics, trackX, trackY, trackW, 3, 0xFF2A2A30, 1);
+        int filled = Math.max(0, Math.round((float) (this.value * trackW)));
+        if (filled > 0) Glass.flat(graphics, trackX, trackY, filled, 3, Theme.accent(), 1);
+
+        int knob = trackX + filled;
+        Glass.flat(graphics, knob - 4, trackY - 3, 8, 9,
+                isHovered() ? Theme.TEXT : Theme.TEXT_DIM, 4);
+
+        graphics.text(font, name, x1 + 12, textY, Theme.TEXT_DIM, false);
+        graphics.text(font, valueText, x2 - valueW - 12, textY, Theme.TEXT, false);
     }
 
     /**
@@ -104,16 +133,16 @@ public class SliderRow extends AbstractSliderButton {
         int w = this.width;
         int h = this.height;
 
-        Glass.panel(graphics, x1, y1, w, h, Ease.color(0x50100D2A, 0x90221C58, hover), 8);
+        Glass.pill(graphics, x1, y1, w, h, Ease.color(0xCC0F0F12, 0xE61C1C20, hover), 8);
 
         var font = net.minecraft.client.Minecraft.getInstance().font;
 
-        String valueText = String.valueOf(value());
+        String valueText = valueText();
         int valueW = font.width(valueText);
         int room = w - 28 - valueW - 10;
 
         graphics.text(font, ToggleRow.fit(font, name, room), x1 + 14, y1 + 6,
-                Ease.color(0xFFC9C4EE, 0xFFFFFFFF, hover), false);
+                Ease.color(0xFFC8C8D0, 0xFFFFFFFF, hover), false);
         graphics.text(font, valueText, x1 + w - 14 - valueW, y1 + 6, Theme.CYAN, false);
 
         if (!description.isEmpty() && h >= 44) {
@@ -125,17 +154,17 @@ public class SliderRow extends AbstractSliderButton {
         int trackW = w - 28;
         int trackY = y1 + h - 12;
 
-        Glass.panel(graphics, trackX, trackY, trackW, 4, 0xFF262046, 2);
+        Glass.pill(graphics, trackX, trackY, trackW, 4, 0xFF232327, 2);
 
         int filled = Math.max(0, Math.round((float) (this.value * trackW)));
         if (filled > 0) {
-            Glass.panel(graphics, trackX, trackY, filled, 4,
+            Glass.pill(graphics, trackX, trackY, filled, 4,
                     Ease.color(Theme.accent(), Theme.CYAN, hover), 2);
         }
 
         int knobX = trackX + Math.min(trackW - 8, Math.max(0, filled - 4));
-        Glass.panel(graphics, knobX, trackY - 3, 8, 10,
-                Ease.color(0xFF8B84C8, Theme.CYAN, hover), 4);
+        Glass.pill(graphics, knobX, trackY - 3, 8, 10,
+                Ease.color(0xFF8E8E98, Theme.CYAN, hover), 4);
     }
 
     /** Mouse only, for the same reason as the buttons. */

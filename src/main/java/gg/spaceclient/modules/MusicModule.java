@@ -50,6 +50,18 @@ public class MusicModule extends HudModule {
             "over_name", "Over name",
             "Show your track above your name tag to other Space Client players", false);
 
+    /**
+     * Starts the control host when the element is switched on.
+     *
+     * Starting it is the slow part, and the moment somebody presses play is
+     * exactly when that is felt. Doing it here means the press is a line of
+     * text down a pipe that is already open.
+     */
+    @Override
+    protected void onEnable() {
+        gg.spaceclient.music.MusicWatcher.warmControls();
+    }
+
     public MusicModule() {
         super("music", "Now Playing", "Shows the track from Spotify or Amazon Music",
                 0.02f, 0.80f, false);

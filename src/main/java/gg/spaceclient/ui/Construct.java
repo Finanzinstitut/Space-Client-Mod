@@ -22,9 +22,23 @@ public final class Construct {
     /**
      * The first constructor whose arguments can all be supplied from the pool.
      *
-     * Longer constructors are tried first: where a class carries both a short
-     * and a long form, the long one is usually the current one and the short
-     * one a deprecated shim.
+     * Shorter constructors are tried first, and that reversal is a bug fix.
+     *
+     * The old order preferred the longest form, on the reasoning that where a
+     * class carries a short and a long shape, the long one is usually current
+     * and the short one a deprecated shim. That held while the pool was three
+     * objects named by hand: a five-argument constructor simply could not be
+     * filled, so preferring it cost nothing.
+     *
+     * poolFrom changed that. It offers everything the game is holding - about a
+     * hundred objects - and with that much on the table a long constructor can
+     * be filled, every extra argument chosen on nothing but "is an instance
+     * of". That is how the world creator came to open a screen whose Create
+     * and Cancel buttons did nothing: a longer openFresh was satisfied with
+     * objects of the right types and the wrong meaning.
+     *
+     * Fewest parameters wins now, because every parameter beyond the ones we
+     * actually know is a guess, and the shortest call is the smallest guess.
      */
     public static Object of(String className, Object... pool) {
         try {
@@ -32,7 +46,7 @@ public final class Construct {
             Constructor<?>[] constructors = type.getConstructors();
 
             java.util.Arrays.sort(constructors,
-                    (a, b) -> b.getParameterCount() - a.getParameterCount());
+                    (a, b) -> a.getParameterCount() - b.getParameterCount());
 
             for (Constructor<?> constructor : constructors) {
                 Object[] args = match(constructor.getParameterTypes(), pool);
@@ -64,7 +78,7 @@ public final class Construct {
             Constructor<?>[] constructors = type.getConstructors();
 
             java.util.Arrays.sort(constructors,
-                    (a, b) -> b.getParameterCount() - a.getParameterCount());
+                    (a, b) -> a.getParameterCount() - b.getParameterCount());
 
             for (Constructor<?> constructor : constructors) {
                 Object[] args = match(constructor.getParameterTypes(), pool);
@@ -106,8 +120,11 @@ public final class Construct {
             Class<?> type = Class.forName(className);
             Method[] methods = type.getMethods();
 
+            // Shortest first, for the reason given on of() above: with the
+            // whole game on offer, a long overload can be filled with things
+            // that merely have the right types.
             java.util.Arrays.sort(methods,
-                    (a, b) -> b.getParameterCount() - a.getParameterCount());
+                    (a, b) -> a.getParameterCount() - b.getParameterCount());
 
             for (Method method : methods) {
                 if (!method.getName().equals(methodName)) continue;
@@ -153,7 +170,7 @@ public final class Construct {
 
             Method[] methods = type.getMethods();
             java.util.Arrays.sort(methods,
-                    (a, b) -> b.getParameterCount() - a.getParameterCount());
+                    (a, b) -> a.getParameterCount() - b.getParameterCount());
 
             for (Method method : methods) {
                 if (!java.lang.reflect.Modifier.isStatic(method.getModifiers())) continue;
@@ -345,6 +362,66 @@ public final class Construct {
      * offered and null if not, which is the right answer for a parent that has
      * genuinely not been supplied.
      */
+    /**
+     * Everything one object is holding, as things to offer a constructor.
+     *
+     * The pool used to be written out by hand, and that is what made most of
+     * the settings tiles do nothing: the game's language screen wants a
+     * LanguageManager, its pack screen wants a PackRepository, and neither was
+     * on offer - so the strict pass refused and the lenient one passed null and
+     * was thrown out. Nothing on screen, one line in a log.
+     *
+     * Reading the fields instead means never having to know what a screen
+     * wants or what its getter is called on this version. Whatever the game
+     * holds is offered, and the type matching below decides.
+     *
+     * Read once and remembered: these are the game's own long-lived objects,
+     * and walking a class with a hundred fields on every button press would be
+     * work for nothing.
+     */
+    public static Object[] poolFrom(Object host, Object... extra) {
+        if (host == null) return extra;
+
+        java.util.List<Object> out = new java.util.ArrayList<>(java.util.Arrays.asList(extra));
+        out.add(host);
+
+        for (java.lang.reflect.Field field : fieldsOf(host.getClass())) {
+            try {
+                Object value = field.get(host);
+                if (value != null) out.add(value);
+            } catch (Throwable ignored) {
+                // A field that will not be read is simply not on offer
+            }
+        }
+        return out.toArray();
+    }
+
+    private static java.lang.reflect.Field[] fieldsOf(Class<?> type) {
+        java.lang.reflect.Field[] cached = FIELD_CACHE.get(type);
+        if (cached != null) return cached;
+
+        java.util.List<java.lang.reflect.Field> found = new java.util.ArrayList<>();
+        for (Class<?> current = type; current != null && current != Object.class;
+             current = current.getSuperclass()) {
+            for (java.lang.reflect.Field field : current.getDeclaredFields()) {
+                if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) continue;
+                try {
+                    field.setAccessible(true);
+                    found.add(field);
+                } catch (Throwable ignored) {
+                    // Sealed away; skip it
+                }
+            }
+        }
+
+        java.lang.reflect.Field[] array = found.toArray(new java.lang.reflect.Field[0]);
+        FIELD_CACHE.put(type, array);
+        return array;
+    }
+
+    private static final java.util.Map<Class<?>, java.lang.reflect.Field[]> FIELD_CACHE =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     private static Object[] match(Class<?>[] params, Object[] pool) {
         Object[] args = new Object[params.length];
         boolean[] used = new boolean[pool.length];

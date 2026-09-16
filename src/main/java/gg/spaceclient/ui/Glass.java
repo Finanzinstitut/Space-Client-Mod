@@ -92,6 +92,213 @@ public final class Glass {
         }
     }
 
+
+    /**
+     * A glass pill: rounded to any radius, with a soft edge around it.
+     *
+     * The older panel() above is built on two hand-written corner tables and
+     * stops at a radius of six, which is a rounded rectangle rather than the
+     * shape asked for. This computes the corner from a circle, so a radius of
+     * half the height gives a capsule and anything between behaves.
+     *
+     * The softness around the outside is three rings of increasing size and
+     * falling opacity. It is not a blur of what is behind the plate - that
+     * needs the frame buffer read back, which is a different and much larger
+     * piece of work - but it is what makes the plate read as lying above the
+     * world rather than being cut into it.
+     */
+    public static void pill(GuiGraphicsExtractor graphics,
+                            int x, int y, int width, int height,
+                            int tint, int radius) {
+        pill(graphics, x, y, width, height, tint, radius, NO_CLIP_TOP, NO_CLIP_BOTTOM);
+    }
+
+    /**
+     * The same plate without the soft edge around it.
+     *
+     * The shadow says "this is lying on top of that". A toggle inside a card is
+     * not lying on the world - it is part of the card, which is already lifted -
+     * so the three rings under it are invisible and cost three times the shape
+     * they surround. Everything that sits on another surface uses this;
+     * everything that sits on the game keeps the shadow.
+     */
+    public static void flat(GuiGraphicsExtractor graphics,
+                            int x, int y, int width, int height,
+                            int tint, int radius) {
+        flat(graphics, x, y, width, height, tint, radius, NO_CLIP_TOP, NO_CLIP_BOTTOM);
+    }
+
+    public static void flat(GuiGraphicsExtractor graphics,
+                            int x, int y, int width, int height,
+                            int tint, int radius, int clipTop, int clipBottom) {
+        if (width <= 0 || height <= 0) return;
+        if (y >= clipBottom || y + height <= clipTop) return;
+
+        int alpha = (tint >>> 24) & 0xFF;
+        if (alpha == 0) return;
+
+        int body = (alpha << 24) | (tint & 0xFFFFFF);
+        roundedRows(graphics, x, y, width, height, radius, row -> body, clipTop, clipBottom);
+    }
+
+    /** Nothing is clipped away unless a caller asks for it. */
+    public static final int NO_CLIP_TOP = Integer.MIN_VALUE / 4;
+    public static final int NO_CLIP_BOTTOM = Integer.MAX_VALUE / 4;
+
+    /**
+     * The same pill, with the rows outside a horizontal band thrown away.
+     *
+     * A scrolling list needs this. Without it a card halfway out of its
+     * viewport paints over the header above it, and the usual fix - a strip
+     * drawn over the overflow - does not work on a panel whose own alpha is
+     * below 0xFF, because the strip is then as see-through as what it covers.
+     * Dropping the rows is the only version of this that is actually correct.
+     */
+    public static void pill(GuiGraphicsExtractor graphics,
+                            int x, int y, int width, int height,
+                            int tint, int radius, int clipTop, int clipBottom) {
+        if (width <= 0 || height <= 0) return;
+        if (y >= clipBottom || y + height <= clipTop) return;
+
+        int alpha = (tint >>> 24) & 0xFF;
+        if (alpha == 0) return;
+
+        int red = (tint >> 16) & 0xFF;
+        int green = (tint >> 8) & 0xFF;
+        int blue = tint & 0xFF;
+
+        // Outward, faintest first. Each ring is the same shape one pixel
+        // larger, which is a cheap stand-in for a shadow that falls off.
+        for (int step = 3; step >= 1; step--) {
+            int shadow = Math.round(alpha * 0.055f * (4 - step));
+            if (shadow <= 2) continue;
+            roundedRows(graphics, x - step, y - step,
+                    width + step * 2, height + step * 2, radius + step,
+                    row -> shadow << 24, clipTop, clipBottom);
+        }
+
+        // The body, one flat tone. It used to lighten toward the top, which
+        // read as the plate being lit from above - and the top edge then sat
+        // brighter than the bottom, which is the thing that stood out.
+        int body = (alpha << 24) | (red << 16) | (green << 8) | blue;
+        roundedRows(graphics, x, y, width, height, radius, row -> body, clipTop, clipBottom);
+
+        int[] insets = circleInsets(radius, height);
+        int top = insets.length > 0 ? insets[0] : 0;
+
+        // The same dark edge top and bottom. A lighter top edge is the usual
+        // way to suggest glass catching the light, and it was what made the
+        // upper half look brighter than the lower - so both edges now get the
+        // same line and the plate reads as one flat tone.
+        int edge = Math.min(46, Math.round(alpha * 0.20f));
+        if (edge > 2) {
+            band(graphics, x + top + 2, y, x + width - top - 2, y + 1,
+                    edge << 24, clipTop, clipBottom);
+            band(graphics, x + top + 2, y + height - 1,
+                    x + width - top - 2, y + height, edge << 24, clipTop, clipBottom);
+        }
+    }
+
+    /** A fill that keeps only the part inside the band. */
+    public static void band(GuiGraphicsExtractor graphics,
+                            int x1, int y1, int x2, int y2,
+                            int colour, int clipTop, int clipBottom) {
+        int top = Math.max(y1, clipTop);
+        int bottom = Math.min(y2, clipBottom);
+        if (bottom <= top) return;
+        graphics.fill(x1, top, x2, bottom, colour);
+    }
+
+    /** Draws one rounded shape, asking the caller for each row's colour. */
+    private static void roundedRows(GuiGraphicsExtractor graphics,
+                                    int x, int y, int width, int height,
+                                    int radius, java.util.function.IntUnaryOperator colourOf) {
+        roundedRows(graphics, x, y, width, height, radius, colourOf, NO_CLIP_TOP, NO_CLIP_BOTTOM);
+    }
+
+    /**
+     * Draws one rounded shape, asking the caller for each row's colour.
+     *
+     * Rows that agree on both their inset and their colour are emitted as one
+     * rectangle rather than one rectangle each. That is not a micro-optimisation:
+     * only the rows within `radius` of an end are actually different from each
+     * other, so a plate of any height costs about two radii of draw calls
+     * instead of its height.
+     *
+     * The menu is what forced this. It came to eleven and a half thousand fill
+     * calls a frame - a 480 pixel panel alone was 480 of them, and its shadow
+     * three more rings of the same - and the result was a menu that visibly
+     * dropped frames on a client that ships an FPS counter. The same menu now
+     * costs a few hundred, and nothing about how it looks has changed: the
+     * pixels drawn are identical, they are simply asked for in runs.
+     */
+    private static void roundedRows(GuiGraphicsExtractor graphics,
+                                    int x, int y, int width, int height,
+                                    int radius, java.util.function.IntUnaryOperator colourOf,
+                                    int clipTop, int clipBottom) {
+        int[] insets = circleInsets(radius, height);
+
+        // The open run: -1 means there is none yet.
+        int runStart = -1;
+        int runInset = 0;
+        int runColour = 0;
+
+        for (int row = 0; row <= height; row++) {
+            boolean usable = row < height
+                    && y + row >= clipTop && y + row < clipBottom;
+
+            int inset = 0;
+            int colour = 0;
+            if (usable) {
+                if (row < insets.length) inset = insets[row];
+                else if (row >= height - insets.length) inset = insets[height - 1 - row];
+                colour = colourOf.applyAsInt(row);
+                if (((colour >>> 24) & 0xFF) == 0) usable = false;
+            }
+
+            // A row that cannot join the open run closes it, and the row after
+            // the last is deliberately included so the final run is flushed.
+            if (runStart >= 0 && (!usable || inset != runInset || colour != runColour)) {
+                graphics.fill(x + runInset, y + runStart,
+                        x + width - runInset, y + row, runColour);
+                runStart = -1;
+            }
+            if (usable && runStart < 0) {
+                runStart = row;
+                runInset = inset;
+                runColour = colour;
+            }
+        }
+    }
+
+    /**
+     * How far each row near a corner is pulled in, taken off a circle.
+     *
+     * Cached per radius: a HUD with twenty elements would otherwise work this
+     * out twenty times a frame for the same handful of numbers.
+     */
+    private static int[] circleInsets(int radius, int height) {
+        int r = Math.max(0, Math.min(radius, height / 2));
+        if (r == 0) return EMPTY_INSETS;
+
+        int[] cached = INSET_CACHE.get(r);
+        if (cached != null) return cached;
+
+        int[] out = new int[r];
+        for (int row = 0; row < r; row++) {
+            double dy = r - row - 0.5;
+            double dx = Math.sqrt(Math.max(0.0, (double) r * r - dy * dy));
+            out[row] = (int) Math.round(r - dx);
+        }
+        INSET_CACHE.put(r, out);
+        return out;
+    }
+
+    private static final int[] EMPTY_INSETS = new int[0];
+
+    private static final java.util.Map<Integer, int[]> INSET_CACHE =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     /** Moves a channel toward white by a fraction. */
     private static int lighten(int channel, float amount) {
         return Math.min(255, Math.round(channel + (255 - channel) * amount));

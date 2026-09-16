@@ -5,6 +5,7 @@ import gg.spaceclient.config.Profiles;
 import gg.spaceclient.module.Module;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
@@ -15,71 +16,103 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * The main menu, as a window rather than a takeover.
+ * The client menu, rebuilt from nothing.
  *
- * The previous version painted the whole screen, which made a quick toggle feel
- * like leaving the game. This one is a panel in the middle with the world still
- * visible around it, so opening the menu reads as pausing rather than exiting.
+ * <h2>What was wrong with the old one</h2>
  *
- * The other change is how modules are found. Categories used to be the only way
- * through the list, which made them behave like pages: to reach a module you
- * first had to know which shelf it was on. Now the list is one continuous
- * scroll with a search field above it, and the categories are a filter you may
- * use rather than a route you must take.
+ * Modules were a single column of rows, and the things that were not modules -
+ * the HUD editor, accounts, cosmetics, the look of the client - were scattered
+ * between a left rail, a chip strip and two corners of a footer. So the menu
+ * had three separate ideas of where a control might live, and knowing which
+ * one to look in was something you had to learn rather than see. A column also
+ * wastes the width it is given: eleven lines at a time out of twenty-six,
+ * whatever the size of the window.
  *
- * Everything interactive is a widget, and the scroll callbacks carry no
- * @Override, both for the reason the rest of this package does: this version
- * reworked the input API, and a signature that no longer matches should become
- * a dead method rather than a failed build.
+ * <h2>What this is instead</h2>
+ *
+ * One panel, three regions, and nothing outside them. The rail on the left is
+ * the only navigation there is - the category filters and every other screen
+ * the client has, in one list, in the place you look first. The middle is a
+ * grid of cards rather than a column of rows, so the panel shows most of the
+ * client at once. The footer holds the three things that are settings of the
+ * menu itself rather than places to go.
+ *
+ * <h2>Movement</h2>
+ *
+ * Nothing here appears; everything arrives. The panel fades up, the cards
+ * stagger in from below, the rail's selected marker is one bar that slides
+ * between entries instead of a light going out as another comes on, and the
+ * grid restarts its entrance whenever the filter changes - which is also what
+ * tells you the filter did something. All of it runs off frame time, so it
+ * takes the same fifth of a second at thirty frames a second as at two
+ * hundred and forty.
+ *
+ * <h2>Two conventions carried over</h2>
+ *
+ * The scroll callbacks have no @Override, and the search field is a vanilla
+ * EditBox. Both are because this version reworked the input API: a hand
+ * written handler whose signature no longer matches should become a dead
+ * method rather than a failed build, and typing needs the keyboard API, which
+ * the vanilla widget already handles internally.
  */
 public class SpaceMenuScreen extends Screen {
 
-    private static final int RAIL_W = 104;
-    private static final int ROW_H = 26;
-    private static final int ROW_GAP = 2;
-    private static final int HEADER_H = 42;
-    private static final int CHIP_H = 18;
-    private static final int FOOTER_H = 30;
-    private static final int PAD = 12;
-
-    /** Which rail entry is showing. Only Mods has a list; the rest open screens. */
-    private String section = "Mods";
+    private static final int RAIL_W = 128;
+    private static final int HEADER_H = 46;
+    private static final int FOOTER_H = 34;
+    private static final int PAD = 14;
+    private static final int GAP = 8;
+    private static final int SEARCH_W = 160;
 
     /** Null means every category. */
     private String category = null;
 
-    /** Narrows the list to modules that are switched on. */
+    /** Narrows the grid to modules that are switched on. */
     private boolean onlyEnabled = false;
 
     private String query = "";
     private EditBox search;
 
     /**
-     * Scroll position in whole rows, not pixels.
+     * Scrolling, in pixels, with the drawn position chasing the wanted one.
      *
-     * Pixel scrolling means rows are half in and half out of the list, which
-     * has to be hidden by drawing over the overflow. That was the previous
-     * approach and it failed twice over: every module was given a widget, not
-     * just the visible ones, so the list ran hundreds of pixels past the window
-     * in both directions; and the panel colour has an alpha of 0xE6, so the
-     * strips meant to cover the overflow were themselves see through and only
-     * dimmed it.
-     *
-     * Counting in rows removes the problem rather than papering over it. Only
-     * rows that fit are given a widget, and they always sit fully inside the
-     * list, so there is no overflow to hide and nothing can be drawn outside
-     * the window.
+     * Pixel scrolling is only safe here because a card clips itself to the
+     * grid's band - see ModuleCard. The old menu could not do this and stepped
+     * by whole rows instead, which is why it never felt like a scroll.
      */
-    private int scrollRow = 0;
+    private float scrollWanted = 0f;
     private float scrollShown = 0f;
 
-    /**
-     * Set at construction rather than in init, so the fade is not restarted
-     * every time the widgets are rebuilt.
-     */
+    /** Where the rail's sliding marker is, and where it is heading. */
+    private float markShown = -1f;
+
+    /** Pull the grid by holding the left button, as well as by the wheel. */
+    private final DragScroll drag = new DragScroll();
+
     private final long openedAt = System.currentTimeMillis();
 
-    private final List<ModRow> rows = new ArrayList<>();
+    /** Restarted on every filter change, which is what re-runs the stagger. */
+    private long gridSince = System.currentTimeMillis();
+
+    private final List<ModuleCard> cards = new ArrayList<>();
+
+    /**
+     * The modules the cards were built from, and the shelves the rail was built
+     * from, kept rather than worked out again.
+     *
+     * Both used to be recomputed inside the paint pass - once for the hovered
+     * card's description, once for the rail's marker - which walked every
+     * module several times a frame to answer a question that had already been
+     * answered when the widgets were made. A client that ships an FPS module
+     * should not be the reason the number goes down.
+     */
+    private List<Module> visible = new ArrayList<>();
+    private List<String> shelves = new ArrayList<>();
+
+    /** Laid out once per rebuild so the paint pass does not redo the maths. */
+    private int columns = 1;
+    private int cardW = ModuleCard.WIDTH;
+    private int rows = 0;
 
     public SpaceMenuScreen() {
         super(Component.literal("Space Client"));
@@ -87,27 +120,27 @@ public class SpaceMenuScreen extends Screen {
 
     // ---------------- geometry ----------------
     //
-    // Clamped rather than proportional: below the minimum the list stops being
-    // readable, and above the maximum a centred panel starts to feel like the
-    // full screen layout this replaced.
+    // Clamped rather than proportional at both ends: below the minimum the grid
+    // drops to one column and stops being a grid, and above the maximum a
+    // centred panel starts to read as the full-screen takeover this replaced.
 
-    private int panelW() { return Math.max(400, Math.min(620, this.width - 80)); }
-    private int panelH() { return Math.max(240, Math.min(400, this.height - 60)); }
+    private int panelW() { return Math.max(440, Math.min(880, this.width - 60)); }
+    private int panelH() { return Math.max(260, Math.min(480, this.height - 50)); }
     private int panelX() { return (this.width - panelW()) / 2; }
     private int panelY() { return (this.height - panelH()) / 2; }
 
-    private int contentLeft()  { return panelX() + RAIL_W; }
-    private int contentRight() { return panelX() + panelW(); }
-    private int listTop()      { return panelY() + HEADER_H + CHIP_H + 10; }
-    private int listBottom()   { return panelY() + panelH() - FOOTER_H; }
+    private int gridLeft()   { return panelX() + RAIL_W + PAD; }
+    private int gridRight()  { return panelX() + panelW() - PAD; }
+    private int gridTop()    { return panelY() + HEADER_H + 6; }
+    private int gridBottom() { return panelY() + panelH() - FOOTER_H - 22; }
 
     // ---------------- data ----------------
 
-    /** Settings that are not inside a group, so they are not listed twice. */
+    /** Settings that are not inside a group, so nothing is listed twice. */
     private static List<gg.spaceclient.setting.Setting> ungrouped(Module module) {
         java.util.Set<gg.spaceclient.setting.Setting> inGroups = new java.util.HashSet<>();
-        module.getGroups().forEach(g -> inGroups.addAll(g.settings()));
-        return module.getSettings().stream().filter(s -> !inGroups.contains(s)).toList();
+        module.getGroups().forEach(group -> inGroups.addAll(group.settings()));
+        return module.getSettings().stream().filter(setting -> !inGroups.contains(setting)).toList();
     }
 
     private boolean matches(Module module) {
@@ -115,9 +148,9 @@ public class SpaceMenuScreen extends Screen {
         if (onlyEnabled && !module.isEnabled()) return false;
         if (query.isEmpty()) return true;
 
+        // The description is searched too, so "frames" finds the FPS module
+        // without the word being in its name.
         String needle = query.toLowerCase(Locale.ROOT);
-        // Description is searched too, so "fps" finds the module that mentions
-        // frames without having the word in its name
         return module.getName().toLowerCase(Locale.ROOT).contains(needle)
                 || module.getId().toLowerCase(Locale.ROOT).contains(needle)
                 || module.getDescription().toLowerCase(Locale.ROOT).contains(needle);
@@ -131,12 +164,26 @@ public class SpaceMenuScreen extends Screen {
         return out;
     }
 
-    private int countIn(String cat) {
+    private int countIn(String shelf) {
         int count = 0;
         for (Module module : SpaceClient.getModuleManager().getAll()) {
-            if (cat == null || cat.equals(ModuleCategories.of(module))) count++;
+            if (shelf == null || shelf.equals(ModuleCategories.of(module))) count++;
         }
         return count;
+    }
+
+    /** Every category that has anything on it, "All" first. */
+    private List<String> buildShelves() {
+        List<String> out = new ArrayList<>();
+        out.add(null);
+        for (String shelf : ModuleCategories.ALL) {
+            if (countIn(shelf) > 0) out.add(shelf);
+        }
+        return out;
+    }
+
+    private static String shelfName(String shelf) {
+        return shelf == null ? "All" : shelf;
     }
 
     // ---------------- build ----------------
@@ -145,76 +192,131 @@ public class SpaceMenuScreen extends Screen {
     protected void init() {
         buildSearch();
         buildRail();
-        buildChips();
-        buildStreamerButton();
-        buildProfileButton();
-        buildList();
+        buildFooter();
+        buildGrid();
     }
 
     /**
-     * The search field is a vanilla EditBox on purpose.
+     * The search field, as a vanilla EditBox with its border switched off.
      *
-     * Typing needs the keyboard API, and this version reworked input. A widget
-     * handles its own events internally, so using the vanilla one keeps this
-     * screen out of a signature it cannot verify - the same reasoning that
-     * keeps the mouse handlers below unannotated, applied one step earlier.
-     *
-     * The jar bears this out: input in 26.2 runs on KeyEvent and
-     * CharacterEvent, so a hand written charTyped(char, int) would have
-     * compiled into a method nothing ever calls, and the field would have sat
-     * there refusing to type with no error to explain why.
+     * The frame is drawn by this screen instead, so the field matches the rest
+     * of the panel; the widget itself is vanilla because typing goes through
+     * the keyboard API, and this version runs input on KeyEvent and
+     * CharacterEvent. A hand-written charTyped(char, int) would have compiled
+     * into a method nothing calls, and the field would have sat there refusing
+     * to type with no error to explain it.
      */
     private void buildSearch() {
-        int w = 150;
-        int x = contentRight() - PAD - w;
-        int y = panelY() + 14;
+        // Starts past the magnifier rather than at the pill's edge, so the
+        // caret never sits on top of the glyph.
+        int x = panelX() + panelW() - PAD - SEARCH_W + 26;
+        int y = panelY() + 16;
 
-        search = new EditBox(this.font, x, y, w, 16, Component.literal("Search"));
+        search = new EditBox(this.font, x, y, SEARCH_W - 36, 14, Component.literal("Search"));
         search.setBordered(false);
         search.setMaxLength(48);
         search.setTextColor(Theme.TEXT);
-        search.setHint(Component.literal("Search modules"));
-        // Value before responder, not the other way round. setValue fires the
-        // responder, and the responder rebuilds the list - so setting it after
-        // would build the rows once here and again when init reaches buildList,
-        // leaving two widgets stacked on every line.
+        search.setHint(Component.literal("Search"));
+        // Value before responder, never the other way round: setValue fires the
+        // responder, and the responder rebuilds the grid - so a rebuild would
+        // run here and again when init reaches buildGrid, stacking two widgets
+        // on every card.
         search.setValue(query);
         search.setResponder(value -> {
             query = value;
-            scrollRow = 0;
-            rebuildList();
+            scrollWanted = 0f;
+            restartGrid();
+            rebuildGrid();
         });
         this.addRenderableWidget(search);
         this.setInitialFocus(search);
     }
 
+    /**
+     * The rail: filters first, then every screen the client has.
+     *
+     * The two halves are one list on purpose. Splitting them - which is what
+     * the old menu did, with the filters as chips over the grid and the screens
+     * in a sidebar - meant there were two places a control could be and no way
+     * to tell from the outside which held what.
+     */
     private void buildRail() {
-        int y = panelY() + HEADER_H + 4;
-        String[][] entries = {
-                {"Mods", ""},
+        int x = panelX() + 8;
+        int w = RAIL_W - 16;
+        int y = panelY() + HEADER_H + 6;
+
+        shelves = buildShelves();
+        for (String shelf : shelves) {
+            this.addRenderableWidget(new RailEntry(
+                    x, y, w, 20,
+                    () -> shelfName(shelf),
+                    () -> java.util.Objects.equals(category, shelf),
+                    () -> countIn(shelf),
+                    () -> {
+                        category = shelf;
+                        onlyEnabled = false;
+                        scrollWanted = 0f;
+                        restartGrid();
+                        this.rebuildWidgets();
+                    }));
+            y += 22;
+        }
+
+        // Sits apart from the shelves because it stacks with them rather than
+        // replacing them: "HUD, and only the ones that are on" is a reasonable
+        // thing to ask for.
+        this.addRenderableWidget(new RailEntry(
+                x, y, w, 20,
+                () -> "Active",
+                () -> onlyEnabled,
+                () -> {
+                    int count = 0;
+                    for (Module module : SpaceClient.getModuleManager().getAll()) {
+                        if (module.isEnabled()) count++;
+                    }
+                    return count;
+                },
+                () -> {
+                    onlyEnabled = !onlyEnabled;
+                    scrollWanted = 0f;
+                    restartGrid();
+                    this.rebuildWidgets();
+                }));
+        y += 30;
+
+        // Below the Active row, not through it. The gap after that row is 30
+        // and the row is 20 tall, so the halfway point of the gap is five
+        // pixels back from where the destinations start.
+        railDividerY = y - 5;
+
+        String[][] places = {
                 {"Move HUD", "hud"},
                 {"Item Shower", "itemshower"},
                 {"Accounts", "accounts"},
-                {"Cosmetica", "cosmetica"},
+                {"Cosmetics", "cosmetica"},
                 {"Appearance", "appearance"},
                 {"Diagnostics", "diagnostics"},
                 {"Credits", "credits"},
         };
 
-        for (String[] entry : entries) {
-            String name = entry[0];
-            String opens = entry[1];
-            this.addRenderableWidget(new NavButton(
-                    panelX() + 6, y, RAIL_W - 12, 22, NavButton.Style.SIDEBAR,
-                    () -> name,
-                    () -> section.equals(name),
-                    () -> open(name, opens)
-            ));
-            y += 24;
+        int floor = panelY() + panelH() - FOOTER_H - 4;
+        for (String[] place : places) {
+            if (y + 20 > floor) break;   // a line half under the footer is worse than none
+            String opens = place[1];
+            this.addRenderableWidget(new RailEntry(
+                    x, y, w, 20,
+                    () -> place[0],
+                    () -> false,
+                    null,
+                    () -> open(opens)));
+            y += 22;
         }
     }
 
-    private void open(String name, String opens) {
+    /** Where the line between filters and destinations is drawn. */
+    private int railDividerY = 0;
+
+    private void open(String opens) {
         Minecraft mc = Minecraft.getInstance();
         switch (opens) {
             case "hud" -> mc.gui.setScreen(new HudEditorScreen(this));
@@ -224,79 +326,39 @@ public class SpaceMenuScreen extends Screen {
             case "appearance" -> mc.gui.setScreen(new AppearanceScreen(this));
             case "diagnostics" -> mc.gui.setScreen(new DiagnosticsScreen(this));
             case "credits" -> mc.gui.setScreen(new CreditsScreen(this));
-            default -> {
-                section = name;
-                this.rebuildWidgets();
-            }
+            default -> { }
         }
     }
 
     /**
-     * Streamer mode, on the right of the panel.
+     * The footer: the three controls that are about the menu rather than
+     * places inside it.
      *
-     * Deliberately not in the left rail with the other sections. That rail is a
-     * list of places in the menu; this is a switch that changes what the game
-     * shows other people, and putting it where a mis-click is unlikely felt
-     * worth a little asymmetry.
+     * Layout is what you are arranging, pinning ties that arrangement to the
+     * server you are on, and streamer mode changes what other people see. None
+     * of them is a destination, so none of them belongs in the rail.
      */
-    private void buildStreamerButton() {
-        int w = 96;
-        int h = 20;
-        int x = contentRight() - PAD - w;
-        int y = panelY() + panelH() - FOOTER_H + 5;
+    private void buildFooter() {
+        int y = panelY() + panelH() - FOOTER_H + 7;
+        int x = panelX() + RAIL_W + PAD;
 
         this.addRenderableWidget(new NavButton(
-                x, y, w, h, NavButton.Style.CHIP,
-                () -> StreamerMode.isOn() ? "Streamer: on" : "Streamer",
-                StreamerMode::isOn,
-                () -> Minecraft.getInstance().gui.setScreen(new StreamerScreen(this))
-        ));
-    }
-
-    /**
-     * The profile switcher, on the footer's left.
-     *
-     * One button that cycles rather than a list that opens: there are rarely
-     * more than a handful of profiles, and switching is something done between
-     * activities rather than browsed. A menu would be three clicks where one
-     * does.
-     */
-    private void buildProfileButton() {
-        int w = 104;
-        int h = 20;
-        int x = contentLeft() + PAD;
-        int y = panelY() + panelH() - FOOTER_H + 5;
-
-        this.addRenderableWidget(new NavButton(
-                x, y, w, h, NavButton.Style.CHIP,
+                x, y, 104, 20, NavButton.Style.CHIP,
                 () -> "Layout: " + Profiles.active(),
                 () -> false,
                 () -> {
-                    java.util.List<String> all = Profiles.list();
+                    List<String> all = Profiles.list();
                     int at = all.indexOf(Profiles.active());
                     Profiles.switchTo(all.get((at + 1) % all.size()));
                     this.rebuildWidgets();
-                }
-        ));
+                }));
 
-        buildPinButton(x + w + 6, y, h);
-    }
-
-    /**
-     * Ties the layout you are looking at to the place you are standing in.
-     *
-     * Next to the layout switcher rather than on a screen of its own, because
-     * the decision is made at the moment you have just finished arranging
-     * things for where you are - and a settings page you have to go and find
-     * afterwards is a page nobody goes and finds.
-     *
-     * One button, three states: nothing pinned here, this layout pinned here,
-     * or a different one pinned here. Clicking pins the active layout, or
-     * unpins when what is pinned is already the one you are using.
-     */
-    private void buildPinButton(int x, int y, int h) {
+        // Next to the layout switcher rather than on a screen of its own,
+        // because the decision is made the moment you have finished arranging
+        // things for where you are - and a setting you have to go and find
+        // afterwards is one nobody finds.
         this.addRenderableWidget(new NavButton(
-                x, y, 118, h, NavButton.Style.CHIP,
+                x + 110, y, 108, 20, NavButton.Style.CHIP,
                 () -> {
                     String here = gg.spaceclient.util.CurrentServer.address();
                     String pinned = gg.spaceclient.config.HudServerProfiles.profileFor(here);
@@ -308,95 +370,67 @@ public class SpaceMenuScreen extends Screen {
                 () -> {
                     String here = gg.spaceclient.util.CurrentServer.address();
                     String pinned = gg.spaceclient.config.HudServerProfiles.profileFor(here);
-
                     if (pinned != null && pinned.equals(Profiles.active())) {
                         gg.spaceclient.config.HudServerProfiles.clear(here);
                     } else {
                         gg.spaceclient.config.HudServerProfiles.assign(here, Profiles.active());
                     }
                     this.rebuildWidgets();
-                }
-        ));
-    }
+                }));
 
-    private void buildChips() {
-        int x = contentLeft() + PAD;
-        int y = panelY() + HEADER_H;
-
-        x += chip(x, y, "All", null) + 4;
-        for (String cat : ModuleCategories.ALL) {
-            if (countIn(cat) == 0) continue;   // an empty shelf is just noise
-            x += chip(x, y, cat, cat) + 4;
-        }
-
-        // Sits apart from the categories because it stacks with them rather
-        // than replacing them: HUD plus enabled is a reasonable thing to ask
-        String label = "On";
-        int w = this.font.width(label) + 16;
-        if (x + w <= contentRight() - PAD) {
-            this.addRenderableWidget(new NavButton(
-                    x, y, w, CHIP_H, NavButton.Style.CHIP,
-                    () -> label,
-                    () -> onlyEnabled,
-                    () -> {
-                        onlyEnabled = !onlyEnabled;
-                        scrollRow = 0;
-                        this.rebuildWidgets();
-                    }
-            ));
-        }
-    }
-
-    /** Returns the width used, so chips can sit side by side without a table. */
-    private int chip(int x, int y, String label, String value) {
-        int w = this.font.width(label) + 16;
         this.addRenderableWidget(new NavButton(
-                x, y, w, CHIP_H, NavButton.Style.CHIP,
-                () -> label,
-                () -> java.util.Objects.equals(category, value),
-                () -> {
-                    category = value;
-                    scrollRow = 0;
-                    this.rebuildWidgets();
-                }
-        ));
-        return w;
+                panelX() + panelW() - PAD - 96, y, 96, 20, NavButton.Style.CHIP,
+                () -> StreamerMode.isOn() ? "Streamer: on" : "Streamer",
+                StreamerMode::isOn,
+                () -> Minecraft.getInstance().gui.setScreen(new StreamerScreen(this))));
     }
 
-    /** How many rows fit in the list area, at least one. */
-    private int visibleRows() {
-        return Math.max(1, (listBottom() - listTop()) / (ROW_H + ROW_GAP));
+    /**
+     * How many columns fit, and how wide a card is once they do.
+     *
+     * The card's preferred width is a floor, not a fixed size: whatever is left
+     * over after the columns are counted is shared out between them, so the
+     * grid meets the right edge of the panel instead of leaving a ragged gap
+     * that changes with the window.
+     */
+    private void measure() {
+        int room = gridRight() - gridLeft();
+        columns = Math.max(1, (room + GAP) / (ModuleCard.WIDTH + GAP));
+        cardW = (room - (columns - 1) * GAP) / columns;
     }
 
-    private int maxScrollRow() {
-        return Math.max(0, shown().size() - visibleRows());
+    private int step() { return ModuleCard.HEIGHT + GAP; }
+
+    private int maxScroll() {
+        int content = rows * step() - GAP;
+        return Math.max(0, content - (gridBottom() - gridTop()));
     }
 
-    private void buildList() {
-        rows.clear();
+    private void buildGrid() {
+        cards.clear();
+        measure();
 
-        List<Module> modules = shown();
-        int left = contentLeft() + PAD;
-        int width = contentRight() - PAD - left;
-        int step = ROW_H + ROW_GAP;
+        visible = shown();
+        List<Module> modules = visible;
+        rows = (modules.size() + columns - 1) / columns;
 
-        scrollRow = Math.max(0, Math.min(scrollRow, maxScrollRow()));
-
-        int first = scrollRow;
-        int last = Math.min(modules.size(), first + visibleRows());
-
-        for (int i = first; i < last; i++) {
+        for (int i = 0; i < modules.size(); i++) {
             Module module = modules.get(i);
-            int y = listTop() + (i - first) * step;
+            int column = i % columns;
+            int row = i / columns;
+            int x = gridLeft() + column * (cardW + GAP);
+            int y = gridTop() + row * step();
 
-            ModRow[] holder = new ModRow[1];
-            holder[0] = new ModRow(
-                    left, y, width, ROW_H,
-                    module::getName,
-                    () -> ModuleCategories.of(module),
-                    module::isEnabled,
-                    module.hasSettings(),
+            ModuleCard[] holder = new ModuleCard[1];
+            holder[0] = new ModuleCard(
+                    x, y, cardW, ModuleCard.HEIGHT,
+                    module::getName, module.getDescription(),
+                    module::isEnabled, module.hasSettings(),
                     () -> {
+                        // A press that ends a pull is the pull's, not the
+                        // card's - otherwise letting go after scrolling toggles
+                        // whatever happened to be under the pointer.
+                        if (drag.swallowsClick()) return;
                         if (holder[0].overGear()) {
                             Minecraft.getInstance().gui.setScreen(new SettingsScreen(
                                     this, module.getName(), module.getDescription(),
@@ -405,41 +439,34 @@ public class SpaceMenuScreen extends Screen {
                         }
                         module.toggle();
                         SpaceClient.getConfigManager().save();
-                    }
-            );
+                    });
             this.addRenderableWidget(holder[0]);
-            rows.add(holder[0]);
+            cards.add(holder[0]);
         }
     }
 
     /**
-     * Rebuilds only the list, leaving the search field alone.
+     * Rebuilds only the grid, leaving the search field alone.
      *
      * rebuildWidgets would recreate the EditBox mid keystroke, which drops
-     * focus and the caret with it - the field would accept one character and
+     * focus and the caret with it - the field would take one character and
      * then stop.
      */
-    private void rebuildList() {
-        for (ModRow row : rows) this.removeWidget(row);
-        buildList();
+    private void rebuildGrid() {
+        for (ModuleCard card : cards) this.removeWidget(card);
+        buildGrid();
+    }
+
+    private void restartGrid() {
+        gridSince = System.currentTimeMillis();
     }
 
     // ---------------- scrolling ----------------
 
-    /**
-     * Moves the list by whole rows.
-     *
-     * One notch, one row. Slightly less fluid than pixel scrolling, and worth
-     * it: a row is either in the list or it does not exist, so the list can
-     * never spill past the window.
-     */
     private boolean scrollBy(double amount) {
-        int max = maxScrollRow();
+        int max = maxScroll();
         if (max <= 0) return false;
-
-        int before = scrollRow;
-        scrollRow = Math.max(0, Math.min(max, scrollRow - (int) Math.signum(amount)));
-        if (scrollRow != before) rebuildList();
+        scrollWanted = Math.max(0f, Math.min(max, scrollWanted - (float) amount * step() * 0.9f));
         return true;
     }
 
@@ -455,132 +482,211 @@ public class SpaceMenuScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-        float age = Math.min(1f, (System.currentTimeMillis() - openedAt) / 180f);
-        // Frame rate independent, so the thumb takes the same time to settle
-        // at 30 frames a second as at 240
-        scrollShown = Ease.approach(scrollShown, scrollRow, 0.35f, delta);
+        float age = Ease.clamp01((System.currentTimeMillis() - openedAt) / 220f);
+        float shown = Ease.outCubic(age);
+
+        // Pulling the grid, only while the pointer is actually over it - so a
+        // drag that starts on the rail or the footer does not scroll anything.
+        drag.update(mouseX, mouseY);
+        if (drag.isDragging() && mouseX >= gridLeft() - PAD && mouseY >= gridTop()
+                && mouseY < gridBottom()) {
+            scrollWanted = Math.max(0f, Math.min(maxScroll(), scrollWanted - drag.deltaY()));
+        }
+        scrollWanted = Math.max(0f, Math.min(maxScroll(), scrollWanted));
+        scrollShown = Ease.approach(scrollShown, scrollWanted, 0.45f, delta);
 
         int x0 = panelX();
         int y0 = panelY();
         int x1 = x0 + panelW();
         int y1 = y0 + panelH();
 
-        // The chosen background, the same one every other screen draws.
-        //
-        // This screen used to draw a plain veil instead, on the reasoning that
-        // a full screen starfield behind a window looked like the game blanking
-        // out. That was solving the wrong problem: the result was a background
-        // setting that visibly did nothing anywhere except the Appearance
-        // screen where you changed it. Consistency is worth more than that
-        // judgement was, and the photographs and Aurora look right behind a
-        // window in a way the starfield did not.
+        // The chosen background, the same one every other screen draws, so a
+        // background setting is not a setting that visibly does nothing
+        // everywhere except the screen it was changed on.
         Backdrop.draw(graphics, this.width, this.height);
+        graphics.fill(0, 0, this.width, this.height, (int) (0x55 * shown) << 24);
 
-        // A little extra shade so the panel still separates from a bright
-        // photograph behind it
-        graphics.fill(0, 0, this.width, this.height, 0x44000000);
+        // One rounded plate with its own soft edge, rather than a rectangle
+        // with four one-pixel borders. This is the shape the HUD plates and
+        // every button use, and the menu was the last thing still drawing a box.
+        Glass.pill(graphics, x0, y0, panelW(), panelH(), Theme.PANEL, 14);
 
-        // A soft edge around the panel, drawn as two rings rather than a blur,
-        // which this renderer has no cheap way to do
-        graphics.fill(x0 - 2, y0 - 2, x1 + 2, y1 + 2, 0x30000000);
-        graphics.fill(x0 - 1, y0 - 1, x1 + 1, y1 + 1, 0x50000000);
+        // The rail is a shade darker than the panel instead of a separate
+        // surface with a line down its edge: one plate reads as one window.
+        Glass.flat(graphics, x0 + 4, y0 + HEADER_H - 4, RAIL_W - 4,
+                panelH() - HEADER_H - FOOTER_H + 6, 0x30000000, 12);
 
-        // Opaque base under the panel colour. Theme.CONTENT is 0xE6 alpha, so on
-        // its own the world shows faintly through the menu - and anything drawn
-        // over it to hide something is equally see through.
-        graphics.fill(x0, y0, x1, y1, 0xFF070518);
-        graphics.fill(x0, y0, x1, y1, Theme.CONTENT);
+        header(graphics, x0, y0, x1);
 
-        // A light line just inside the top edge and a shadow under the bottom,
-        // the same two strokes the HUD plates use. It is a small thing and it
-        // is most of what separates a panel from a rectangle.
-        graphics.fill(x0 + 2, y0 + 1, x1 - 2, y0 + 2, 0x30FFFFFF);
-        graphics.fill(x0 + 2, y1 - 2, x1 - 2, y1 - 1, 0x40000000);
-        graphics.fill(x0, y0, x0 + RAIL_W, y1, Theme.SIDEBAR);
-        graphics.fill(x0 + RAIL_W, y0, x0 + RAIL_W + 1, y1, Theme.BORDER);
+        // The rail's divider, between the filters and the places they are not.
+        if (railDividerY > 0) {
+            graphics.fill(x0 + 16, railDividerY, x0 + RAIL_W - 16, railDividerY + 1, 0x22FFFFFF);
+        }
 
-        // Panel outline
-        graphics.fill(x0, y0, x1, y0 + 1, Theme.BORDER);
-        graphics.fill(x0, y1 - 1, x1, y1, Theme.BORDER);
-        graphics.fill(x0, y0, x0 + 1, y1, Theme.BORDER);
-        graphics.fill(x1 - 1, y0, x1, y1, Theme.BORDER);
-
-        // Header
-        JupiterIcon.draw(graphics, x0 + 12, y0 + 12, 18);
-        graphics.text(this.font, "SPACE", x0 + 36, y0 + 12, Theme.accent(), false);
-        graphics.text(this.font, "CLIENT", x0 + 36, y0 + 24, Theme.TEXT, false);
-        graphics.fill(x0, y0 + HEADER_H - 4, x1, y0 + HEADER_H - 3, Theme.BORDER);
-
-        // Search field: its own frame, since the vanilla border was turned off
-        int searchX = contentRight() - PAD - 150;
-        int searchY = y0 + 12;
-        graphics.fill(searchX - 6, searchY, contentRight() - PAD, searchY + 20, Theme.CARD);
-        graphics.fill(searchX - 6, searchY, contentRight() - PAD, searchY + 1, Theme.BORDER);
-        graphics.fill(searchX - 6, searchY + 19, contentRight() - PAD, searchY + 20, Theme.BORDER);
+        railMarker(graphics, x0, delta);
+        layoutCards(mouseX, mouseY);
 
         super.extractRenderState(graphics, mouseX, mouseY, delta);
 
-        if (shown().isEmpty()) {
-            String empty = query.isEmpty() ? "Nothing here" : "No module matches";
-            graphics.text(this.font, empty,
-                    contentLeft() + PAD, listTop() + 10, Theme.TEXT_DIM, false);
+        if (cards.isEmpty()) {
+            String empty = query.isEmpty() ? "Nothing on this shelf" : "No module matches";
+            graphics.text(this.font, empty, gridLeft(), gridTop() + 16, Theme.TEXT_DIM, false);
         }
 
-        int maxRow = maxScrollRow();
-        if (maxRow > 0) {
-            int trackTop = listTop();
-            int trackHeight = listBottom() - trackTop;
-            int total = shown().size();
-            int thumb = Math.max(20, trackHeight * visibleRows() / Math.max(1, total));
-            int travel = trackHeight - thumb;
-            int offset = Math.round(travel * (scrollShown / maxRow));
-            int x = x1 - 5;
-            graphics.fill(x, trackTop, x + 2, trackTop + trackHeight, Theme.CARD);
-            graphics.fill(x, trackTop + offset, x + 2, trackTop + offset + thumb, Theme.accent());
-        }
+        // Fades at the top and bottom of the grid.
+        //
+        // A card is clipped row by row, so it stops dead at the band's edge.
+        // That is correct and it looks cut, so the last few rows are darkened
+        // in steps and the cut becomes an edge the content passes under.
+        fadeEdge(graphics, gridTop(), 1);
+        fadeEdge(graphics, gridBottom(), -1);
 
-        // Footer. The module count used to sit on the left and the hovered
-        // description was drawn in the same place, so the two overlapped into
-        // an unreadable smear. The count is gone: the list is right there to be
-        // counted, and the description is the line worth having.
-        graphics.fill(x0 + RAIL_W + 1, y1 - FOOTER_H, x1 - 1, y1 - FOOTER_H + 1, Theme.BORDER);
-
-        String name = Minecraft.getInstance().getUser() != null
-                ? Minecraft.getInstance().getUser().getName() : "Player";
-        // Left of the streamer button, which now owns the right hand end
-        String right = name + "  v" + SpaceClient.VERSION;
-        int rightX = contentRight() - PAD - 96 - 10 - this.font.width(right);
-        graphics.text(this.font, right, rightX, y1 - 19, Theme.OFF, false);
-
-        // Description of whichever row the pointer is over. Above the footer
-        // rather than inside it: the profile button took that line, and a
-        // description that appeared over a button would be unreadable and make
-        // the button look broken.
-        List<Module> modules = shown();
-        int step = ROW_H + ROW_GAP;
-        int room = contentRight() - PAD - (contentLeft() + PAD);
-        for (int i = 0; i < rows.size(); i++) {
-            int rowY = listTop() + i * step;
-            if (mouseY >= rowY && mouseY < rowY + ROW_H
-                    && mouseX >= contentLeft() && mouseX <= contentRight()) {
-                int index = scrollRow + i;
-                if (index < modules.size()) {
-                    String description = modules.get(index).getDescription();
-                    graphics.text(this.font,
-                            this.font.plainSubstrByWidth(description, room),
-                            contentLeft() + PAD, y1 - FOOTER_H - 11, Theme.TEXT_DIM, false);
-                }
-                break;
-            }
-        }
+        scrollbar(graphics, x1);
+        footer(graphics, x0, x1, y1, mouseX, mouseY);
 
         if (age < 1f) {
-            // Eased rather than linear: a fade that comes off at a constant
-            // rate reads as a cut, because the eye notices the last few percent
-            // most and that is exactly where linear spends the least time
-            int veil = (int) ((1f - Ease.outCubic(age)) * 255) << 24;
-            graphics.fill(0, 0, this.width, this.height, veil);
+            // Eased rather than linear: a veil that lifts at a constant rate
+            // reads as a cut, because the eye notices the last few percent most
+            // and that is exactly where linear spends the least time.
+            graphics.fill(0, 0, this.width, this.height, (int) ((1f - shown) * 255) << 24);
         }
+    }
+
+    private void header(GuiGraphicsExtractor graphics, int x0, int y0, int x1) {
+        JupiterIcon.draw(graphics, x0 + 14, y0 + 13, 20);
+        graphics.text(this.font, "SPACE", x0 + 40, y0 + 13, Theme.TEXT, false);
+        graphics.text(this.font, "CLIENT", x0 + 40, y0 + 25, Theme.TEXT_DIM, false);
+
+        // The search field's own frame, since the vanilla border is off.
+        int searchX = x1 - PAD - SEARCH_W;
+        int searchY = y0 + 12;
+        Glass.flat(graphics, searchX, searchY, SEARCH_W, 22, Theme.CHIP, 11);
+
+        // A magnifier, drawn small: a ring and a stroke off its corner.
+        int ringX = searchX + 12;
+        int ringY = searchY + 11;
+        int glass = query.isEmpty() ? Theme.OFF : Theme.TEXT_DIM;
+        graphics.fill(ringX - 3, ringY - 4, ringX + 2, ringY - 3, glass);
+        graphics.fill(ringX - 3, ringY + 2, ringX + 2, ringY + 3, glass);
+        graphics.fill(ringX - 4, ringY - 3, ringX - 3, ringY + 2, glass);
+        graphics.fill(ringX + 2, ringY - 3, ringX + 3, ringY + 2, glass);
+        graphics.fill(ringX + 3, ringY + 3, ringX + 5, ringY + 5, glass);
+    }
+
+    /**
+     * One bar that travels to whichever rail entry is selected.
+     *
+     * Deliberately drawn here rather than by the widgets. A widget knows only
+     * about itself, so a rail built out of widgets can only fade one marker out
+     * as another fades in - which reads as two lights, not one indicator. The
+     * bar is placed from the same numbers buildRail used, so it cannot drift
+     * away from the row it is pointing at.
+     */
+    private void railMarker(GuiGraphicsExtractor graphics, int x0, float delta) {
+        int index = -1;
+        if (onlyEnabled) {
+            index = shelves.size();      // the Active line, just past the shelves
+        } else {
+            for (int i = 0; i < shelves.size(); i++) {
+                if (java.util.Objects.equals(shelves.get(i), category)) { index = i; break; }
+            }
+        }
+        if (index < 0) return;
+
+        float target = panelY() + HEADER_H + 6 + index * 22;
+        if (markShown < 0f) markShown = target;    // no slide on the first frame
+        markShown = Ease.approach(markShown, target, 0.4f, delta);
+
+        int top = Math.round(markShown) + 4;
+        graphics.fill(x0 + 8, top, x0 + 11, top + 12, Theme.accent());
+    }
+
+    /**
+     * Puts every card where the scroll says it goes, and hands it the band it
+     * is allowed to paint in and how far its entrance has got.
+     *
+     * Done every frame rather than on a rebuild, so scrolling moves widgets
+     * instead of recreating them - which is what keeps the motion smooth and
+     * keeps a card's hover and toggle animations from restarting mid-scroll.
+     */
+    private void layoutCards(int mouseX, int mouseY) {
+        long elapsed = System.currentTimeMillis() - gridSince;
+        int scroll = Math.round(scrollShown);
+
+        for (int i = 0; i < cards.size(); i++) {
+            ModuleCard card = cards.get(i);
+            int column = i % columns;
+            int row = i / columns;
+
+            card.setX(gridLeft() + column * (cardW + GAP));
+            card.setY(gridTop() + row * step() - scroll);
+            card.setClip(gridTop(), gridBottom());
+
+            // Staggered along the diagonal rather than by index in the list.
+            // Row-major would run the wave along each row and start the next
+            // one back at the left, which reads as four separate animations; a
+            // diagonal is one wave crossing the grid, and it finishes sooner
+            // because the last card is at row+column rather than at row*columns.
+            card.setAppear(ScreenChrome.appearAt(elapsed, row + column));
+        }
+    }
+
+    /** Darkens the last few rows of the grid so the clip reads as an edge. */
+    private void fadeEdge(GuiGraphicsExtractor graphics, int edge, int direction) {
+        for (int step = 0; step < 6; step++) {
+            int alpha = (6 - step) * 9;
+            int y = edge + direction * step;
+            int top = direction > 0 ? y : y - 1;
+            graphics.fill(gridLeft() - 4, top, gridRight() + 6, top + 1, alpha << 24);
+        }
+    }
+
+    private void scrollbar(GuiGraphicsExtractor graphics, int x1) {
+        int max = maxScroll();
+        if (max <= 0) return;
+
+        int trackTop = gridTop();
+        int trackHeight = gridBottom() - trackTop;
+        int content = rows * step() - GAP;
+        int thumb = Math.max(24, trackHeight * trackHeight / Math.max(1, content));
+        int travel = trackHeight - thumb;
+        int offset = Math.round(travel * (scrollShown / max));
+
+        int x = x1 - 7;
+        Glass.flat(graphics, x, trackTop, 3, trackHeight, 0x30FFFFFF, 1);
+        Glass.flat(graphics, x, trackTop + offset, 3, thumb, Theme.accent(), 1);
+    }
+
+    private void footer(GuiGraphicsExtractor graphics, int x0, int x1, int y1,
+                        int mouseX, int mouseY) {
+        Font font = this.font;
+
+        // The description of whichever card the pointer is over, on its own
+        // line above the footer. In the footer it would sit over the buttons,
+        // which made both unreadable and made the buttons look broken.
+        String hint = hoveredDescription(mouseX, mouseY);
+        if (hint != null) {
+            graphics.text(font, ToggleRow.fit(font, hint, gridRight() - gridLeft()),
+                    gridLeft(), y1 - FOOTER_H - 13, Theme.TEXT_DIM, false);
+        } else {
+            String name = Minecraft.getInstance().getUser() != null
+                    ? Minecraft.getInstance().getUser().getName() : "Player";
+            String line = name + "  ·  v" + SpaceClient.VERSION;
+            graphics.text(font, line, gridLeft(), y1 - FOOTER_H - 13, Theme.OFF, false);
+        }
+    }
+
+    private String hoveredDescription(int mouseX, int mouseY) {
+        if (mouseY < gridTop() || mouseY >= gridBottom()) return null;
+        List<Module> modules = visible;
+        for (int i = 0; i < cards.size() && i < modules.size(); i++) {
+            ModuleCard card = cards.get(i);
+            if (mouseX >= card.getX() && mouseX < card.getX() + cardW
+                    && mouseY >= card.getY() && mouseY < card.getY() + ModuleCard.HEIGHT) {
+                return modules.get(i).getDescription();
+            }
+        }
+        return null;
     }
 
     @Override

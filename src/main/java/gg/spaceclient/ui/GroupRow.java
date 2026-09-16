@@ -52,12 +52,12 @@ public class GroupRow extends Button {
         int w = this.width;
         int h = this.height;
 
-        Glass.panel(graphics, x1, y1, w, h, Ease.color(0x50100D2A, 0x90221C58, hover), 8);
+        Glass.pill(graphics, x1, y1, w, h, Ease.color(0xCC0F0F12, 0xE61C1C20, hover), 8);
 
         // A bar down the left, brightening on hover. Groups are the only rows
         // that carry one, so the eye can pick the way out of a long list.
         graphics.fill(x1 + 1, y1 + 6, x1 + 4, y1 + h - 6,
-                Ease.color(0xFF3A3560, Theme.CYAN, hover));
+                Ease.color(0xFF3A3A40, Theme.CYAN, hover));
 
         var font = Minecraft.getInstance().font;
         int room = w - 56;
@@ -65,7 +65,7 @@ public class GroupRow extends Button {
 
         int nameY = twoLines ? y1 + h / 2 - font.lineHeight - 1 : y1 + (h - font.lineHeight) / 2;
         graphics.text(font, ToggleRow.fit(font, name, room), x1 + 16, nameY,
-                Ease.color(0xFFC9C4EE, 0xFFFFFFFF, hover), false);
+                Ease.color(0xFFC8C8D0, 0xFFFFFFFF, hover), false);
         if (twoLines) {
             graphics.text(font, ToggleRow.fit(font, description, room), x1 + 16,
                     y1 + h / 2 + 2, Theme.TEXT_DIM, false);

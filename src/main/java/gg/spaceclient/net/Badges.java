@@ -71,12 +71,15 @@ public final class Badges {
     /**
      * How often the list is re-read.
      *
-     * Five minutes, which is the floor worth using: the file is served from a
-     * cache that holds it for about that long, so asking more often mostly
-     * re-fetches the same bytes. It was twenty, and twenty is the wrong number
-     * for somebody who has just changed the list and wants to see it.
+     * A minute. The request carries a changing query string, which is what
+     * takes it past the cache in front of the file - without that the answer is
+     * whatever the cache holds and the interval barely matters.
+     *
+     * A minute of polling is nothing next to what the client already does for
+     * the presence roster, and it is the difference between "changed it and saw
+     * it" and "changed it and went to make tea".
      */
-    private static final long REFRESH_MS = 5 * 60 * 1000L;
+    private static final long REFRESH_MS = 60 * 1000L;
 
     private static final Map<UUID, Rank> byUuid = new ConcurrentHashMap<>();
     private static final Map<String, Rank> byName = new ConcurrentHashMap<>();
@@ -114,6 +117,32 @@ public final class Badges {
      * Called from the client tick. Loads the bundled copy once, then refreshes
      * from the branch on its own schedule.
      */
+    /**
+     * The rank this client last saw for its own account.
+     *
+     * A sentinel rather than null for "not looked at yet": null is a real
+     * answer here - it means the ordinary mark - and the first answer of a
+     * session must not be announced as a change.
+     */
+    private static volatile boolean ownKnown = false;
+    private static volatile Rank own = null;
+
+    /**
+     * Compares this account's rank against the last one seen and says so once
+     * when it moves. Called from the tick, where the player is in reach.
+     */
+    public static void checkOwn(java.util.UUID uuid, String name) {
+        Rank now = rankFor(uuid, name);
+        if (!ownKnown) {
+            ownKnown = true;
+            own = now;
+            return;
+        }
+        if (now == own) return;
+        own = now;
+        gg.spaceclient.render.RankToast.show(now);
+    }
+
     /**
      * Fetches again on the next tick, whatever the clock says.
      *
@@ -162,9 +191,13 @@ public final class Badges {
                     .connectTimeout(Duration.ofSeconds(10))
                     .build();
 
+            // Past the cache rather than through it. Without the changing
+            // parameter the file is served from an edge that holds it for
+            // minutes, and a change made just now would not be visible.
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(SOURCE))
+                    .uri(URI.create(SOURCE + "?t=" + System.currentTimeMillis()))
                     .header("Accept", "application/json")
+                    .header("Cache-Control", "no-cache")
                     .timeout(Duration.ofSeconds(10))
                     .GET()
                     .build();

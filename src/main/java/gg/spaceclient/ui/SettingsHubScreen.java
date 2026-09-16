@@ -215,16 +215,48 @@ public class SettingsHubScreen extends Screen {
      * mistake shows up as a tile that does not react instead of a blank screen.
      */
     private void openVanilla(String className) {
-        Object options = Minecraft.getInstance().options;
+        // Everything the game is holding, offered by type, plus the three
+        // kinds of thing a screen wants that the game does not hold for it: a
+        // heading, somewhere to go when it closes, and the pack folder.
+        //
+        // The pack screen is why the last two are here. It wants a Component,
+        // a Consumer and a Path alongside the repository, none of which is a
+        // field of Minecraft, so the strict pass could never satisfy it.
+        Object[] pool = Construct.poolFrom(Minecraft.getInstance(), this,
+                Component.literal("Space Client"),
+                new Construct.Callback(args -> Screens.open(this)),
+                gg.spaceclient.font.FontPacks.packFolder());
 
-        Object screen = Construct.strict(className, this, options, Minecraft.getInstance());
-        if (screen == null) screen = Construct.of(className, this, options, Minecraft.getInstance());
+        Object screen = Construct.strict(className, pool);
+
+        // Deliberately no lenient fallback. Filling a missing argument with
+        // null builds the screen and then crashes inside it - which is exactly
+        // what opening resource packs did - and this file already argues the
+        // point one method up: a screen with a hole where its context should
+        // be is worse than a tile that says it cannot open.
 
         if (screen instanceof Screen target) {
+            failed = "";
             Screens.open(target);
-        } else {
-            SpaceClient.LOGGER.warn("Could not open {} on this version", className);
+            return;
         }
+
+        // Said on the screen, not only in a log. A tile that swallows a click
+        // is indistinguishable from one that is broken, and this client has
+        // spent enough time on things that fail quietly.
+        failed = className.substring(className.lastIndexOf('.') + 1)
+                + " could not be opened on this version.";
+        SpaceClient.LOGGER.warn("Could not open {} on this version", className);
+    }
+
+    /** The last tile that would not open, shown under the grid. */
+    private String failed = "";
+
+    private void drawFailure(GuiGraphicsExtractor graphics) {
+        if (failed.isEmpty()) return;
+        graphics.text(this.font, failed,
+                (this.width - this.font.width(failed)) / 2,
+                ScreenChrome.bottomRow(this.height) - 14, 0xFFFF9AAE, false);
     }
 
     private void openHudEditor() {
@@ -233,6 +265,7 @@ public class SettingsHubScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+        drawFailure(graphics);
         ScreenChrome.background(graphics, this.width, this.height, mouseX, mouseY, delta);
 
         long now = System.currentTimeMillis() - openedAt;

@@ -31,10 +31,32 @@ public abstract class HudModule extends Module {
      * plate behind the content so the readout stays legible over any terrain.
      */
     private final BooleanSetting background = new BooleanSetting(
-            "background", "Background", "Draw a grey plate behind this element", true);
+            "background", "Background", "Draw a glass plate behind this element", true);
+
+    /**
+     * The plate this class shipped with before the glass look: mid grey at
+     * half opacity, which is the Minecraft way of drawing a box.
+     */
+    private static final int LEGACY_PLATE = 0x80404040;
+
+    /** Near black and mostly opaque, which is what reads as glass on any world. */
+    private static final int GLASS_PLATE = 0xE60E0E14;
 
     private final ColorSetting backgroundColor = new ColorSetting(
-            "background_color", "Background colour", "Colour of the plate", 0x80404040);
+            "background_color", "Background colour", "Colour of the plate", GLASS_PLATE);
+
+    /**
+     * The colour to draw the plate in.
+     *
+     * Somebody who never touched the setting should get the new look rather
+     * than the old grey carried forward out of their config file. An exact
+     * match on the old default is as close to "never touched" as this can get;
+     * anybody who deliberately picked that exact grey can pick it again.
+     */
+    private int plateTint() {
+        int stored = backgroundColor.get();
+        return stored == LEGACY_PLATE ? GLASS_PLATE : stored;
+    }
 
     protected HudModule(String id, String name, String description,
                         float defaultX, float defaultY, boolean enabledByDefault) {
@@ -128,15 +150,17 @@ public abstract class HudModule extends Module {
 
         try {
             if (background.get()) {
-                // A glass plate rather than a flat rectangle. Same colour and
-                // the same alpha the setting has always carried; what changed
-                // is the rounded edge, the light line along the top and the
-                // body being brighter at the top than the bottom.
-                int padding = 4;
-                gg.spaceclient.ui.Glass.panel(graphics,
-                        drawX - padding, drawY - padding,
-                        getWidth() + padding * 2, getHeight() + padding * 2,
-                        backgroundColor.get(), 4);
+                // A glass pill rather than a grey box. Rounded off a circle, so
+                // a short element comes out as a capsule and a tall one keeps a
+                // sane corner; darker and more opaque than the old plate, with
+                // the edge falling off into the world instead of stopping dead.
+                int padding = 5;
+                int plateW = getWidth() + padding * 2;
+                int plateH = getHeight() + padding * 2;
+
+                gg.spaceclient.ui.Glass.pill(graphics,
+                        drawX - padding, drawY - padding, plateW, plateH,
+                        plateTint(), Math.min(12, plateH / 2));
             }
             render(graphics, drawX, drawY);
         } finally {

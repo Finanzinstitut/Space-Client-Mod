@@ -77,7 +77,7 @@ public class ToggleRow extends Button {
         int h = this.height;
 
         float lit = Math.max(hover, knob * 0.35f);
-        Glass.panel(graphics, x1, y1, w, h, Ease.color(0x50100D2A, 0x90221C58, lit), 8);
+        Glass.pill(graphics, x1, y1, w, h, Ease.color(0xCC0F0F12, 0xE61C1C20, lit), 8);
 
         var font = Minecraft.getInstance().font;
 
@@ -91,7 +91,7 @@ public class ToggleRow extends Button {
 
         int nameY = twoLines ? y1 + h / 2 - font.lineHeight - 1 : y1 + (h - font.lineHeight) / 2;
         graphics.text(font, fit(font, name.get(), textRoom), x1 + 14, nameY,
-                Ease.color(0xFFC9C4EE, 0xFFFFFFFF, Math.max(hover, knob)), false);
+                Ease.color(0xFFC8C8D0, 0xFFFFFFFF, Math.max(hover, knob)), false);
 
         if (twoLines) {
             graphics.text(font, fit(font, description, textRoom), x1 + 14, y1 + h / 2 + 2,
@@ -100,13 +100,13 @@ public class ToggleRow extends Button {
 
         // The track darkens to the accent as the knob travels, so colour and
         // position say the same thing and a glance at either settles it.
-        Glass.panel(graphics, trackX, trackY, trackW, trackH,
-                Ease.color(0xFF262046, Theme.accent(), knob), trackH / 2);
+        Glass.pill(graphics, trackX, trackY, trackW, trackH,
+                Ease.color(0xFF232327, Theme.accent(), knob), trackH / 2);
 
         int knobSize = trackH - 4;
         int travel = trackW - knobSize - 4;
         int knobX = trackX + 2 + Math.round(travel * Ease.inOutCubic(knob));
-        Glass.panel(graphics, knobX, trackY + 2, knobSize, knobSize,
+        Glass.pill(graphics, knobX, trackY + 2, knobSize, knobSize,
                 Ease.color(0xFF6E679A, Theme.CYAN, knob), knobSize / 2);
     }
 

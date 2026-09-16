@@ -62,23 +62,17 @@ public class NavButton extends Button {
         if (style == Style.CHIP) {
             // The picked chip takes the full accent rather than the dimmed one:
             // dimmed sat below the unselected fill and read as switched off.
+            // A capsule. The picked one is simply lighter - a filled accent
+            // chip beside five dark ones was the loudest thing on the screen.
             int bg = pick > 0.02f
-                    ? Theme.accent()
+                    ? 0xFF2E2E34
                     : (hover > 0.02f ? Theme.CHIP_HOVER : Theme.CHIP);
-            graphics.fill(x1, y1, x2, y2, bg);
+            Glass.flat(graphics, x1, y1, width, height, bg, height / 2);
 
-            // Every chip keeps an outline, not just the selected one, so an
-            // unselected chip still reads as a button rather than as a gap
-            int border = pick > 0.02f ? Theme.accent() : Theme.CHIP_BORDER;
-            graphics.fill(x1, y1, x2, y1 + 1, border);
-            graphics.fill(x1, y2 - 1, x2, y2, border);
-            graphics.fill(x1, y1, x1 + 1, y2, border);
-            graphics.fill(x2 - 1, y1, x2, y2, border);
-
-            // Drawn with a shadow: at this size the label sits on a filled
-            // panel, and the outline is what separates it from the fill
+            // Without a shadow now: the label sits on a plate dark enough to
+            // carry plain text, and the shadow only muddied it.
             graphics.text(font, text, x1 + (width - font.width(text)) / 2, y1 + (height - 8) / 2,
-                    0xFFFFFFFF, true);
+                    pick > 0.5f ? Theme.TEXT : Theme.TEXT_DIM, false);
             return;
         }
 
@@ -86,15 +80,15 @@ public class NavButton extends Button {
         // hover tint slides in behind it rather than replacing it
         if (hover > 0.02f || pick > 0.02f) {
             int tint = pick > 0.02f ? Theme.SIDEBAR_PICK : Theme.CARD_HOVER;
-            graphics.fill(x1, y1, x2, y2, tint);
+            Glass.flat(graphics, x1, y1, width, height, tint, Math.min(9, height / 2));
         }
         if (pick > 0.02f) {
-            int barHeight = Math.round((y2 - y1) * pick);
+            int barHeight = Math.round((y2 - y1 - 10) * pick);
             int mid = (y1 + y2) / 2;
-            graphics.fill(x1, mid - barHeight / 2, x1 + 2, mid + barHeight / 2, Theme.accent());
+            graphics.fill(x1 + 3, mid - barHeight / 2, x1 + 5, mid + barHeight / 2, Theme.accent());
         }
 
-        graphics.text(font, text, x1 + 12, y1 + (height - 8) / 2,
+        graphics.text(font, text, x1 + 14, y1 + (height - 8) / 2,
                 pick > 0.5f ? Theme.TEXT : Theme.TEXT_DIM, false);
     }
 }

@@ -93,7 +93,7 @@ public class ChoiceRow extends Button {
         int w = this.width;
         int h = this.height;
 
-        Glass.panel(graphics, x1, y1, w, h, Ease.color(0x50100D2A, 0x90221C58, hover), 8);
+        Glass.pill(graphics, x1, y1, w, h, Ease.color(0xCC0F0F12, 0xE61C1C20, hover), 8);
 
         var font = Minecraft.getInstance().font;
 
@@ -107,14 +107,14 @@ public class ChoiceRow extends Button {
 
         int nameY = twoLines ? y1 + h / 2 - font.lineHeight - 1 : y1 + (h - font.lineHeight) / 2;
         graphics.text(font, ToggleRow.fit(font, name, textRoom), x1 + 14, nameY,
-                Ease.color(0xFFC9C4EE, 0xFFFFFFFF, hover), false);
+                Ease.color(0xFFC8C8D0, 0xFFFFFFFF, hover), false);
         if (twoLines) {
             graphics.text(font, ToggleRow.fit(font, description, textRoom), x1 + 14,
                     y1 + h / 2 + 2, Theme.TEXT_DIM, false);
         }
 
-        Glass.panel(graphics, chipX, chipY, chipW, chipH,
-                Ease.color(0xFF201B42, 0xFF2E2764, hover), chipH / 2);
+        Glass.pill(graphics, chipX, chipY, chipW, chipH,
+                Ease.color(0xFF1A1A1E, 0xFF26262C, hover), chipH / 2);
 
         boolean overChip = isHovered() && mouseX >= chipX && mouseX < chipX + chipW;
         boolean overLeft = overChip && mouseX < chipX + chipW / 2;

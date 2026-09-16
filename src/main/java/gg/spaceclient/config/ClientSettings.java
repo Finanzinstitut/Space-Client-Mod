@@ -55,7 +55,15 @@ public class ClientSettings {
     public void setCustomMenu(boolean value) { this.customMenu = value; }
 
     private final ColorSetting accent = new ColorSetting(
-            "accent", "Accent colour", "Colour used across the interface", 0xFF7C5CFF);
+            "accent", "Accent colour", "Colour used across the interface", NEUTRAL_ACCENT);
+
+    /** The violet this shipped with, kept so a config that still carries it
+     *  can be recognised as never having been changed. */
+    private static final int LEGACY_ACCENT = 0xFF7C5CFF;
+
+    /** Near white. In a black interface the accent marks what is on, and a
+     *  hue on every active row is what made the old menu look tinted. */
+    private static final int NEUTRAL_ACCENT = 0xFFE9E9EF;
     // The launcher's violet, so the in-game menu matches it out of the box.
     public String backgroundStyle() { return backgroundStyle; }
     public String fontStyle() { return fontStyle; }
@@ -64,7 +72,12 @@ public class ClientSettings {
         if (gg.spaceclient.font.FontStyle.isKnown(id)) fontStyle = id;
     }
 
-    public int accentColor() { return accent.get(); }
+    public int accentColor() {
+        // Somebody who never picked a colour gets the new one rather than the
+        // old violet carried forward out of their config file.
+        int stored = accent.get();
+        return stored == LEGACY_ACCENT ? NEUTRAL_ACCENT : stored;
+    }
     public ColorSetting accentSetting() { return accent; }
 
     public void cycleBackground() {

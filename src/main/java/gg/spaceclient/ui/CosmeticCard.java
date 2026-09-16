@@ -12,7 +12,7 @@ import java.util.function.Supplier;
 /**
  * A cosmetic as a card: a picture with a label strip under it.
  *
- * ModCard was nearly right and is deliberately not reused. A module card is
+ * The module card was nearly right and is deliberately not reused. It is
  * mostly empty space because a module has nothing to show, so its whole surface
  * is the on/off colour. A cosmetic does have something to show, and the picture
  * has to be the largest thing on the card or the grid is just a list of names
