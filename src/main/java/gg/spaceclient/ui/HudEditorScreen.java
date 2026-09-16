@@ -617,9 +617,9 @@ public class HudEditorScreen extends Screen {
                 int trackHeight = panelH() - 16;
                 int thumb = Math.max(16, trackHeight * panelRows() / elements().size());
                 int offset = Math.round((trackHeight - thumb) * (panelScroll / (float) max));
-                Glass.pill(graphics, panelX() + PANEL_W - 6, trackTop, 2, trackHeight,
+                Glass.flat(graphics, panelX() + PANEL_W - 6, trackTop, 2, trackHeight,
                         0x30FFFFFF, 1);
-                Glass.pill(graphics, panelX() + PANEL_W - 6, trackTop + offset, 2, thumb,
+                Glass.flat(graphics, panelX() + PANEL_W - 6, trackTop + offset, 2, thumb,
                         Theme.accent(), 1);
             }
         }
@@ -836,7 +836,7 @@ public class HudEditorScreen extends Screen {
             Font font = Minecraft.getInstance().font;
 
             if (hover > 0.02f || pick > 0.02f) {
-                Glass.pill(graphics, x1, y1, width, height,
+                Glass.flat(graphics, x1, y1, width, height,
                         Ease.color(0x00FFFFFF, 0x1EFFFFFF, Math.max(hover, pick)),
                         Math.min(8, height / 2));
             }
@@ -879,10 +879,10 @@ public class HudEditorScreen extends Screen {
             int pillX = x1 + width - pillW - 6;
             int pillY = y1 + (height - pillH) / 2;
             float state = module.isEnabled() ? 1f : 0f;
-            Glass.pill(graphics, pillX, pillY, pillW, pillH,
+            Glass.flat(graphics, pillX, pillY, pillW, pillH,
                     module.isEnabled() ? Theme.accent() : Theme.CHIP, pillH / 2);
             int knob = pillX + 1 + Math.round((pillW - pillH) * state);
-            Glass.pill(graphics, knob, pillY + 1, pillH - 2, pillH - 2,
+            Glass.flat(graphics, knob, pillY + 1, pillH - 2, pillH - 2,
                     module.isEnabled() ? Theme.TEXT_ON_ACCENT : Theme.TEXT_DIM, (pillH - 2) / 2);
         }
     }

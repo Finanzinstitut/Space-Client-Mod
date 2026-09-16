@@ -215,15 +215,25 @@ public class SettingsHubScreen extends Screen {
      * mistake shows up as a tile that does not react instead of a blank screen.
      */
     private void openVanilla(String className) {
-        // Everything the game is holding, offered by type. Naming three
-        // objects by hand was what made most of these tiles do nothing: the
-        // language screen wants a LanguageManager and the pack screen a
-        // PackRepository, neither of which was on the list, so the strict pass
-        // refused and the lenient one passed null and was thrown out.
-        Object[] pool = Construct.poolFrom(Minecraft.getInstance(), this);
+        // Everything the game is holding, offered by type, plus the three
+        // kinds of thing a screen wants that the game does not hold for it: a
+        // heading, somewhere to go when it closes, and the pack folder.
+        //
+        // The pack screen is why the last two are here. It wants a Component,
+        // a Consumer and a Path alongside the repository, none of which is a
+        // field of Minecraft, so the strict pass could never satisfy it.
+        Object[] pool = Construct.poolFrom(Minecraft.getInstance(), this,
+                Component.literal("Space Client"),
+                new Construct.Callback(args -> Screens.open(this)),
+                gg.spaceclient.font.FontPacks.packFolder());
 
         Object screen = Construct.strict(className, pool);
-        if (screen == null) screen = Construct.of(className, pool);
+
+        // Deliberately no lenient fallback. Filling a missing argument with
+        // null builds the screen and then crashes inside it - which is exactly
+        // what opening resource packs did - and this file already argues the
+        // point one method up: a screen with a hole where its context should
+        // be is worse than a tile that says it cannot open.
 
         if (screen instanceof Screen target) {
             failed = "";

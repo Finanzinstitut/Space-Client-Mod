@@ -513,7 +513,7 @@ public class SpaceMenuScreen extends Screen {
 
         // The rail is a shade darker than the panel instead of a separate
         // surface with a line down its edge: one plate reads as one window.
-        Glass.pill(graphics, x0 + 4, y0 + HEADER_H - 4, RAIL_W - 4,
+        Glass.flat(graphics, x0 + 4, y0 + HEADER_H - 4, RAIL_W - 4,
                 panelH() - HEADER_H - FOOTER_H + 6, 0x30000000, 12);
 
         header(graphics, x0, y0, x1);
@@ -560,7 +560,7 @@ public class SpaceMenuScreen extends Screen {
         // The search field's own frame, since the vanilla border is off.
         int searchX = x1 - PAD - SEARCH_W;
         int searchY = y0 + 12;
-        Glass.pill(graphics, searchX, searchY, SEARCH_W, 22, Theme.CHIP, 11);
+        Glass.flat(graphics, searchX, searchY, SEARCH_W, 22, Theme.CHIP, 11);
 
         // A magnifier, drawn small: a ring and a stroke off its corner.
         int ringX = searchX + 12;
@@ -653,8 +653,8 @@ public class SpaceMenuScreen extends Screen {
         int offset = Math.round(travel * (scrollShown / max));
 
         int x = x1 - 7;
-        Glass.pill(graphics, x, trackTop, 3, trackHeight, 0x30FFFFFF, 1);
-        Glass.pill(graphics, x, trackTop + offset, 3, thumb, Theme.accent(), 1);
+        Glass.flat(graphics, x, trackTop, 3, trackHeight, 0x30FFFFFF, 1);
+        Glass.flat(graphics, x, trackTop + offset, 3, thumb, Theme.accent(), 1);
     }
 
     private void footer(GuiGraphicsExtractor graphics, int x0, int x1, int y1,

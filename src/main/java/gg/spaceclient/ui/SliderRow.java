@@ -91,7 +91,7 @@ public class SliderRow extends AbstractSliderButton {
         // control left in the client, and a row that is half one colour reads
         // as a row that is half something else rather than as a slider.
         int radius = Math.min(9, this.height / 2);
-        Glass.pill(graphics, x1, y1, this.width, this.height,
+        Glass.flat(graphics, x1, y1, this.width, this.height,
                 isHovered() ? 0xF01E1E22 : 0xE6141418, radius);
 
         var font = net.minecraft.client.Minecraft.getInstance().font;
@@ -104,12 +104,12 @@ public class SliderRow extends AbstractSliderButton {
         int trackW = Math.max(12, x2 - 12 - valueW - 8 - trackX);
         int trackY = y1 + this.height / 2 - 2;
 
-        Glass.pill(graphics, trackX, trackY, trackW, 3, 0xFF2A2A30, 1);
+        Glass.flat(graphics, trackX, trackY, trackW, 3, 0xFF2A2A30, 1);
         int filled = Math.max(0, Math.round((float) (this.value * trackW)));
-        if (filled > 0) Glass.pill(graphics, trackX, trackY, filled, 3, Theme.accent(), 1);
+        if (filled > 0) Glass.flat(graphics, trackX, trackY, filled, 3, Theme.accent(), 1);
 
         int knob = trackX + filled;
-        Glass.pill(graphics, knob - 4, trackY - 3, 8, 9,
+        Glass.flat(graphics, knob - 4, trackY - 3, 8, 9,
                 isHovered() ? Theme.TEXT : Theme.TEXT_DIM, 4);
 
         graphics.text(font, name, x1 + 12, textY, Theme.TEXT_DIM, false);

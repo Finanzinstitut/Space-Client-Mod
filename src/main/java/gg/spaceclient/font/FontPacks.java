@@ -79,7 +79,9 @@ public final class FontPacks {
         return ID_PREFIX + fileName(style);
     }
 
-    private static Path packFolder() {
+    /** Where resource packs live. Public because the settings hub offers it
+     *  to the game's own pack screen, which wants the path handed in. */
+    public static Path packFolder() {
         return FabricLoader.getInstance().getGameDir().resolve("resourcepacks");
     }
 

@@ -113,6 +113,34 @@ public final class Glass {
         pill(graphics, x, y, width, height, tint, radius, NO_CLIP_TOP, NO_CLIP_BOTTOM);
     }
 
+    /**
+     * The same plate without the soft edge around it.
+     *
+     * The shadow says "this is lying on top of that". A toggle inside a card is
+     * not lying on the world - it is part of the card, which is already lifted -
+     * so the three rings under it are invisible and cost three times the shape
+     * they surround. Everything that sits on another surface uses this;
+     * everything that sits on the game keeps the shadow.
+     */
+    public static void flat(GuiGraphicsExtractor graphics,
+                            int x, int y, int width, int height,
+                            int tint, int radius) {
+        flat(graphics, x, y, width, height, tint, radius, NO_CLIP_TOP, NO_CLIP_BOTTOM);
+    }
+
+    public static void flat(GuiGraphicsExtractor graphics,
+                            int x, int y, int width, int height,
+                            int tint, int radius, int clipTop, int clipBottom) {
+        if (width <= 0 || height <= 0) return;
+        if (y >= clipBottom || y + height <= clipTop) return;
+
+        int alpha = (tint >>> 24) & 0xFF;
+        if (alpha == 0) return;
+
+        int body = (alpha << 24) | (tint & 0xFFFFFF);
+        roundedRows(graphics, x, y, width, height, radius, row -> body, clipTop, clipBottom);
+    }
+
     /** Nothing is clipped away unless a caller asks for it. */
     public static final int NO_CLIP_TOP = Integer.MIN_VALUE / 4;
     public static final int NO_CLIP_BOTTOM = Integer.MAX_VALUE / 4;
@@ -188,20 +216,58 @@ public final class Glass {
         roundedRows(graphics, x, y, width, height, radius, colourOf, NO_CLIP_TOP, NO_CLIP_BOTTOM);
     }
 
+    /**
+     * Draws one rounded shape, asking the caller for each row's colour.
+     *
+     * Rows that agree on both their inset and their colour are emitted as one
+     * rectangle rather than one rectangle each. That is not a micro-optimisation:
+     * only the rows within `radius` of an end are actually different from each
+     * other, so a plate of any height costs about two radii of draw calls
+     * instead of its height.
+     *
+     * The menu is what forced this. It came to eleven and a half thousand fill
+     * calls a frame - a 480 pixel panel alone was 480 of them, and its shadow
+     * three more rings of the same - and the result was a menu that visibly
+     * dropped frames on a client that ships an FPS counter. The same menu now
+     * costs a few hundred, and nothing about how it looks has changed: the
+     * pixels drawn are identical, they are simply asked for in runs.
+     */
     private static void roundedRows(GuiGraphicsExtractor graphics,
                                     int x, int y, int width, int height,
                                     int radius, java.util.function.IntUnaryOperator colourOf,
                                     int clipTop, int clipBottom) {
         int[] insets = circleInsets(radius, height);
-        for (int row = 0; row < height; row++) {
-            if (y + row < clipTop || y + row >= clipBottom) continue;
-            int inset = 0;
-            if (row < insets.length) inset = insets[row];
-            else if (row >= height - insets.length) inset = insets[height - 1 - row];
 
-            int colour = colourOf.applyAsInt(row);
-            if (((colour >>> 24) & 0xFF) == 0) continue;
-            graphics.fill(x + inset, y + row, x + width - inset, y + row + 1, colour);
+        // The open run: -1 means there is none yet.
+        int runStart = -1;
+        int runInset = 0;
+        int runColour = 0;
+
+        for (int row = 0; row <= height; row++) {
+            boolean usable = row < height
+                    && y + row >= clipTop && y + row < clipBottom;
+
+            int inset = 0;
+            int colour = 0;
+            if (usable) {
+                if (row < insets.length) inset = insets[row];
+                else if (row >= height - insets.length) inset = insets[height - 1 - row];
+                colour = colourOf.applyAsInt(row);
+                if (((colour >>> 24) & 0xFF) == 0) usable = false;
+            }
+
+            // A row that cannot join the open run closes it, and the row after
+            // the last is deliberately included so the final run is flushed.
+            if (runStart >= 0 && (!usable || inset != runInset || colour != runColour)) {
+                graphics.fill(x + runInset, y + runStart,
+                        x + width - runInset, y + row, runColour);
+                runStart = -1;
+            }
+            if (usable && runStart < 0) {
+                runStart = row;
+                runInset = inset;
+                runColour = colour;
+            }
         }
     }
 

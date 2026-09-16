@@ -71,7 +71,7 @@ public class RailEntry extends Button {
 
         if (hover > 0.02f || pick > 0.02f) {
             int tint = Ease.color(0x00FFFFFF, 0x18FFFFFF, Math.max(hover, pick));
-            Glass.pill(graphics, x1, y1, width, height, tint, Math.min(9, height / 2));
+            Glass.flat(graphics, x1, y1, width, height, tint, Math.min(9, height / 2));
         }
 
         // The label slides a pixel to the right under the pointer. It is the

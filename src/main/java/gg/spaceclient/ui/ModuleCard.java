@@ -184,12 +184,12 @@ public class ModuleCard extends Button {
 
         // The switch: a track that fills and a knob that slides across it.
         int pillTop = y1 + 10;
-        Glass.pill(graphics, pillLeft, pillTop, PILL_W, PILL_H,
+        Glass.flat(graphics, pillLeft, pillTop, PILL_W, PILL_H,
                 fade(Ease.color(Theme.CHIP, Theme.accent(), state), eased), PILL_H / 2,
                 clipTop, clipBottom);
 
         int knob = pillLeft + 1 + Math.round((PILL_W - PILL_H) * Ease.inOutCubic(state));
-        Glass.pill(graphics, knob, pillTop + 1, PILL_H - 2, PILL_H - 2,
+        Glass.flat(graphics, knob, pillTop + 1, PILL_H - 2, PILL_H - 2,
                 fade(state > 0.5f ? Theme.TEXT_ON_ACCENT : Theme.TEXT_DIM, eased),
                 (PILL_H - 2) / 2, clipTop, clipBottom);
 

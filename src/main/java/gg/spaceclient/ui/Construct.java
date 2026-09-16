@@ -22,9 +22,23 @@ public final class Construct {
     /**
      * The first constructor whose arguments can all be supplied from the pool.
      *
-     * Longer constructors are tried first: where a class carries both a short
-     * and a long form, the long one is usually the current one and the short
-     * one a deprecated shim.
+     * Shorter constructors are tried first, and that reversal is a bug fix.
+     *
+     * The old order preferred the longest form, on the reasoning that where a
+     * class carries a short and a long shape, the long one is usually current
+     * and the short one a deprecated shim. That held while the pool was three
+     * objects named by hand: a five-argument constructor simply could not be
+     * filled, so preferring it cost nothing.
+     *
+     * poolFrom changed that. It offers everything the game is holding - about a
+     * hundred objects - and with that much on the table a long constructor can
+     * be filled, every extra argument chosen on nothing but "is an instance
+     * of". That is how the world creator came to open a screen whose Create
+     * and Cancel buttons did nothing: a longer openFresh was satisfied with
+     * objects of the right types and the wrong meaning.
+     *
+     * Fewest parameters wins now, because every parameter beyond the ones we
+     * actually know is a guess, and the shortest call is the smallest guess.
      */
     public static Object of(String className, Object... pool) {
         try {
@@ -32,7 +46,7 @@ public final class Construct {
             Constructor<?>[] constructors = type.getConstructors();
 
             java.util.Arrays.sort(constructors,
-                    (a, b) -> b.getParameterCount() - a.getParameterCount());
+                    (a, b) -> a.getParameterCount() - b.getParameterCount());
 
             for (Constructor<?> constructor : constructors) {
                 Object[] args = match(constructor.getParameterTypes(), pool);
@@ -64,7 +78,7 @@ public final class Construct {
             Constructor<?>[] constructors = type.getConstructors();
 
             java.util.Arrays.sort(constructors,
-                    (a, b) -> b.getParameterCount() - a.getParameterCount());
+                    (a, b) -> a.getParameterCount() - b.getParameterCount());
 
             for (Constructor<?> constructor : constructors) {
                 Object[] args = match(constructor.getParameterTypes(), pool);
@@ -106,8 +120,11 @@ public final class Construct {
             Class<?> type = Class.forName(className);
             Method[] methods = type.getMethods();
 
+            // Shortest first, for the reason given on of() above: with the
+            // whole game on offer, a long overload can be filled with things
+            // that merely have the right types.
             java.util.Arrays.sort(methods,
-                    (a, b) -> b.getParameterCount() - a.getParameterCount());
+                    (a, b) -> a.getParameterCount() - b.getParameterCount());
 
             for (Method method : methods) {
                 if (!method.getName().equals(methodName)) continue;
@@ -153,7 +170,7 @@ public final class Construct {
 
             Method[] methods = type.getMethods();
             java.util.Arrays.sort(methods,
-                    (a, b) -> b.getParameterCount() - a.getParameterCount());
+                    (a, b) -> a.getParameterCount() - b.getParameterCount());
 
             for (Method method : methods) {
                 if (!java.lang.reflect.Modifier.isStatic(method.getModifiers())) continue;

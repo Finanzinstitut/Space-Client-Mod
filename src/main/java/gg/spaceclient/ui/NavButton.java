@@ -67,7 +67,7 @@ public class NavButton extends Button {
             int bg = pick > 0.02f
                     ? 0xFF2E2E34
                     : (hover > 0.02f ? Theme.CHIP_HOVER : Theme.CHIP);
-            Glass.pill(graphics, x1, y1, width, height, bg, height / 2);
+            Glass.flat(graphics, x1, y1, width, height, bg, height / 2);
 
             // Without a shadow now: the label sits on a plate dark enough to
             // carry plain text, and the shadow only muddied it.
@@ -80,7 +80,7 @@ public class NavButton extends Button {
         // hover tint slides in behind it rather than replacing it
         if (hover > 0.02f || pick > 0.02f) {
             int tint = pick > 0.02f ? Theme.SIDEBAR_PICK : Theme.CARD_HOVER;
-            Glass.pill(graphics, x1, y1, width, height, tint, Math.min(9, height / 2));
+            Glass.flat(graphics, x1, y1, width, height, tint, Math.min(9, height / 2));
         }
         if (pick > 0.02f) {
             int barHeight = Math.round((y2 - y1 - 10) * pick);
