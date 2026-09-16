@@ -66,13 +66,12 @@ public final class RankToast {
 
         Glass.panel(graphics, x, y, WIDTH, HEIGHT, scale(0xE614113A, ink), 8);
 
-        Badges.Rank shown = rank;
-        int accent = switch (shown == null ? Badges.Rank.STANDARD : shown) {
-            case OWNER -> 0xFFF0C33E;
-            case DEV -> 0xFF93E1EF;
-            case VIP -> 0xFFC79BF5;
-            case STANDARD -> 0xFFE8CBA4;
-        };
+        // Colour and name come off the rank itself. They were two switch
+        // statements here, and a switch over an enum has to list every
+        // constant - which is the compiler telling you about the tenth rank in
+        // the least useful possible place.
+        Badges.Rank shown = rank == null ? Badges.Rank.STANDARD : rank;
+        int accent = shown.accent();
 
         // The mark itself, in the badge font, so the message shows the thing it
         // is talking about rather than only naming it.
@@ -81,19 +80,9 @@ public final class RankToast {
 
         graphics.text(font, "Rang aktualisiert", textX, y + 9,
                 scale(Theme.TEXT_DIM, ink), false);
-        graphics.text(font, label(shown), textX, y + 22, scale(accent, ink), false);
+        graphics.text(font, shown.label(), textX, y + 22, scale(accent, ink), false);
 
         graphics.fill(x, y + 6, x + 3, y + HEIGHT - 6, scale(accent, ink));
-    }
-
-    private static String label(Badges.Rank shown) {
-        if (shown == null) return "Standard";
-        return switch (shown) {
-            case OWNER -> "Owner";
-            case DEV -> "Dev";
-            case VIP -> "VIP";
-            case STANDARD -> "Standard";
-        };
     }
 
     /** Multiplies a colour's alpha, so the whole panel fades as one. */

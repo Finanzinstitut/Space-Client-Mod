@@ -1,14 +1,18 @@
 {
   "_comment": [
-    "Four glyphs in one font, so a rank is a change of character rather than",
-    "a change of font. The code points sit in the private use area, which is",
-    "the range set aside for exactly this - nothing else will ever claim them.",
+    "Die Zeichen der Raenge, je eines pro Schriftzeichen - ein Rang ist damit",
+    "ein anderes Zeichen, nicht eine andere Schrift. Die Codepunkte liegen im",
+    "Bereich fuer den privaten Gebrauch, der genau dafuer freigehalten ist.",
     "",
-    "E000 standard, E001 developer, E002 owner, E003 vip.",
+    "E000 standard, E001 dev, E002 owner, E003 vip,",
+    "E004 mod, E005 partner, E006 creator, E007 supporter, E008 tester, E009 og.",
     "",
-    "height 8 matches a line of name tag text. ascent 7 drops the glyph one",
-    "pixel below the text baseline, which is what lines the middle of the",
-    "planet up with the middle of the letters instead of its top edge."
+    "height 8 entspricht einer Zeile Namensschild-Text. ascent 7 setzt das",
+    "Zeichen einen Pixel unter die Grundlinie, wodurch die Mitte der Kugel auf",
+    "der Mitte der Buchstaben sitzt statt ihre Oberkante.",
+    "",
+    "Die sechs neuen sind mit tools/make_badges.py erzeugt; die vier ersten",
+    "sind von Hand gezeichnet und bleiben unangetastet."
   ],
   "providers": [
     {
@@ -16,28 +20,90 @@
       "file": "spaceclient:font/badge.png",
       "height": 8,
       "ascent": 7,
-      "chars": ["\uE000"]
+      "chars": [
+        ""
+      ]
     },
     {
       "type": "bitmap",
       "file": "spaceclient:font/badge_dev.png",
       "height": 8,
       "ascent": 7,
-      "chars": ["\uE001"]
+      "chars": [
+        ""
+      ]
     },
     {
       "type": "bitmap",
       "file": "spaceclient:font/badge_owner.png",
       "height": 8,
       "ascent": 7,
-      "chars": ["\uE002"]
+      "chars": [
+        ""
+      ]
     },
     {
       "type": "bitmap",
       "file": "spaceclient:font/badge_vip.png",
       "height": 8,
       "ascent": 7,
-      "chars": ["\uE003"]
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "spaceclient:font/badge_mod.png",
+      "height": 8,
+      "ascent": 7,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "spaceclient:font/badge_partner.png",
+      "height": 8,
+      "ascent": 7,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "spaceclient:font/badge_creator.png",
+      "height": 8,
+      "ascent": 7,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "spaceclient:font/badge_supporter.png",
+      "height": 8,
+      "ascent": 7,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "spaceclient:font/badge_tester.png",
+      "height": 8,
+      "ascent": 7,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "spaceclient:font/badge_og.png",
+      "height": 8,
+      "ascent": 7,
+      "chars": [
+        ""
+      ]
     }
   ]
 }
