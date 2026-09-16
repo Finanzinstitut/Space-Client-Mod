@@ -38,28 +38,63 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class Badges {
 
-    /** The four marks the badge font carries, at their private use code points. */
+    /**
+     * The marks the badge font carries, at their private use code points.
+     *
+     * Glyph, label and colour all live on the constant, so adding a rank is one
+     * line here, one provider in badge.json and one image. It used to be three
+     * separate switch statements in two files, and a switch over an enum is
+     * exhaustive - which is a fine way to be told you forgot one, and a poor
+     * way to add the tenth.
+     *
+     * The written form is what goes in badges.json, and it is matched case
+     * insensitively with a couple of spellings each, because the list is now
+     * filled in from a page and nobody should have to remember whether it is
+     * "dev" or "developer".
+     */
     public enum Rank {
-        STANDARD("\uE000"),
-        DEV("\uE001"),
-        OWNER("\uE002"),
-        VIP("\uE003");
+        STANDARD("\uE000", "Standard", 0xFFE8CBA4, "default", ""),
+        DEV("\uE001", "Dev", 0xFF93E1EF, "developer"),
+        OWNER("\uE002", "Owner", 0xFFF0C33E),
+        VIP("\uE003", "VIP", 0xFFC79BF5),
+        MOD("\uE004", "Mod", 0xFF6FD897, "moderator", "staff"),
+        PARTNER("\uE005", "Partner", 0xFFEE9BDC),
+        CREATOR("\uE006", "Creator", 0xFFF59595, "content", "youtuber"),
+        SUPPORTER("\uE007", "Supporter", 0xFFF7AE79, "booster"),
+        TESTER("\uE008", "Tester", 0xFFCBE68C, "beta"),
+        OG("\uE009", "OG", 0xFFD2D6E2, "veteran");
 
         private final String glyph;
+        private final String label;
+        private final int accent;
+        private final String[] spellings;
 
-        Rank(String glyph) { this.glyph = glyph; }
+        Rank(String glyph, String label, int accent, String... spellings) {
+            this.glyph = glyph;
+            this.label = label;
+            this.accent = accent;
+            this.spellings = spellings;
+        }
 
         public String glyph() { return glyph; }
 
+        /** What the toast writes. */
+        public String label() { return label; }
+
+        /** The colour that goes with the mark, so the toast matches the glyph. */
+        public int accent() { return accent; }
+
         static Rank parse(String raw) {
             if (raw == null) return null;
-            return switch (raw.trim().toLowerCase(Locale.ROOT)) {
-                case "dev", "developer" -> DEV;
-                case "owner" -> OWNER;
-                case "vip" -> VIP;
-                case "standard", "default", "" -> STANDARD;
-                default -> null;
-            };
+            String wanted = raw.trim().toLowerCase(Locale.ROOT);
+
+            for (Rank rank : values()) {
+                if (rank.name().toLowerCase(Locale.ROOT).equals(wanted)) return rank;
+                for (String spelling : rank.spellings) {
+                    if (spelling.equals(wanted)) return rank;
+                }
+            }
+            return null;
         }
     }
 
