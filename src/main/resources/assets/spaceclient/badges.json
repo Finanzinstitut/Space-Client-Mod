@@ -12,5 +12,14 @@
     "a uuid cannot. An entry with only a name still works and is matched case",
     "insensitively - it is the convenient form, not the safe one."
   ],
-  "badges": []
+  "badges": [
+    {
+      "name": "Finanzinstitut",
+      "rank": "owner"
+    },
+    {
+      "name": "real_Umbaria",
+      "rank": "vip"
+    }
+  ]
 }
