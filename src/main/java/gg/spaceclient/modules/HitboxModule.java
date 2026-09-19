@@ -14,11 +14,21 @@ import net.minecraft.world.entity.Entity;
  * Hitboxes with per-category control.
  *
  * Four categories, each with its own on/off switch, colour and line width:
- * yourself, other players, mobs and items. Every box is line-of-sight only and
- * invisible entities are always skipped - both were settings once and are now
- * fixed, because either of them turned this from a debug overlay into ESP. On top of that the look-direction
+ * yourself, other players, mobs and items. On top of that the look-direction
  * arrows can be turned off separately, since they are useful on players and
  * mostly clutter on dropped items.
+ *
+ * <h2>Through walls, and invisible entities</h2>
+ *
+ * Both are settings, both start off. They were fixed off for a while and are
+ * switches again because that was asked for, and the honest note belongs with
+ * them rather than in a refusal: with either of them on this stops being a
+ * debug overlay and becomes ESP, which is what most servers ban for. Off, it
+ * shows what the game's own F3+B shows - boxes around things already on screen.
+ *
+ * One line is held either way: a player in spectator mode is never drawn. That
+ * is the staff seat, it is hidden from everyone, and revealing it is the one
+ * use of this that is aimed at a person rather than at the game.
  *
  * The drawing itself lives in HitboxRenderer; this class is only the settings
  * and the decision of which category an entity falls into.
@@ -68,33 +78,19 @@ public class HitboxModule extends Module {
     private final IntSetting range = new IntSetting(
             "range", "Range", "Only draw within this many blocks", 48, 8, 128);
 
-    /**
-     * Line of sight is not optional any more.
-     *
-     * This used to be a setting that defaulted to off, which meant the client
-     * shipped with boxes drawn through walls - and the render type it uses,
-     * debugQuads, has no depth test, so "through walls" was literal. That is
-     * ESP however it is labelled, and it is the difference between a debug
-     * overlay and a bannable client.
-     *
-     * With it fixed on, this shows what vanilla's own F3+B shows: boxes around
-     * things you can already see. Nothing is revealed that the game was hiding.
-     */
-    private static final boolean HIDE_BEHIND_WALLS = true;
-
-    /**
-     * Invisible entities stay invisible, also not optional.
-     *
-     * An invisible entity is one the game has deliberately hidden. Drawing a
-     * box around it hands over information that was withheld on purpose, which
-     * is the same problem in a smaller package.
-     */
-    private static final boolean SHOW_INVISIBLE = false;
+    private final BooleanSetting throughWalls = new BooleanSetting(
+            "through_walls", "Through walls",
+            "Draw boxes for entities behind blocks. Counts as ESP - most servers ban it",
+            false);
+    private final BooleanSetting invisible = new BooleanSetting(
+            "invisible", "Invisible entities",
+            "Draw boxes around entities the game is hiding. Counts as ESP - most servers ban it",
+            false);
 
     public HitboxModule() {
         super("hitbox", "Hitbox", "Draws entity hitboxes with per-category control", false);
 
-        addSettings(showArrows, arrowsPlayersOnly, range);
+        addSettings(showArrows, arrowsPlayersOnly, range, throughWalls, invisible);
         addGroups(
                 SettingGroup.of("Yourself", "Your own hitbox in third person",
                         selfOn, selfColor, selfWidth),
@@ -151,9 +147,15 @@ public class HitboxModule extends Module {
 
     public int getRange() { return range.get(); }
 
-    public boolean hideBehindWalls() { return HIDE_BEHIND_WALLS; }
+    /**
+     * Whether a box is skipped when the entity cannot be seen.
+     *
+     * The render type in use, debugQuads, has no depth test - so with this off
+     * "through walls" is literal rather than a matter of draw order.
+     */
+    public boolean hideBehindWalls() { return !throughWalls.get(); }
 
-    public boolean showInvisible() { return SHOW_INVISIBLE; }
+    public boolean showInvisible() { return invisible.get(); }
 
     // --- fallback ---------------------------------------------------------
     // When the world render event is unavailable, custom boxes cannot be drawn.
@@ -172,13 +174,27 @@ public class HitboxModule extends Module {
                 mc, "getEntityRenderDispatcher");
         if (dispatcher == null) return null;
 
-        // The dispatcher carries exactly one plain boolean, and it is this one
-        for (java.lang.reflect.Field field : dispatcher.getClass().getDeclaredFields()) {
-            if (field.getType() == boolean.class) {
-                field.setAccessible(true);
-                vanillaFlag = field;
-                return field;
+        // By name first. "The dispatcher's only plain boolean" was wrong: it
+        // carries shouldRenderShadow as well, and that one is declared first -
+        // so the old lookup grabbed the shadows and switching the module off
+        // turned every entity shadow off with it.
+        try {
+            java.lang.reflect.Field named = dispatcher.getClass().getDeclaredField("renderHitBoxes");
+            if (named.getType() == boolean.class) {
+                named.setAccessible(true);
+                vanillaFlag = named;
+                return named;
             }
+        } catch (Throwable ignored) {
+            // Renamed or remapped on this version; fall through
+        }
+
+        for (java.lang.reflect.Field field : dispatcher.getClass().getDeclaredFields()) {
+            if (field.getType() != boolean.class) continue;
+            if (field.getName().toLowerCase(java.util.Locale.ROOT).contains("shadow")) continue;
+            field.setAccessible(true);
+            vanillaFlag = field;
+            return field;
         }
         return null;
     }
@@ -201,21 +217,42 @@ public class HitboxModule extends Module {
         }
     }
 
+    /** Whether the game's own hitbox view was switched on by this module. */
+    private boolean forcedVanilla = false;
+
     /**
      * The fallback only runs if the renderer never reported itself working -
      * that is, if the mixin did not attach on this version. Otherwise the
      * custom boxes are the real ones and switching the game's own view on as
      * well would just draw everything twice.
+     *
+     * Asked for once, not every tick, and that is the fix for F3+B. Setting the
+     * flag twenty times a second meant the debug key could not turn the boxes
+     * off: the key flipped the flag and the next tick flipped it straight back,
+     * so a key the game owns looked broken while this module was on.
      */
     @Override
     public void onTick() {
         if (HitboxRenderer.isAvailable()) return;
+        if (forcedVanilla) return;
+
+        forcedVanilla = true;
         setVanillaHitboxes(true);
     }
 
     @Override
+    protected void onEnable() {
+        forcedVanilla = false;
+    }
+
+    @Override
     protected void onDisable() {
-        if (!HitboxRenderer.isAvailable()) setVanillaHitboxes(false);
+        // Only put back what this module turned on. Switching it off blindly
+        // would take away a view the player had chosen themselves with F3+B.
+        if (forcedVanilla) {
+            setVanillaHitboxes(false);
+            forcedVanilla = false;
+        }
     }
 
     /** True when at least one category is switched on. */

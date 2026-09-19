@@ -42,12 +42,21 @@ public final class HitboxRenderer {
     public static boolean hasFailed() { return failed; }
     public static String failure() { return failure; }
 
-    public static void setAvailable(boolean value) { available = value; }
+    /** Whether the mixin reached this code at all on this version. */
     public static boolean isAvailable() { return available; }
 
     /** Called from the mixin once per frame, after the world's own features. */
     public static void submit(SubmitNodeCollector collector) {
         if (failed) return;
+
+        // Marked here, at the top, because the question this answers is
+        // whether the mixin attached - and being called is the whole proof.
+        // It used to be marked further down, after the "is there anything to
+        // draw" check, which quietly turned it into "did we draw something".
+        // With the module on and every category off, nothing was drawn, so the
+        // client decided the mixin had failed and switched the game's own
+        // hitbox view on instead - over the top of whatever F3+B was set to.
+        available = true;
 
         HitboxModule module = (HitboxModule) SpaceClient.getModuleManager().get("hitbox");
         HitColorModule tint = (HitColorModule) SpaceClient.getModuleManager().get("hitcolor");
@@ -73,15 +82,18 @@ public final class HitboxRenderer {
             return;
         }
 
-        available = true;
         float partialTick = partialTick(mc);
 
         for (Entity entity : mc.level.entitiesForRendering()) {
-            // Anything the game has hidden stays hidden, unless asked otherwise.
-            // A spectator is invisible to everyone and should never show up.
-            boolean invisible = entity.isInvisible()
-                    || (entity instanceof net.minecraft.world.entity.player.Player player
-                        && player.isSpectator());
+            // A spectator is never drawn, whatever the settings say. That seat
+            // is hidden from everyone, it is usually staff, and pointing a box
+            // at it is the one use of this aimed at a person rather than at the
+            // game. The setting below is about potions and hidden mobs.
+            if (entity instanceof net.minecraft.world.entity.player.Player player
+                    && player.isSpectator()) continue;
+
+            // Anything else the game has hidden stays hidden unless asked
+            boolean invisible = entity.isInvisible();
             if (invisible && !(wantBoxes && module != null && module.showInvisible())) continue;
 
             // The tinted shell is drawn first, so an outline sits on top of it
