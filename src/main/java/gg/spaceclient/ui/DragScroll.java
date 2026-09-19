@@ -87,6 +87,11 @@ public final class DragScroll {
         lastY = mouseY;
     }
 
+    /** Where the press that started this gesture landed. */
+    public int startX() { return startX; }
+
+    public int startY() { return startY; }
+
     public int deltaX() { return deltaX; }
 
     public int deltaY() { return deltaY; }

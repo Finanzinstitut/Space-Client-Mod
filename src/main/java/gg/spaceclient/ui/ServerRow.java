@@ -32,6 +32,18 @@ public class ServerRow extends Button {
     /** Entrance, driven by the screen so the list assembles top to bottom. */
     private float appear = 0f;
 
+    /**
+     * Whether this row is currently being carried to a new place in the list.
+     *
+     * A carried row has to look picked up, or the list just looks like it is
+     * glitching: the plate brightens, a bright edge runs all the way round it,
+     * and the whole thing steps sideways so the rows sliding past underneath
+     * stay readable.
+     */
+    private boolean lifted = false;
+
+    private float lift = 0f;
+
     public ServerRow(int x, int y, int width, int height,
                      java.util.function.Supplier<Data> data,
                      BooleanSupplier selected,
@@ -45,6 +57,10 @@ public class ServerRow extends Button {
 
     public void setAppear(float value) {
         this.appear = Ease.clamp01(value);
+    }
+
+    public void setLifted(boolean value) {
+        this.lifted = value;
     }
 
     @Override
@@ -65,6 +81,7 @@ public class ServerRow extends Button {
         float step = Math.max(delta, 0.1f);
         hover = Ease.approach(hover, isHovered() ? 1f : 0f, 0.25f, step);
         pick = Ease.approach(pick, selected.getAsBoolean() ? 1f : 0f, 0.3f, step);
+        lift = Ease.approach(lift, lifted ? 1f : 0f, 0.35f, step);
 
         Data row = data.get();
         if (row == null) return;
@@ -74,14 +91,25 @@ public class ServerRow extends Button {
         // Slides in from the left rather than fading in place, so a long list
         // reads as arriving in order instead of resolving all at once
         int slide = Math.round((1f - Ease.outCubic(appear)) * 24f);
-        int x1 = getX() - slide;
+        int x1 = getX() - slide + Math.round(lift * 8f);
         int y1 = getY();
         int x2 = x1 + this.width;
         int y2 = y1 + this.height;
 
         int plate = Ease.color(0x40100D2A, 0x88221C58, Math.max(hover, pick * 0.8f));
+        plate = Ease.color(plate, 0xF02B2464, lift);
         Glass.panel(graphics, x1, y1, this.width, this.height,
                 MenuIcon.scaleAlpha(plate, alpha), 6);
+
+        // The carried row keeps a bright edge all the way round, which is what
+        // separates it from the rows sliding about underneath it
+        if (lift > 0.01f) {
+            int edge = MenuIcon.scaleAlpha(0xFFEDEDF2, Math.round(alpha * lift * 0.8f));
+            graphics.fill(x1 + 2, y1, x2 - 2, y1 + 1, edge);
+            graphics.fill(x1 + 2, y2 - 1, x2 - 2, y2, edge);
+            graphics.fill(x1, y1 + 2, x1 + 1, y2 - 2, edge);
+            graphics.fill(x2 - 1, y1 + 2, x2, y2 - 2, edge);
+        }
 
         // A bar on the left for the selected row: one mark, unmissable, and it
         // does not compete with the ping colour on the right
