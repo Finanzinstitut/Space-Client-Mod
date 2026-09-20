@@ -109,6 +109,35 @@ public class SaturationModule extends Module {
     private String lastPreset = "CUSTOM";
     private boolean warned = false;
 
+    /**
+     * How long to leave an effect alone before putting it back again.
+     *
+     * Applying a post effect is not free - the chain behind it is rebuilt - so
+     * doing it on every tick is visible as a flicker. Half a second is slower
+     * than an eye notices a missing effect and twenty times cheaper than the
+     * tick loop.
+     */
+    private static final long REPAIR_INTERVAL_MS = 500;
+
+    private long lastApply = 0L;
+
+    /** How many times in a row the effect had to be put back. */
+    private int repairs = 0;
+
+    /**
+     * Set when the game's state cannot be read back at all.
+     *
+     * Proven rather than assumed: setPostEffect has to write the identifier
+     * somewhere, so if reading it straight afterwards gives nothing, it is the
+     * reading that is broken and not the setting.
+     *
+     * It matters because "keep reapplying" needs to know the effect is gone.
+     * Blind, the honest thing is to set it once and stop - reapplying on a
+     * guess is what flickers, and flickering is worse than an effect that
+     * might quietly disappear after a resource reload.
+     */
+    private boolean blind = false;
+
     private static String status = "not applied";
 
     /** What the module last did, for the diagnostics screen. */
@@ -207,6 +236,11 @@ public class SaturationModule extends Module {
 
         Identifier wanted = idFor(step);
 
+        // A strength that changed is applied at once - the slider has to feel
+        // immediate. Everything else is a repair, and a repair is rate limited
+        // below.
+        boolean changed = !wanted.equals(applied);
+
         // Both fields have to line up, not just the identifier.
         //
         // The render path checks postEffectId AND a separate `effectActive`
@@ -220,6 +254,8 @@ public class SaturationModule extends Module {
 
         if (wanted.equals(current) && live) {
             applied = wanted;
+            repairs = 0;
+            blind = false;
             status = "active at " + step + "%";
             return;
         }
@@ -231,6 +267,23 @@ public class SaturationModule extends Module {
             return;
         }
 
+        if (!changed && blind) {
+            status = "set at " + step + "%, the game's state cannot be read - not reapplying";
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        if (!changed && now - lastApply < REPAIR_INTERVAL_MS) {
+            // Still not reading as applied, but it was only just set. Saying so
+            // is the point: a module that is quietly reapplying every tick and
+            // one that applied it cleanly used to look identical from here.
+            status = "set at " + step + "%, waiting to see if it holds"
+                    + (repairs > 1 ? " (" + repairs + " repairs)" : "");
+            return;
+        }
+
+        if (!changed) repairs++; else repairs = 0;
+        lastApply = now;
         setEffect(renderer, wanted, step);
     }
 
@@ -244,6 +297,14 @@ public class SaturationModule extends Module {
     private boolean effectActive(Object renderer) {
         Object value = readField(renderer, "effectActive");
         return !(value instanceof Boolean flag) || flag;
+    }
+
+    @Override
+    protected void onEnable() {
+        // A fresh start deserves a fresh attempt at reading the state
+        blind = false;
+        repairs = 0;
+        lastApply = 0L;
     }
 
     @Override
@@ -274,8 +335,17 @@ public class SaturationModule extends Module {
         // failure shows up as the effect simply never appearing. Reading the
         // fields back is what tells the two apart.
         if (currentEffect(renderer) == null) {
+            // Either the call missed or the read did. Both end here, and both
+            // mean the same thing for what happens next: stop guessing.
+            blind = true;
             warnOnce();
-            status = "setPostEffect had no effect";
+            status = "set at " + step + "%, but the game's state cannot be read";
+        } else if (repairs > 4) {
+            // It keeps coming back set and keeps reading as gone. Something
+            // else is taking it away, and that is worth naming rather than
+            // reporting "active" while the screen flickers.
+            status = "at " + step + "%, but something keeps clearing it ("
+                    + repairs + " repairs)";
         } else if (!effectActive(renderer)) {
             // Set, but the game will not draw it. Worth saying out loud
             // rather than reporting a cheerful "active"
@@ -303,9 +373,26 @@ public class SaturationModule extends Module {
         return null;
     }
 
+    /**
+     * Which effect the game currently has, by getter or by field.
+     *
+     * The field is the half that matters and it is new here. Reflect.call only
+     * tries methods, so if this version has no method by that name - and the
+     * name was a guess, like every other one in this class - the answer came
+     * back null on every single tick. Null reads as "not applied", so the
+     * module reapplied the effect twenty times a second, forever, while the
+     * effect was in fact already there. That is the flicker: setting a post
+     * effect rebuilds the chain, and rebuilding it twenty times a second shows.
+     *
+     * setPostEffect has to write the identifier somewhere, so the field exists
+     * whatever the getter is called.
+     */
     private Identifier currentEffect(Object renderer) {
-        Object value = Reflect.call(renderer, "currentPostEffect");
-        return value instanceof Identifier id ? id : null;
+        Object value = Reflect.call(renderer, "currentPostEffect", "getPostEffect");
+        if (value instanceof Identifier id) return id;
+
+        Object field = readField(renderer, "postEffectId");
+        return field instanceof Identifier id ? id : null;
     }
 
     /** Spectator mode, read through the player rather than the game mode enum. */

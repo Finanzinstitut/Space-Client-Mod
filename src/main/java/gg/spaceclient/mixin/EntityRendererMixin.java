@@ -41,6 +41,11 @@ import org.spongepowered.asm.mixin.injection.Redirect;
  * The target deliberately names no owning class, so it matches whether the
  * call site is compiled against SubmitNodeCollector or its parent interface.
  *
+ * Where the extra lines sit is NameLines' problem, and it is not simply "a bit
+ * higher up": the offset is added before the tag turns to face the camera, so a
+ * straight-up offset shrinks as you look down at someone and the song slides in
+ * behind the name. See NameLines for the numbers.
+ *
  * The same interception also puts the Space Client badge in front of the name.
  * It goes here rather than in a draw call of its own precisely because the
  * text is already passing through: the badge is a glyph, so prefixing the
@@ -51,8 +56,6 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 @Mixin(EntityRenderer.class)
 public abstract class EntityRendererMixin {
 
-    /** Roughly one line of name tag text, in world units. */
-    private static final double LINE_HEIGHT = 0.28;
 
     private static final String SUBMIT_NAME_TAG =
             "submitNameTag(Lcom/mojang/blaze3d/vertex/PoseStack;"
@@ -183,7 +186,7 @@ public abstract class EntityRendererMixin {
 
             collector.submitNameTag(
                     poseStack,
-                    position.add(0.0, LINE_HEIGHT, 0.0),
+                    position.add(gg.spaceclient.render.NameLines.up(1)),
                     background,
                     Component.literal("\u266A " + song),
                     flag,
@@ -197,7 +200,7 @@ public abstract class EntityRendererMixin {
             if (lyric != null && !lyric.isEmpty()) {
                 collector.submitNameTag(
                         poseStack,
-                        position.add(0.0, LINE_HEIGHT * 2, 0.0),
+                        position.add(gg.spaceclient.render.NameLines.up(2)),
                         background,
                         Component.literal(lyric),
                         flag,
