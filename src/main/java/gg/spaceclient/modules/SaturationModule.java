@@ -12,6 +12,7 @@ import net.minecraft.resources.Identifier;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.Locale;
 
 /**
  * Shifts how strong the world's colours are, from grey to oversaturated.
@@ -267,6 +268,14 @@ public class SaturationModule extends Module {
             return;
         }
 
+        if (sceneChanged()) {
+            // A new camera or a new world is the moment the game is most
+            // likely to have thrown the effect away, and the one moment a
+            // rebuild costs nothing anybody can see - the picture is changing
+            // anyway.
+            changed = true;
+        }
+
         if (!changed && blind) {
             status = "set at " + step + "%, the game's state cannot be read - not reapplying";
             return;
@@ -391,8 +400,97 @@ public class SaturationModule extends Module {
         Object value = Reflect.call(renderer, "currentPostEffect", "getPostEffect");
         if (value instanceof Identifier id) return id;
 
-        Object field = readField(renderer, "postEffectId");
-        return field instanceof Identifier id ? id : null;
+        Field field = effectField(renderer);
+        if (field == null) return null;
+        try {
+            Object held = field.get(renderer);
+            return held instanceof Identifier id ? id : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * Not static, unlike the renderer lookup beside it.
+     *
+     * There is only ever one renderer class in a running game, so a static
+     * cache would be correct there - but it would also mean the answer for one
+     * kind of renderer outliving it, and the only thing that buys is a field
+     * read saved once per session. Not worth being wrong for.
+     */
+    private Field effectIdField = null;
+    private boolean effectFieldLookedUp = false;
+
+    /**
+     * The field holding the current post effect, found by type.
+     *
+     * By name first, then by type, and the second half is what makes the
+     * watchdog work at all. If the module cannot read which effect is set, it
+     * cannot tell that the game has dropped one - which is the whole story
+     * behind the effect vanishing in third person and staying gone: something
+     * takes it away, and a module that cannot see that has nothing to react to.
+     *
+     * A renderer carries exactly one Identifier that is not a constant, and
+     * that is this one. The constants beside it - shader paths and the like -
+     * are static, so they are skipped rather than guessed at.
+     */
+    private Field effectField(Object renderer) {
+        if (effectFieldLookedUp) return effectIdField;
+        effectFieldLookedUp = true;
+        if (renderer == null) return null;
+
+        java.util.List<Field> candidates = new java.util.ArrayList<>();
+        Class<?> current = renderer.getClass();
+        while (current != null) {
+            for (Field field : current.getDeclaredFields()) {
+                if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) continue;
+                if (field.getType() != Identifier.class) continue;
+                field.setAccessible(true);
+
+                String name = field.getName().toLowerCase(Locale.ROOT);
+                if (name.contains("post") || name.contains("effect")) {
+                    effectIdField = field;
+                    return field;
+                }
+                candidates.add(field);
+            }
+            current = current.getSuperclass();
+        }
+
+        // Exactly one is an answer; several is a guess, and a guess here would
+        // have the module reading somebody else's field every tick
+        if (candidates.size() == 1) effectIdField = candidates.get(0);
+        else if (!candidates.isEmpty()) {
+            SpaceClient.LOGGER.warn("Saturation: {} candidate effect fields, none named for it",
+                    candidates.size());
+        }
+        return effectIdField;
+    }
+
+    private Object lastCamera = null;
+    private Object lastLevel = null;
+    private boolean sceneKnown = false;
+
+    /**
+     * Whether the camera or the world changed since the last tick.
+     *
+     * Third person is the reported case: switching into it, and moving the
+     * camera around in it, is where the effect went away and stayed away. The
+     * camera type is compared by its text rather than by identity because it
+     * is an enum whose class cannot be named from here.
+     */
+    private boolean sceneChanged() {
+        Object camera = Reflect.call(mc.options, "getCameraType", "getCameraDistance");
+        Object level = mc.level;
+
+        String now = String.valueOf(camera);
+        boolean changed = sceneKnown
+                && (!now.equals(String.valueOf(lastCamera)) || level != lastLevel);
+
+        lastCamera = now;
+        lastLevel = level;
+        sceneKnown = true;
+        return changed;
     }
 
     /** Spectator mode, read through the player rather than the game mode enum. */
