@@ -2,8 +2,10 @@ package gg.spaceclient.modules;
 
 import gg.spaceclient.SpaceClient;
 import gg.spaceclient.module.Module;
+import gg.spaceclient.input.KeyBinds;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.IntSetting;
+import gg.spaceclient.setting.KeySetting;
 import gg.spaceclient.util.Screens;
 
 import java.io.IOException;
@@ -48,6 +50,20 @@ public class ClipModule extends Module {
             "announce", "Say so in chat",
             "Print a line when a clip has been asked for", true);
 
+    /**
+     * The key, here rather than only in the game's controls screen.
+     *
+     * It is the same binding either way - this row reads and writes the game's
+     * own, so the two screens cannot drift apart. Having it here is the whole
+     * point: the key belongs to this feature, and looking for it in a list of
+     * ninety other bindings is a worse way to find it than looking where the
+     * feature is.
+     */
+    private final KeySetting key = new KeySetting(
+            "key", "Clip key", "Press the chip, then your key",
+            () -> KeyBinds.codeOf(SpaceClient.getClipKey()),
+            code -> KeyBinds.bind(SpaceClient.getClipKey(), code));
+
     /** Guards against a held key turning into a hundred clips. */
     private static final long COOLDOWN_MS = 1500;
     private long lastRequest = 0L;
@@ -62,10 +78,9 @@ public class ClipModule extends Module {
     public ClipModule() {
         super("clip", "Clips",
                 "Keeps the last seconds of play - press the clip key to save them. "
-                        + "Rebind it under Options, Controls, Space Client. "
                         + "Clips are recorded and watched in the launcher.",
                 false);
-        addSettings(seconds, announce);
+        addSettings(key, seconds, announce);
     }
 
     public int getSeconds() { return seconds.get(); }

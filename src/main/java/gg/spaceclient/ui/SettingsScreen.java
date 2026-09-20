@@ -110,6 +110,15 @@ public class SettingsScreen extends Screen {
                 ));
                 y += ROW_H + GAP;
 
+            } else if (setting instanceof gg.spaceclient.setting.KeySetting k) {
+                // No save here, unlike every other row: the binding belongs to
+                // the game, and writing it is what saves it.
+                this.addRenderableWidget(new KeyRow(
+                        left, y, PANEL_W, ROW_H,
+                        setting.getName(), setting.getDescription(),
+                        k::get, k::set));
+                y += ROW_H + GAP;
+
             } else if (setting instanceof ModeSetting m) {
                 this.addRenderableWidget(new ChoiceRow(
                         left, y, PANEL_W, ROW_H,
