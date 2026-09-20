@@ -50,6 +50,7 @@ public class ModuleManager {
         register(new HealthModule());
         register(new DurabilityModule());
         register(new SaturationModule());
+        register(new ClipModule());
         register(new NutritionModule());
         register(new ServerModule());
         register(new ItemPhysicsModule());

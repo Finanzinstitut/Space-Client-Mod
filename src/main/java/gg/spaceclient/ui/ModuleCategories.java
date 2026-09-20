@@ -39,6 +39,7 @@ public final class ModuleCategories {
             Map.entry("camera", VISUAL),
             Map.entry("fullbright", VISUAL),
             Map.entry("saturation", VISUAL),
+            Map.entry("clip", UTILITY),
             Map.entry("itemphysics", VISUAL),
             Map.entry("fpsboost", UTILITY),
             Map.entry("blockhighlight", VISUAL),

@@ -50,6 +50,21 @@ public final class Diagnostics {
         checks.add(new Check("Raw keyboard", keyboard,
                 keyboard ? "window handle found" : "handle not found - keys fall back to bindings"));
 
+        // --- clips, which live half in the launcher ---
+        //
+        // Worth a line because this is the one feature with a second program
+        // on the other end of it: if the folder cannot be written, nothing in
+        // the game misbehaves, the clips simply never appear.
+        java.nio.file.Path clips = gg.spaceclient.modules.ClipModule.clipDir();
+        boolean reachable = java.nio.file.Files.isDirectory(clips)
+                || clips.getParent() != null && java.nio.file.Files.isDirectory(clips.getParent());
+        checks.add(new Check("Clips folder", reachable,
+                reachable ? clips.toString() : "not there yet: " + clips));
+
+        checks.add(new Check("Clips link",
+                !gg.spaceclient.modules.ClipModule.lastResult().startsWith("could not"),
+                gg.spaceclient.modules.ClipModule.lastResult()));
+
         // --- field of view, needed for zoom ---
         Object fov = Reflect.call(mc.options, "fov", "getFov");
         checks.add(new Check("Field of view option", fov != null,

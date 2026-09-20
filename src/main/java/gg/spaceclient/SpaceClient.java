@@ -69,12 +69,14 @@ public class SpaceClient implements ClientModInitializer {
      */
     private static KeyMapping middleClickKey;
     private static KeyMapping zoomKey;
+    private static KeyMapping clipKey;
 
     public static ModuleManager getModuleManager() { return moduleManager; }
     public static ConfigManager getConfigManager() { return configManager; }
     public static ClientSettings getSettings() { return settings; }
 
     public static KeyMapping getZoomKey() { return zoomKey; }
+    public static KeyMapping getClipKey() { return clipKey; }
 
     /** True while the middle mouse button is held. */
     public static boolean isMiddleClickDown() {
@@ -116,6 +118,16 @@ public class SpaceClient implements ClientModInitializer {
                 "key.spaceclient.zoom",
                 InputConstants.Type.KEYSYM,
                 InputConstants.KEY_C,
+                category
+        ));
+
+        // F9 because it is one of the few keys the game itself leaves alone,
+        // and because it is where every other client puts this. Rebindable in
+        // the game's own controls screen like the three above it.
+        clipKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+                "key.spaceclient.clip",
+                InputConstants.Type.KEYSYM,
+                InputConstants.KEY_F9,
                 category
         ));
 
@@ -205,6 +217,15 @@ public class SpaceClient implements ClientModInitializer {
 
             while (menuKey.consumeClick()) {
                 client.gui.setScreen(new SpaceMenuScreen());
+            }
+
+            // Answered even when the module is off, so a press can say why
+            // nothing happened rather than looking like a dead key
+            while (clipKey.consumeClick()) {
+                if (moduleManager.get("clip")
+                        instanceof gg.spaceclient.modules.ClipModule clips) {
+                    clips.request();
+                }
             }
 
             takeOverTitleScreen(client);
