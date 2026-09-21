@@ -20,7 +20,7 @@ import net.minecraft.network.chat.Component;
  */
 public class MenuIcon extends Button {
 
-    public enum Kind { WORLDS, SERVERS, ACCOUNT, SETTINGS, QUIT }
+    public enum Kind { WORLDS, SERVERS, ACCOUNT, FRIENDS, SETTINGS, QUIT }
 
     private final Kind kind;
     private final String label;
@@ -109,6 +109,7 @@ public class MenuIcon extends Button {
             case WORLDS -> block(graphics, cx, cy, colour);
             case SERVERS -> globe(graphics, cx, cy, colour);
             case ACCOUNT -> person(graphics, cx, cy, colour);
+            case FRIENDS -> people(graphics, cx, cy, colour);
             case SETTINGS -> gear(graphics, cx, cy, colour);
             case QUIT -> cross(graphics, cx, cy, colour);
         }
@@ -157,6 +158,31 @@ public class MenuIcon extends Button {
         for (int row = 0; row < 5; row++) {
             int width = 3 + row * 2;
             graphics.fill(cx - width, cy + 2 + row, cx + width, cy + 3 + row, colour);
+        }
+    }
+
+    /**
+     * Two of the figure above, one behind the other.
+     *
+     * Not three, and not a heart or a speech bubble. At fourteen pixels across
+     * the only thing that reads instantly as "other people" is more than one
+     * of the shape that already means "a person" one icon to the left - the
+     * eye gets it from the pair, not from the detail.
+     */
+    private void people(GuiGraphicsExtractor graphics, int cx, int cy, int colour) {
+        // The one behind is drawn first and dimmer, so the two do not merge
+        // into a single wide blob
+        int behind = MenuIcon.scaleAlpha(colour, Math.round(((colour >>> 24) & 0xFF) * 0.55f));
+        circle(graphics, cx + 4, cy - 4, 3, behind);
+        for (int row = 0; row < 4; row++) {
+            int width = 2 + row * 2;
+            graphics.fill(cx + 4 - width, cy + 1 + row, cx + 4 + width, cy + 2 + row, behind);
+        }
+
+        circle(graphics, cx - 3, cy - 3, 4, colour);
+        for (int row = 0; row < 5; row++) {
+            int width = 3 + row * 2;
+            graphics.fill(cx - 3 - width, cy + 3 + row, cx - 3 + width, cy + 4 + row, colour);
         }
     }
 

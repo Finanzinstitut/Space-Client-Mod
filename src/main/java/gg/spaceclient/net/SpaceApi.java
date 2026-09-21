@@ -150,6 +150,32 @@ public final class SpaceApi {
         }
     }
 
+    /**
+     * Proves to Mojang that this account is here, and hands back the id used.
+     *
+     * Public because the friends worker needs exactly the same proof and there
+     * is no sense in writing the reflection over authlib's joinServer twice -
+     * it is the most version-sensitive code in this mod, and two copies would
+     * mean two places to fix when it moves again.
+     *
+     * Returns the server id on success and an empty string on failure, with
+     * the reason left in status().
+     */
+    public static String handshake() {
+        String serverId = randomServerId();
+        return joinServer(serverId) ? serverId : "";
+    }
+
+    /** The name Mojang will be asked about. */
+    public static String accountName() {
+        try {
+            String name = Minecraft.getInstance().getUser().getName();
+            return name == null ? "" : name;
+        } catch (Throwable ignored) {
+            return "";
+        }
+    }
+
     /** A one time id for the handshake, in the shape Mojang accepts. */
     private static String randomServerId() {
         byte[] bytes = new byte[16];
