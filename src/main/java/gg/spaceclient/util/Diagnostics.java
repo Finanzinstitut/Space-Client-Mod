@@ -65,6 +65,13 @@ public final class Diagnostics {
                 !gg.spaceclient.modules.ClipModule.lastResult().startsWith("could not"),
                 gg.spaceclient.modules.ClipModule.lastResult()));
 
+        // --- friends, whose other half is a worker ---
+        boolean friendsUp = gg.spaceclient.net.Friends.signedIn();
+        checks.add(new Check("Friends server", friendsUp,
+                friendsUp ? gg.spaceclient.net.Friends.status()
+                          : gg.spaceclient.net.Friends.status()
+                            + "  (" + gg.spaceclient.net.Friends.BASE + ")"));
+
         // --- field of view, needed for zoom ---
         Object fov = Reflect.call(mc.options, "fov", "getFov");
         checks.add(new Check("Field of view option", fov != null,

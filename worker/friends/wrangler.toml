@@ -1,0 +1,8 @@
+name = "spaceclient-friends"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "spaceclient-friends"
+database_id = "FILL-THIS-IN-AFTER-wrangler-d1-create"

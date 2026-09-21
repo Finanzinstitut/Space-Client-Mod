@@ -290,6 +290,7 @@ public class SpaceMenuScreen extends Screen {
         railDividerY = y - 5;
 
         String[][] places = {
+                {"Friends", "friends"},
                 {"Move HUD", "hud"},
                 {"Item Shower", "itemshower"},
                 {"Accounts", "accounts"},
@@ -319,6 +320,7 @@ public class SpaceMenuScreen extends Screen {
     private void open(String opens) {
         Minecraft mc = Minecraft.getInstance();
         switch (opens) {
+            case "friends" -> mc.gui.setScreen(new FriendsScreen(this));
             case "hud" -> mc.gui.setScreen(new HudEditorScreen(this));
             case "itemshower" -> mc.gui.setScreen(new ItemShowerScreen(this));
             case "accounts" -> mc.gui.setScreen(new AccountsScreen(this));

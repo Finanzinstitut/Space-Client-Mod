@@ -100,7 +100,7 @@ public class MainMenuScreen extends Screen {
 
         icons.clear();
 
-        int count = 5;
+        int count = 6;
         int total = count * ICON_SIZE + (count - 1) * ICON_GAP;
         int left = (this.width - total) / 2;
         int y = Math.round(this.height * 0.52f);
@@ -110,9 +110,17 @@ public class MainMenuScreen extends Screen {
                 () -> Screens.open(new ServersScreen(this)));
         add(left + (ICON_SIZE + ICON_GAP) * 2, y, MenuIcon.Kind.ACCOUNT, "Accounts",
                 () -> Screens.open(new AccountsScreen(this)));
-        add(left + (ICON_SIZE + ICON_GAP) * 3, y, MenuIcon.Kind.SETTINGS, "Settings",
+
+        // The number of people waiting on you goes in the label, because the
+        // label is the only part of an icon anybody reads at a glance
+        int waiting = gg.spaceclient.net.Friends.waitingCount();
+        add(left + (ICON_SIZE + ICON_GAP) * 3, y, MenuIcon.Kind.FRIENDS,
+                waiting > 0 ? "Friends (" + waiting + ")" : "Friends",
+                () -> Screens.open(new FriendsScreen(this)));
+
+        add(left + (ICON_SIZE + ICON_GAP) * 4, y, MenuIcon.Kind.SETTINGS, "Settings",
                 this::openSettings);
-        add(left + (ICON_SIZE + ICON_GAP) * 4, y, MenuIcon.Kind.QUIT, "Quit", this::quit);
+        add(left + (ICON_SIZE + ICON_GAP) * 5, y, MenuIcon.Kind.QUIT, "Quit", this::quit);
     }
 
     private void add(int x, int y, MenuIcon.Kind kind, String label, Runnable action) {
