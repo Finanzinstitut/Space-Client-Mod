@@ -1,0 +1,101 @@
+# Rollt den Freunde-Worker aus, ohne dass ein Schluessel den Rechner verlaesst.
+#
+# Der Grund fuer diese Datei: der Worker muss in DEIN Cloudflare-Konto, und
+# dafuer braucht es einen Schluessel. Den mir zu schicken waere genau das, was
+# man mit einem Schluessel nicht tut - hier liegt er in den Repository-Secrets,
+# GitHub gibt ihn nur diesem Lauf, und niemand muss ihn je wieder ansehen.
+#
+# Einmalig einzurichten, unter Settings -> Secrets and variables -> Actions:
+#   CLOUDFLARE_API_TOKEN    - Cloudflare, My Profile, API Tokens,
+#                             Vorlage "Edit Cloudflare Workers"
+#   CLOUDFLARE_ACCOUNT_ID   - steht rechts im Cloudflare-Dashboard
+#
+# Danach: Actions -> Deploy friends worker -> Run workflow.
+name: Deploy friends worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply_schema:
+        description: "Tabellen anlegen (gefahrlos zu wiederholen)"
+        type: boolean
+        default: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker/friends
+
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      DB_NAME: spaceclient-friends
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Kein Schluessel, kein Lauf
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN und CLOUDFLARE_ACCOUNT_ID fehlen in den Secrets."
+            echo "Settings -> Secrets and variables -> Actions -> New repository secret"
+            exit 1
+          fi
+
+      # Erst pruefen, dann ausrollen. Einen kaputten Worker auszurollen ist
+      # schlimmer, als gar nicht auszurollen - der alte laeuft ja noch.
+      - name: Tests
+        run: node --test test/logic.test.mjs test/worker.test.mjs
+
+      - name: Datenbank anlegen, falls es sie noch nicht gibt
+        run: |
+          set -e
+          npx --yes wrangler@3 d1 list --json > list.json 2>/dev/null || echo "[]" > list.json
+          id=$(node -e '
+            const list = require("./list.json");
+            const found = (Array.isArray(list) ? list : []).find(d => d.name === process.env.DB_NAME);
+            process.stdout.write(found ? (found.uuid || found.database_id || "") : "");
+          ')
+
+          if [ -z "$id" ]; then
+            echo "Lege $DB_NAME an"
+            npx --yes wrangler@3 d1 create "$DB_NAME"
+            npx --yes wrangler@3 d1 list --json > list.json
+            id=$(node -e '
+              const list = require("./list.json");
+              const found = (Array.isArray(list) ? list : []).find(d => d.name === process.env.DB_NAME);
+              process.stdout.write(found ? (found.uuid || found.database_id || "") : "");
+            ')
+          fi
+
+          if [ -z "$id" ]; then
+            echo "::error::Die Datenbank-Kennung war nicht zu ermitteln."
+            exit 1
+          fi
+
+          # Nur fuer diesen Lauf eingesetzt, nicht eingecheckt: die Kennung
+          # gehoert zum Konto und nicht ins Repository.
+          sed -i "s/FILL-THIS-IN-AFTER-wrangler-d1-create/$id/" wrangler.toml
+          echo "Datenbank bereit."
+
+      - name: Tabellen anlegen
+        if: ${{ inputs.apply_schema }}
+        run: npx --yes wrangler@3 d1 execute "$DB_NAME" --remote --file=schema.sql --yes
+
+      - name: Ausrollen
+        run: npx --yes wrangler@3 deploy 2>&1 | tee deploy.log
+
+      - name: Die Adresse, die in den Client gehoert
+        run: |
+          echo "### Freunde-Worker ausgerollt" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          grep -Eo "https://[a-z0-9.-]+workers\.dev" deploy.log | tail -1 >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "Steht dort etwas anderes als spaceclient-friends.spaceclient-finanzinstitut.workers.dev," >> "$GITHUB_STEP_SUMMARY"
+          echo "sag die Adresse - es ist eine Zeile in Friends.java." >> "$GITHUB_STEP_SUMMARY"

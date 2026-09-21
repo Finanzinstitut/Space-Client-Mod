@@ -18,6 +18,29 @@ meant editing code I cannot see.
 
 ## Deploying
 
+Zwei Wege. Der erste braucht nichts auf deinem Rechner.
+
+### Auf Knopfdruck, ueber GitHub
+
+Einmalig unter **Settings -> Secrets and variables -> Actions** zwei Secrets
+anlegen:
+
+| Secret | Wo es herkommt |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare -> My Profile -> API Tokens -> Vorlage "Edit Cloudflare Workers" |
+| `CLOUDFLARE_ACCOUNT_ID` | steht rechts im Cloudflare-Dashboard |
+
+Dann **Actions -> Deploy friends worker -> Run workflow**. Der Lauf prueft
+erst, legt die Datenbank an, wenn es sie noch nicht gibt, traegt ihre Kennung
+ein, legt die Tabellen an und rollt aus. Am Ende steht die Adresse in der
+Zusammenfassung des Laufs.
+
+Der Schluessel liegt dabei in den Repository-Secrets und wird niemandem
+gezeigt - das ist der Punkt an diesem Weg. Schick ihn nicht in einen Chat, auch
+nicht mir.
+
+### Von Hand
+
 ```bash
 cd worker/friends
 npx wrangler d1 create spaceclient-friends      # prints a database_id
