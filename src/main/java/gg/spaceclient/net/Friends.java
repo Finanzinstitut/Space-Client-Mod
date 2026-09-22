@@ -89,6 +89,23 @@ public final class Friends {
     private static volatile boolean pollRunning = false;
     private static volatile long lastRefresh = 0;
 
+    /**
+     * The earliest the next sign-in may be attempted.
+     *
+     * This exists because of a bug worth writing down. Signing in means asking
+     * Mojang to vouch for the account, and Mojang counts those: ask too often
+     * and it stops answering for a while. The friends screen asked on every
+     * build - and a screen is rebuilt on every tab, every button, every
+     * rebuildWidgets - so while a sign-in was failing, each click was another
+     * request. Mojang's limiter is exactly the right answer to that, and the
+     * error it sends back is the one this field prevents.
+     *
+     * After a failure the wait doubles, up to five minutes. After a success it
+     * is gone: a good token lasts an hour and nothing asks again until it ends.
+     */
+    private static volatile long nextSignInAttempt = 0;
+    private static volatile int signInFailures = 0;
+
     public static String status() { return status; }
     public static boolean isBusy() { return busy; }
     public static String myName() { return myName; }
@@ -148,24 +165,44 @@ public final class Friends {
         });
     }
 
-    /** Reloads the list, but not more than once every few seconds. */
+    /**
+     * Reloads the list, but not more than once every few seconds.
+     *
+     * Counted from the attempt and not from the last success. Counting
+     * successes meant that while something was wrong the counter never moved,
+     * so the throttle did nothing at exactly the moment it was needed most.
+     */
     public static void refreshSoon() {
-        if (System.currentTimeMillis() - lastRefresh < 3000) return;
+        long now = System.currentTimeMillis();
+        if (now - lastRefresh < 3000) return;
+        lastRefresh = now;
         wake();
     }
 
     private static synchronized boolean ensureToken() {
-        if (!token.isEmpty() && System.currentTimeMillis() < tokenExpires - 60_000) return true;
+        long now = System.currentTimeMillis();
+        if (!token.isEmpty() && now < tokenExpires - 60_000) return true;
+
+        if (now < nextSignInAttempt) {
+            long seconds = Math.max(1, (nextSignInAttempt - now + 999) / 1000);
+            status = waitingNote + " - trying again in " + seconds + "s";
+            return false;
+        }
 
         String name = SpaceApi.accountName();
         if (name.isEmpty()) {
-            status = "no account in the running game";
+            backOff("no account in the running game");
             return false;
         }
 
         String serverId = SpaceApi.handshake();
         if (serverId.isEmpty()) {
-            status = "Mojang handshake failed: " + SpaceApi.status();
+            String why = SpaceApi.status();
+            backOff(why.contains("RateLimiter")
+                    // Said in words rather than as a stack trace, because the
+                    // only useful thing to know is that waiting fixes it
+                    ? "Mojang is refusing sign-ins for a moment"
+                    : "Mojang handshake failed: " + why);
             return false;
         }
 
@@ -173,15 +210,47 @@ public final class Friends {
                 .header("X-Space-Name", name)
                 .header("X-Space-Server", serverId), false);
 
-        if (body == null || !body.has("token")) return false;
+        if (body == null || !body.has("token")) {
+            backOff(status.isEmpty() ? "the friends server refused the sign-in" : status);
+            return false;
+        }
 
         token = body.get("token").getAsString();
         myUuid = text(body, "uuid");
         myName = text(body, "name");
         tokenExpires = System.currentTimeMillis()
                 + (body.has("expiresIn") ? body.get("expiresIn").getAsLong() : 3600) * 1000L;
+
+        signInFailures = 0;
+        nextSignInAttempt = 0;
         status = "signed in as " + myName;
         return true;
+    }
+
+    /** What the last failure was, kept for the waiting message. */
+    private static volatile String waitingNote = "not signed in";
+
+    /**
+     * Holds off the next attempt, for longer each time.
+     *
+     * Fifteen seconds, then thirty, then a minute, up to five. Long enough
+     * that a broken account cannot hammer Mojang, short enough that somebody
+     * who has just fixed their connection does not sit there wondering.
+     */
+    private static void backOff(String note) {
+        signInFailures = Math.min(signInFailures + 1, 5);
+        long wait = Math.min(300_000L, 15_000L * (1L << (signInFailures - 1)));
+        nextSignInAttempt = System.currentTimeMillis() + wait;
+        waitingNote = note;
+        status = note + " - trying again in " + (wait / 1000) + "s";
+    }
+
+    /** Forgets the waiting period, for a button that says "try now". */
+    public static void tryAgainNow() {
+        nextSignInAttempt = 0;
+        signInFailures = 0;
+        lastRefresh = 0;
+        wake();
     }
 
     private static void loadList() {

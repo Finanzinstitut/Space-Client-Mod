@@ -70,6 +70,18 @@ public class FriendsScreen extends Screen {
             case ADD -> buildAdd(left, y);
         }
 
+        // Nur wenn die Anmeldung haengt: sonst sitzt man vor einem Bildschirm,
+        // der wartet, und hat nichts, was man druecken koennte.
+        if (!Friends.signedIn()) {
+            this.addRenderableWidget(new FlatButton(
+                    left, ScreenChrome.bottomRow(this.height) - 30, PANEL_W, 24,
+                    () -> "Try again now", () -> true,
+                    () -> {
+                        Friends.tryAgainNow();
+                        this.rebuildWidgets();
+                    }).asAction());
+        }
+
         this.addRenderableWidget(new FlatButton(
                 left, ScreenChrome.bottomRow(this.height), PANEL_W, 24,
                 () -> "Back", () -> false, this::onClose).asAction());
