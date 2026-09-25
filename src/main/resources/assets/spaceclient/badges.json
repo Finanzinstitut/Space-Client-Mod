@@ -23,11 +23,19 @@
     },
     {
       "name": "real_Umbaria",
-      "rank": "mod"
+      "rank": "dev"
     },
     {
       "name": "ja_bitte2002",
       "rank": "tester"
+    },
+    {
+      "name": "CrazyColin444",
+      "rank": "mod"
+    },
+    {
+      "name": "BukyTV",
+      "rank": "creator"
     }
   ]
 }
