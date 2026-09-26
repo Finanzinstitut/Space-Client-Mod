@@ -32,29 +32,10 @@ public final class Screens {
         Minecraft mc = Minecraft.getInstance();
         if (mc == null) return null;
 
-        Object viaGetter = gg.spaceclient.util.Reflect.call(mc.gui, "getScreen");
-        if (viaGetter instanceof Screen screen) return screen;
-
-        Screen fromGui = screenField(mc.gui);
-        return fromGui != null ? fromGui : screenField(mc);
-    }
-
-    private static Screen screenField(Object host) {
-        if (host == null) return null;
-        for (Class<?> type = host.getClass(); type != null && type != Object.class;
-             type = type.getSuperclass()) {
-            for (java.lang.reflect.Field field : type.getDeclaredFields()) {
-                if (!Screen.class.isAssignableFrom(field.getType())) continue;
-                try {
-                    field.setAccessible(true);
-                    Object value = field.get(host);
-                    if (value instanceof Screen screen) return screen;
-                } catch (Throwable ignored) {
-                    // Sealed away, or not the one; keep looking
-                }
-            }
-        }
-        return null;
+        // Compiled against this version, so asked directly. The search below
+        // used to run every tick from the title screen watcher - two failed
+        // method lookups and a field scan, twenty times a second.
+        return mc.gui != null ? mc.gui.screen() : null;
     }
 
     /** Writes one line into the player's own chat. Nothing is sent anywhere. */

@@ -18,8 +18,6 @@ import net.minecraft.client.gui.screens.Screen;
  * nothing is playing.
  */
 public final class MusicControls {
-    private static final int BUTTON = 18;
-    private static final int GAP = 2;
 
     public static void attach(Screen screen) {
         MusicModule module = (MusicModule) SpaceClient.getModuleManager().get("music");
@@ -31,32 +29,32 @@ public final class MusicControls {
         int width = mc.getWindow().getGuiScaledWidth();
         int height = mc.getWindow().getGuiScaledHeight();
 
-        int x = module.getX(width);
-        int y = module.getY(height);
+        // Exactly over the three squares the card draws, so the card's own
+        // controls are what gets clicked - scaled with the element, since the
+        // HUD draws it scaled and these sit on the screen unscaled
+        float scale = module.getScale();
+        int x = module.getX(width) + Math.round(MusicModule.controlsX() * scale);
+        int y = module.getY(height) + Math.round(MusicModule.controlsY() * scale);
+        int size = Math.max(8, Math.round(MusicModule.CONTROL * scale));
+        int step = Math.round((MusicModule.CONTROL + MusicModule.CONTROL_GAP) * scale);
 
-        // A row just under the element, so it never covers the track name
-        int row = y + module.getHeight() + 2;
-
-        ScreenInjector.addWidget(screen, new FlatButton(
-                x, row, BUTTON, BUTTON,
-                () -> "<",
-                () -> false,
-                MusicWatcher::previous
-        ).asAction());
-
-        ScreenInjector.addWidget(screen, new FlatButton(
-                x + BUTTON + GAP, row, BUTTON, BUTTON,
-                () -> "||",
-                () -> false,
-                MusicWatcher::playPause
-        ).asAction());
-
-        ScreenInjector.addWidget(screen, new FlatButton(
-                x + (BUTTON + GAP) * 2, row, BUTTON, BUTTON,
-                () -> ">",
-                () -> false,
-                MusicWatcher::next
-        ).asAction());
+        Runnable[] actions = {MusicWatcher::previous, MusicWatcher::playPause, MusicWatcher::next};
+        for (int i = 0; i < 3; i++) {
+            int kind = i;
+            ScreenInjector.addWidget(screen, new FlatButton(
+                    x + step * i, y, size, size, () -> "", () -> false, actions[i]) {
+                @Override
+                protected void extractContents(net.minecraft.client.gui.GuiGraphicsExtractor graphics,
+                                               int mouseX, int mouseY, float delta) {
+                    // Painted like the square underneath, only lit on hover.
+                    // Filling the whole button also covers the vanilla sprite
+                    // AbstractButton draws first.
+                    var playing = module.track();
+                    MusicModule.drawControl(graphics, getX(), getY(), this.width, kind,
+                            playing.playing(), module.palette(playing), isHovered());
+                }
+            }.asAction());
+        }
     }
 
     private MusicControls() {}

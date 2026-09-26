@@ -97,6 +97,19 @@ public final class MediaSession {
      * next poll happened to succeed.
      */
     public static NowPlaying read() {
+        // The running host first: no process to start, so nothing to feel.
+        // Only when it cannot be used does this start a script of its own.
+        java.util.List<String> fromHost = MusicHost.read();
+        if (fromHost != null) {
+            // From the host an empty list is a real answer - no player has a
+            // session - not the silently broken call it can be from a script
+            if (fromHost.isEmpty()) {
+                status = "ok";
+                return NowPlaying.NOTHING;
+            }
+            return parse(String.join("\n", fromHost), 0);
+        }
+
         Path script = scriptFile();
         if (script == null) {
             status = "script could not be written";
@@ -119,8 +132,18 @@ public final class MediaSession {
                 }
             }
             int exit = process.waitFor();
+            return parse(output.toString(), exit);
 
-            String text = output.toString();
+        } catch (Throwable t) {
+            status = "session lookup threw: " + t.getMessage();
+            SpaceClient.LOGGER.warn("Media session lookup failed: {}", t.getMessage());
+            return null;
+        }
+    }
+
+    /** Turns the lines either source wrote into a track; see read() for null. */
+    private static NowPlaying parse(String text, int exit) {
+        try {
 
             // The script reports its own failures on a line of this shape
             if (text.contains("ERROR|")) {
@@ -145,7 +168,7 @@ public final class MediaSession {
 
             NowPlaying paused = null;
 
-            for (String line : output.toString().split("\n")) {
+            for (String line : text.split("\n")) {
                 // appId | status | artist | title | position | duration
                 String[] parts = line.split("\\|", -1);
                 if (parts.length < 4) continue;
@@ -273,12 +296,13 @@ public final class MediaSession {
             // Versioned: the file is cached in temp and only written when missing,
             // so a fixed script would never reach a machine that already had the
             // broken one. Bump this whenever the script below changes.
-            Path path = Path.of(System.getProperty("java.io.tmpdir"), "spaceclient-media-4.ps1");
+            Path path = Path.of(System.getProperty("java.io.tmpdir"), "spaceclient-media-5.ps1");
             if (Files.exists(path)) return path;
 
             String script = String.join("\n",
                     "param([string]$thumb = '')",
                     "$ErrorActionPreference = 'Stop'",
+                    "try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }",
                     "try {",
                     "  Add-Type -AssemblyName System.Runtime.WindowsRuntime",
                     "  $asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() |",
@@ -370,6 +394,21 @@ public final class MediaSession {
      * @return true if a picture was written
      */
     public static boolean thumbnail(Path target) {
+        try {
+            String reply = MusicHost.thumbnail(target);
+            if (reply != null) {
+                if (reply.startsWith("THUMB|ok")) {
+                    coverStatus = "ok";
+                    return Files.isRegularFile(target) && Files.size(target) > 0;
+                }
+                coverStatus = reply.startsWith("THUMB|none")
+                        ? "player offers no cover" : "cover lookup failed: " + reply;
+                return false;
+            }
+        } catch (Throwable ignored) {
+            // Falls through to the one-off script
+        }
+
         Path script = scriptFile();
         if (script == null) return false;
 

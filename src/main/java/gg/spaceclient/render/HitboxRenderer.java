@@ -236,19 +236,8 @@ public final class HitboxRenderer {
 
     /** Reads a field by name, since these are fields rather than accessors. */
     private static Object field(Object target, String name) {
-        Class<?> current = target.getClass();
-        while (current != null) {
-            try {
-                var f = current.getDeclaredField(name);
-                f.setAccessible(true);
-                return f.get(target);
-            } catch (NoSuchFieldException ignored) {
-                current = current.getSuperclass();
-            } catch (Throwable t) {
-                return null;
-            }
-        }
-        return null;
+        // Cached lookup: this runs every tick or every frame
+        return gg.spaceclient.util.Reflect.get(target, name);
     }
 
     /** How far between ticks this frame sits, 0 to 1. */

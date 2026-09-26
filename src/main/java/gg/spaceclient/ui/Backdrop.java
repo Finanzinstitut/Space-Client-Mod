@@ -119,6 +119,14 @@ public final class Backdrop {
     }
 
     public static void draw(GuiGraphicsExtractor graphics, int width, int height) {
+        // Over a world, a veil instead of a wallpaper: every screen that can
+        // be opened in game draws through here, and a picture over the game
+        // is what made the client's screens hide it completely
+        if (net.minecraft.client.Minecraft.getInstance().level != null) {
+            graphics.fill(0, 0, width, height, 0x70000000);
+            return;
+        }
+
         String style = SpaceClient.getSettings().backgroundStyle();
 
         Identifier photo = photoFor(style);
