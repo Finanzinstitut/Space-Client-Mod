@@ -60,6 +60,9 @@ public abstract class HudModule extends Module {
      */
     protected int plateColour() { return plateTint(); }
 
+    /** How round the plate's corners are; a card-shaped element wants less. */
+    protected int plateRadius(int plateHeight) { return Math.min(12, plateHeight / 2); }
+
     protected int plateTint() {
         int stored = backgroundColor.get();
         return stored == LEGACY_PLATE ? GLASS_PLATE : stored;
@@ -167,7 +170,7 @@ public abstract class HudModule extends Module {
 
                 gg.spaceclient.ui.Glass.pill(graphics,
                         drawX - padding, drawY - padding, plateW, plateH,
-                        plateColour(), Math.min(12, plateH / 2));
+                        plateColour(), plateRadius(plateH));
             }
             render(graphics, drawX, drawY);
         } finally {

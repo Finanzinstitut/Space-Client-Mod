@@ -32,6 +32,14 @@ public final class ScreenChrome {
     /** Wallpaper where it can be drawn, the drawn backdrop where it cannot. */
     public static void background(GuiGraphicsExtractor graphics, int width, int height,
                                   int mouseX, int mouseY, float delta) {
+        // In a world the game stays visible. These screens are reached from
+        // the right shift menu - a module's three dots, the friends list - and
+        // putting the main menu's picture up there made the game vanish the
+        // moment you went one level deeper than the menu itself.
+        if (net.minecraft.client.Minecraft.getInstance().level != null) {
+            graphics.fill(0, 0, width, height, 0x70000000);
+            return;
+        }
         if (!MenuWallpaper.draw(graphics, width, height, mouseX, mouseY, delta)) {
             Backdrop.draw(graphics, width, height);
         }

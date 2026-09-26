@@ -157,19 +157,13 @@ public class ReachModule extends HudModule {
     }
 
     private static double box(Object box, String field) {
-        Class<?> current = box.getClass();
-        while (current != null) {
-            try {
-                Field found = current.getDeclaredField(field);
-                found.setAccessible(true);
-                return found.getDouble(box);
-            } catch (NoSuchFieldException ignored) {
-                current = current.getSuperclass();
-            } catch (Throwable ignored) {
-                return Double.NaN;
-            }
+        Field found = gg.spaceclient.util.Reflect.field(box.getClass(), field);
+        if (found == null) return Double.NaN;
+        try {
+            return found.getDouble(box);
+        } catch (Throwable ignored) {
+            return Double.NaN;
         }
-        return Double.NaN;
     }
 
     /**
@@ -212,20 +206,8 @@ public class ReachModule extends HudModule {
     public static String lastRoute() { return route; }
 
     private static Object readField(Object target, String name) {
-        if (target == null) return null;
-        Class<?> current = target.getClass();
-        while (current != null) {
-            try {
-                Field field = current.getDeclaredField(name);
-                field.setAccessible(true);
-                return field.get(target);
-            } catch (NoSuchFieldException ignored) {
-                current = current.getSuperclass();
-            } catch (Throwable ignored) {
-                return null;
-            }
-        }
-        return null;
+        // Cached lookup: this runs every tick or every frame
+        return gg.spaceclient.util.Reflect.get(target, name);
     }
 
     // --- the text ---

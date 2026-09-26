@@ -133,20 +133,8 @@ public class ServerModule extends HudModule {
     }
 
     private static Object readField(Object target, String name) {
-        if (target == null) return null;
-        Class<?> current = target.getClass();
-        while (current != null) {
-            try {
-                Field field = current.getDeclaredField(name);
-                field.setAccessible(true);
-                return field.get(target);
-            } catch (NoSuchFieldException ignored) {
-                current = current.getSuperclass();
-            } catch (Throwable ignored) {
-                return null;
-            }
-        }
-        return null;
+        // Cached lookup: this runs every tick or every frame
+        return gg.spaceclient.util.Reflect.get(target, name);
     }
 
     // --- the icon ---
