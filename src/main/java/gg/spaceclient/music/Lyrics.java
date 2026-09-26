@@ -44,7 +44,16 @@ public final class Lyrics {
 
     private record Line(double at, String text) {}
 
-    private record Track(List<Line> lines, String status) {}
+    /**
+     * A lookup result. A failed lookup - the network, not "no lyrics" - is
+     * kept only briefly: it used to be cached for good, so one dropped request
+     * meant that song never showed a line again for the rest of the session.
+     */
+    private record Track(List<Line> lines, String status, long expires) {
+        Track(List<Line> lines, String status) { this(lines, status, Long.MAX_VALUE); }
+    }
+
+    private static final long RETRY_FAILED_MS = 20_000;
 
     /**
      * Lyrics per track, not just for the local one.
@@ -75,10 +84,14 @@ public final class Lyrics {
         String key = key(artist, title);
         Track track = cache.get(key);
 
-        if (track == null) {
+        if (track == null || System.currentTimeMillis() > track.expires()) {
             request(artist, title, key);
-            return "";
+            return track == null ? "" : lineAt(track, position);
         }
+        return lineAt(track, position);
+    }
+
+    private static String lineAt(Track track, double position) {
 
         String found = "";
         for (Line line : track.lines()) {
@@ -113,7 +126,8 @@ public final class Lyrics {
             try {
                 fetch(artist, title, key);
             } catch (Throwable t) {
-                cache.put(key, new Track(List.of(), "lookup failed"));
+                cache.put(key, new Track(List.of(), "lookup failed",
+                        System.currentTimeMillis() + RETRY_FAILED_MS));
                 status = "lookup failed: " + t.getMessage();
             } finally {
                 pending.remove(key);
@@ -183,7 +197,13 @@ public final class Lyrics {
                         .GET().build(),
                 HttpResponse.BodyHandlers.ofString());
 
-        return response.statusCode() == 200 ? response.body() : null;
+        // 404 is an answer - LRCLIB has nothing for this spelling. Anything
+        // else that is not a 200 is the service having a bad moment, and is
+        // thrown so the lookup counts as failed and is tried again, rather
+        // than cached as "no lyrics" for the rest of the session.
+        if (response.statusCode() == 200) return response.body();
+        if (response.statusCode() == 404) return null;
+        throw new java.io.IOException("LRCLIB answered " + response.statusCode());
     }
 
     private static String encode(String text) {

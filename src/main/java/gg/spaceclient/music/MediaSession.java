@@ -38,8 +38,12 @@ public final class MediaSession {
     /** When the position above was measured, so it can be advanced between polls. */
     private static volatile long measuredAt = 0;
 
-    /** The previous raw reading, to tell a running timeline from a frozen one. */
-    private static volatile double previousRaw = -1;
+    /** Whether the track was playing at that reading - a paused one stands still. */
+    private static volatile boolean running = false;
+
+    /** The previous reading, to tell a running timeline from a frozen one. */
+    private static volatile double previousPosition = -1;
+    private static volatile long previousAt = 0;
     private static volatile int stuckReadings = 0;
 
     public static String status() { return status; }
@@ -54,7 +58,11 @@ public final class MediaSession {
      */
     public static double position() {
         if (position < 0 || stuckReadings >= 3) return -1;
-        return position + (System.currentTimeMillis() - measuredAt) / 1000.0;
+        if (!running) return position;
+        double now = position + (System.currentTimeMillis() - measuredAt) / 1000.0;
+        // Past the end means the next track has started and the next poll has
+        // not seen it yet; holding at the end is closer than running on.
+        return duration > 0 ? Math.min(now, duration) : now;
     }
 
     public static double duration() { return duration; }
@@ -155,12 +163,12 @@ public final class MediaSession {
                 // A playing session wins; a paused one is kept in case nothing
                 // is actually playing right now.
                 if (track.playing()) {
-                    readTimeline(parts);
+                    readTimeline(parts, true);
                     return track;
                 }
                 if (paused == null) {
                     paused = track;
-                    readTimeline(parts);
+                    readTimeline(parts, false);
                 }
             }
 
@@ -174,8 +182,20 @@ public final class MediaSession {
         }
     }
 
-    /** Picks the timeline fields out of a line, if the script managed to read them. */
-    private static void readTimeline(String[] parts) {
+    /**
+     * Picks the timeline fields out of a line, if the script managed to read them.
+     *
+     * The position Windows hands out is not "now". It is where the player was
+     * the last time it pushed an update, and players push rarely - Spotify
+     * mostly on play, pause and seek. Taken at face value it lagged by however
+     * long ago that was, which is why lyrics ran seconds behind the song, and
+     * because it stood still between pushes it also looked frozen and was
+     * thrown away, which is why they sometimes did not show at all. The script
+     * now reports how old the reading is; a playing track is moved on by that,
+     * and the moment of measuring is the script's clock rather than whenever
+     * Java got round to parsing the output.
+     */
+    private static void readTimeline(String[] parts, boolean playing) {
         try {
             if (parts.length < 6) {
                 position = -1;
@@ -188,26 +208,50 @@ public final class MediaSession {
             // A track with no length is a player that fills the fields in
             // without meaning them. Better to call that unknown than to hand
             // out a position with nothing to measure it against.
-            if (length <= 0) {
+            if (length <= 0 || raw < 0) {
                 position = -1;
                 duration = -1;
                 return;
             }
 
-            // Some players report a timeline that never moves. Carrying that
-            // forward produces a number that rises convincingly and means
-            // nothing, so a value standing still across polls is treated as
-            // no timeline at all.
-            if (raw == previousRaw) {
-                if (stuckReadings < 10) stuckReadings++;
+            long now = System.currentTimeMillis();
+            long taken = now;
+            double age = 0;
+            if (parts.length >= 8) {
+                age = Double.parseDouble(parts[6].trim()) / 1000.0;
+                long scriptNow = Long.parseLong(parts[7].trim());
+                // The script's clock is this machine's clock; anything far off
+                // is a parse of something else, and "now" is the safer guess
+                if (Math.abs(now - scriptNow) < 30_000) taken = scriptNow;
+                // A negative or absurd age would push the position anywhere
+                if (age < 0 || age > 24 * 3600) age = 0;
+            }
+
+            double current = playing ? raw + age : raw;
+            if (current > length) current = length;
+
+            // Some players report a timeline that never moves, and moving it on
+            // by its age does not help when the age is always zero. So a
+            // playing track whose position keeps not advancing is treated as
+            // having no timeline at all.
+            if (playing && previousPosition >= 0 && previousAt > 0) {
+                double elapsed = (taken - previousAt) / 1000.0;
+                double moved = current - previousPosition;
+                if (elapsed > 1.0 && Math.abs(moved) < elapsed * 0.25) {
+                    if (stuckReadings < 10) stuckReadings++;
+                } else {
+                    stuckReadings = 0;
+                }
             } else {
                 stuckReadings = 0;
             }
-            previousRaw = raw;
+            previousPosition = current;
+            previousAt = taken;
 
-            position = raw;
+            position = current;
             duration = length;
-            measuredAt = System.currentTimeMillis();
+            running = playing;
+            measuredAt = taken;
 
         } catch (Throwable ignored) {
             // A player that reports no timeline is normal, not an error
@@ -229,10 +273,11 @@ public final class MediaSession {
             // Versioned: the file is cached in temp and only written when missing,
             // so a fixed script would never reach a machine that already had the
             // broken one. Bump this whenever the script below changes.
-            Path path = Path.of(System.getProperty("java.io.tmpdir"), "spaceclient-media-3.ps1");
+            Path path = Path.of(System.getProperty("java.io.tmpdir"), "spaceclient-media-4.ps1");
             if (Files.exists(path)) return path;
 
             String script = String.join("\n",
+                    "param([string]$thumb = '')",
                     "$ErrorActionPreference = 'Stop'",
                     "try {",
                     "  Add-Type -AssemblyName System.Runtime.WindowsRuntime",
@@ -252,6 +297,34 @@ public final class MediaSession {
                     "  $manager = Await ($managerType::RequestAsync()) ([Windows.Media.Control." +
                             "GlobalSystemMediaTransportControlsSessionManager])",
                     "",
+                    "  if ($thumb -ne '') {",
+                    "    # Cover mode: the picture of the session that is playing,",
+                    "    # written to the given file. One call per song, not per poll.",
+                    "    $null = [Windows.Storage.Streams.DataReader,Windows.Storage.Streams,ContentType=WindowsRuntime]",
+                    "    $pick = $null",
+                    "    foreach ($session in $manager.GetSessions()) {",
+                    "      $id = $session.SourceAppUserModelId.ToLower()",
+                    "      if (-not ($id.Contains('spotify') -or $id.Contains('amazon'))) { continue }",
+                    "      if ($pick -eq $null) { $pick = $session }",
+                    "      if ($session.GetPlaybackInfo().PlaybackStatus -eq 'Playing') { $pick = $session; break }",
+                    "    }",
+                    "    if ($pick -eq $null) { Write-Output 'THUMB|none'; return }",
+                    "    $props = Await ($pick.TryGetMediaPropertiesAsync()) " +
+                            "([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])",
+                    "    if ($props.Thumbnail -eq $null) { Write-Output 'THUMB|none'; return }",
+                    "    $stream = Await ($props.Thumbnail.OpenReadAsync()) " +
+                            "([Windows.Storage.Streams.IRandomAccessStreamWithContentType])",
+                    "    $size = [uint32]$stream.Size",
+                    "    if ($size -le 0) { Write-Output 'THUMB|none'; return }",
+                    "    $reader = [Windows.Storage.Streams.DataReader]::new($stream.GetInputStreamAt(0))",
+                    "    $null = Await ($reader.LoadAsync($size)) ([uint32])",
+                    "    $bytes = New-Object byte[] $size",
+                    "    $reader.ReadBytes($bytes)",
+                    "    [System.IO.File]::WriteAllBytes($thumb, $bytes)",
+                    "    Write-Output ('THUMB|ok|' + $size)",
+                    "    return",
+                    "  }",
+                    "",
                     "  foreach ($session in $manager.GetSessions()) {",
                     "    $appId = $session.SourceAppUserModelId",
                     "    $status = $session.GetPlaybackInfo().PlaybackStatus",
@@ -262,16 +335,21 @@ public final class MediaSession {
                     "    # so this must never take the whole line down with it",
                     "    $pos = -1",
                     "    $dur = -1",
+                    "    $age = 0",
                     "    try {",
                     "      $timeline = $session.GetTimelineProperties()",
                     "      if ($timeline -ne $null) {",
                     "        $pos = $timeline.Position.TotalSeconds",
                     "        $dur = $timeline.EndTime.TotalSeconds",
+                    "        # How long ago the player last pushed that position",
+                    "        $age = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() - " +
+                            "$timeline.LastUpdatedTime.ToUnixTimeMilliseconds()",
                     "      }",
                     "    } catch { }",
+                    "    $now = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()",
                     "",
                     "    Write-Output (\"$appId|$status|\" + $properties.Artist + '|' + " +
-                            "$properties.Title + '|' + $pos + '|' + $dur)",
+                            "$properties.Title + '|' + $pos + '|' + $dur + '|' + $age + '|' + $now)",
                     "  }",
                     "} catch {",
                     "  Write-Output ('ERROR|' + $_.Exception.Message)",
@@ -285,6 +363,55 @@ public final class MediaSession {
             return null;
         }
     }
+
+    /**
+     * Writes the cover of the playing track to a file.
+     *
+     * @return true if a picture was written
+     */
+    public static boolean thumbnail(Path target) {
+        Path script = scriptFile();
+        if (script == null) return false;
+
+        try {
+            Files.deleteIfExists(target);
+            Process process = new ProcessBuilder(
+                    "powershell", "-NoProfile", "-NonInteractive",
+                    "-ExecutionPolicy", "Bypass", "-File", script.toString(),
+                    "-thumb", target.toString())
+                    .redirectErrorStream(true)
+                    .start();
+
+            StringBuilder output = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) output.append(line).append('\n');
+            }
+            process.waitFor();
+
+            String text = output.toString();
+            if (text.contains("ERROR|")) {
+                coverStatus = "cover lookup failed: " + text.substring(text.indexOf("ERROR|") + 6).trim();
+                return false;
+            }
+            if (!text.contains("THUMB|ok")) {
+                coverStatus = "player offers no cover";
+                return false;
+            }
+            coverStatus = "ok";
+            return Files.isRegularFile(target) && Files.size(target) > 0;
+
+        } catch (Throwable t) {
+            coverStatus = "cover lookup threw: " + t.getMessage();
+            return false;
+        }
+    }
+
+    private static volatile String coverStatus = "not asked yet";
+
+    /** What the last cover lookup did, for the diagnostics page. */
+    public static String coverStatus() { return coverStatus; }
 
     private MediaSession() {}
 }

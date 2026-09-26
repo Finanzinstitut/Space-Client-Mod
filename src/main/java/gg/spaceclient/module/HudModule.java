@@ -53,7 +53,14 @@ public abstract class HudModule extends Module {
      * match on the old default is as close to "never touched" as this can get;
      * anybody who deliberately picked that exact grey can pick it again.
      */
-    private int plateTint() {
+    /**
+     * The plate colour this frame. An element that themes itself - the music
+     * card takes the colours of the player it shows - overrides this; every
+     * other element gets the setting.
+     */
+    protected int plateColour() { return plateTint(); }
+
+    protected int plateTint() {
         int stored = backgroundColor.get();
         return stored == LEGACY_PLATE ? GLASS_PLATE : stored;
     }
@@ -160,7 +167,7 @@ public abstract class HudModule extends Module {
 
                 gg.spaceclient.ui.Glass.pill(graphics,
                         drawX - padding, drawY - padding, plateW, plateH,
-                        plateTint(), Math.min(12, plateH / 2));
+                        plateColour(), Math.min(12, plateH / 2));
             }
             render(graphics, drawX, drawY);
         } finally {
