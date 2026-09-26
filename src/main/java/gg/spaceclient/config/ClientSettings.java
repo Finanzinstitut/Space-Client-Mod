@@ -50,6 +50,31 @@ public class ClientSettings {
      */
     private boolean customMenu = true;
 
+    /**
+     * How large the right shift menu is drawn, in percent.
+     *
+     * The menu is sized for the GUI scale, and at the larger GUI scales that
+     * means it covers nearly the whole game - which is exactly where you want
+     * to watch a HUD element change as you switch it. Scaling the menu alone
+     * leaves everything else at the size the player chose.
+     */
+    public static final int[] MENU_SCALES = {100, 90, 80, 70, 60, 50};
+
+    private int menuScale = 100;
+
+    public int menuScale() { return menuScale; }
+
+    /** Steps to the next smaller size, and from the smallest back to full. */
+    public void cycleMenuScale() {
+        for (int i = 0; i < MENU_SCALES.length; i++) {
+            if (MENU_SCALES[i] == menuScale) {
+                menuScale = MENU_SCALES[(i + 1) % MENU_SCALES.length];
+                return;
+            }
+        }
+        menuScale = 100;
+    }
+
     public boolean customMenu() { return customMenu; }
 
     public void setCustomMenu(boolean value) { this.customMenu = value; }
@@ -98,6 +123,7 @@ public class ClientSettings {
         json.addProperty("accent_color", accent.get());
         json.addProperty("font_style", fontStyle);
         json.addProperty("custom_menu", customMenu);
+        json.addProperty("menu_scale", menuScale);
     }
 
     public void load(JsonObject json) {
@@ -106,6 +132,10 @@ public class ClientSettings {
             if (BACKGROUND_STYLES.contains(value)) backgroundStyle = value;
         }
         if (json.has("custom_menu")) customMenu = json.get("custom_menu").getAsBoolean();
+        if (json.has("menu_scale")) {
+            int value = json.get("menu_scale").getAsInt();
+            for (int allowed : MENU_SCALES) if (allowed == value) menuScale = value;
+        }
         if (json.has("accent_color")) {
             accent.set(json.get("accent_color").getAsInt());
         }

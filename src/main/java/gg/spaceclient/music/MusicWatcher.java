@@ -73,6 +73,8 @@ public final class MusicWatcher {
                 if (session != null && !session.isEmpty()) {
                     status = "media session: " + session.source();
                     apply(session);
+                    // Only does work when the song changed
+                    Cover.update(session);
                 } else if (session != null) {
                     // The interface worked and reported nothing playing
                     status = "nothing playing";

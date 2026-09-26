@@ -46,6 +46,14 @@ public final class NowPlayingShare {
     /** How often everyone else's tracks are fetched. */
     private static final long FETCH_MS = 10_000;
 
+    /**
+     * The same, while lyrics are on. A song change reaches other people on the
+     * next lookup, and until then they keep extrapolating the old song - which
+     * with ten seconds between lookups meant up to ten seconds of the previous
+     * song's words over the head.
+     */
+    private static final long FETCH_LYRICS_MS = 4_000;
+
     /** Still a floor, so a busy spawn cannot turn every arrival into a request. */
     private static final long FETCH_NEW_MS = 1_500;
 
@@ -77,6 +85,7 @@ public final class NowPlayingShare {
     private static long lastFetch = 0;
     private static String lastReported = "";
     private static double lastPosition = -1;
+    private static boolean lastPlaying = false;
     private static boolean wasSharing = false;
 
     /**
@@ -264,7 +273,7 @@ public final class NowPlayingShare {
         // four more. A change now only waits out a much shorter floor; the
         // long one still applies to keepalives and seek corrections, which is
         // what it was there to hold back.
-        boolean fresh = !line.equals(lastReported);
+        boolean fresh = !line.equals(lastReported) || playing.playing() != lastPlaying;
         long floor = fresh ? REPORT_CHANGE_MS : REPORT_MIN_MS;
         if (now - lastReport < floor) return;
 
@@ -273,17 +282,30 @@ public final class NowPlayingShare {
         // Sent when the track changes, when the keepalive is due, or when the
         // position no longer matches what listeners would have extrapolated -
         // which is how seeking gets corrected without reporting constantly
-        double expected = lastPosition + (now - lastReport) / 1000.0;
+        double expected = lastPlaying
+                ? lastPosition + (now - lastReport) / 1000.0
+                : lastPosition;
         boolean seeked = position >= 0 && lastPosition >= 0
                 && Math.abs(position - expected) > 2.0;
 
+        // Pausing and resuming are news too. Without them a listener kept
+        // running the song on through a pause and was ahead by however long
+        // it lasted - the lyrics then led the music until the next keepalive.
+        boolean pausedOrResumed = playing.playing() != lastPlaying;
+
+        // A position that was unknown at the song change and has turned up
+        // since. It used to wait for the minute keepalive, and until then
+        // nobody else could show a single line.
+        boolean positionArrived = lastPosition < 0 && position >= 0;
+
         boolean changed = !line.equals(lastReported);
         boolean stale = now - lastReport > REPORT_KEEPALIVE_MS;
-        if (!changed && !stale && !seeked) return;
+        if (!changed && !stale && !seeked && !pausedOrResumed && !positionArrived) return;
 
         lastReport = now;
         lastReported = line;
         lastPosition = position;
+        lastPlaying = playing.playing();
         reporting = true;
 
         CompletableFuture.runAsync(() -> {
@@ -337,7 +359,7 @@ public final class NowPlayingShare {
             if (!asked.contains(uuid)) { newcomer = true; break; }
         }
 
-        long wait = newcomer ? FETCH_NEW_MS : FETCH_MS;
+        long wait = newcomer ? FETCH_NEW_MS : showsLyrics() ? FETCH_LYRICS_MS : FETCH_MS;
         if (now - lastFetch < wait) return;
 
         lastFetch = now;

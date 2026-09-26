@@ -9,6 +9,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
@@ -125,6 +126,44 @@ public class SpaceMenuScreen extends Screen {
     // centred panel starts to read as the full-screen takeover this replaced.
 
     private int panelW() { return Math.max(440, Math.min(880, this.width - 60)); }
+
+    // ---------------- size ----------------
+    //
+    // The menu can be drawn smaller than the GUI scale would make it. Rather
+    // than shrinking every measurement by hand, the screen pretends to be
+    // larger than the window by the same factor and the whole paint pass is
+    // scaled down to fit - so text, cards and gaps all shrink together and the
+    // layout maths above stays exactly as it was. The mouse is divided by the
+    // same factor on the way in, which is all the widgets need to keep lining
+    // up with what is drawn.
+
+    /** 1 at full size, 0.5 at half. Read from the settings on every rebuild. */
+    private float scale = 1f;
+
+    private MouseButtonEvent unscaled(MouseButtonEvent event) {
+        if (scale == 1f) return event;
+        return new MouseButtonEvent(event.x() / scale, event.y() / scale, event.buttonInfo());
+    }
+
+    @Override
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        return super.mouseClicked(unscaled(event), doubleClick);
+    }
+
+    @Override
+    public boolean mouseReleased(MouseButtonEvent event) {
+        return super.mouseReleased(unscaled(event));
+    }
+
+    @Override
+    public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
+        return super.mouseDragged(unscaled(event), dragX / scale, dragY / scale);
+    }
+
+    @Override
+    public void mouseMoved(double mouseX, double mouseY) {
+        super.mouseMoved(mouseX / scale, mouseY / scale);
+    }
     private int panelH() { return Math.max(260, Math.min(480, this.height - 50)); }
     private int panelX() { return (this.width - panelW()) / 2; }
     private int panelY() { return (this.height - panelH()) / 2; }
@@ -190,6 +229,14 @@ public class SpaceMenuScreen extends Screen {
 
     @Override
     protected void init() {
+        // Before anything is placed: every position below is worked out from
+        // width and height, so this is the one spot that has to know the menu
+        // is drawn at less than full size.
+        scale = SpaceClient.getSettings().menuScale() / 100f;
+        var window = Minecraft.getInstance().getWindow();
+        this.width = Math.round(window.getGuiScaledWidth() / scale);
+        this.height = Math.round(window.getGuiScaledHeight() / scale);
+
         buildSearch();
         buildRail();
         buildFooter();
@@ -230,6 +277,20 @@ public class SpaceMenuScreen extends Screen {
         });
         this.addRenderableWidget(search);
         this.setInitialFocus(search);
+
+        // The menu's own size, in the header next to the search: the footer
+        // has no room left at the narrowest panel. Each press is one step
+        // smaller, and the smallest wraps back to full.
+        this.addRenderableWidget(new NavButton(
+                panelX() + panelW() - PAD - SEARCH_W - 6 - 74, panelY() + 13, 74, 20,
+                NavButton.Style.CHIP,
+                () -> "Size " + SpaceClient.getSettings().menuScale() + "%",
+                () -> SpaceClient.getSettings().menuScale() < 100,
+                () -> {
+                    SpaceClient.getSettings().cycleMenuScale();
+                    SpaceClient.getConfigManager().save();
+                    this.rebuildWidgets();
+                }));
     }
 
     /**
@@ -484,6 +545,16 @@ public class SpaceMenuScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+        graphics.pose().pushMatrix();
+        graphics.pose().scale(scale, scale);
+        try {
+            paint(graphics, Math.round(mouseX / scale), Math.round(mouseY / scale), delta);
+        } finally {
+            graphics.pose().popMatrix();
+        }
+    }
+
+    private void paint(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         float age = Ease.clamp01((System.currentTimeMillis() - openedAt) / 220f);
         float shown = Ease.outCubic(age);
 
@@ -505,8 +576,16 @@ public class SpaceMenuScreen extends Screen {
         // The chosen background, the same one every other screen draws, so a
         // background setting is not a setting that visibly does nothing
         // everywhere except the screen it was changed on.
-        Backdrop.draw(graphics, this.width, this.height);
-        graphics.fill(0, 0, this.width, this.height, (int) (0x55 * shown) << 24);
+        //
+        // Except in a world. There the wallpaper hid the whole game behind the
+        // menu, including the HUD elements it is there to switch - so in game
+        // the world stays visible behind a light veil instead.
+        if (Minecraft.getInstance().level == null) {
+            Backdrop.draw(graphics, this.width, this.height);
+            graphics.fill(0, 0, this.width, this.height, (int) (0x55 * shown) << 24);
+        } else {
+            graphics.fill(0, 0, this.width, this.height, (int) (0x70 * shown) << 24);
+        }
 
         // One rounded plate with its own soft edge, rather than a rectangle
         // with four one-pixel borders. This is the shape the HUD plates and
@@ -546,7 +625,10 @@ public class SpaceMenuScreen extends Screen {
         scrollbar(graphics, x1);
         footer(graphics, x0, x1, y1, mouseX, mouseY);
 
-        if (age < 1f) {
+        if (age < 1f && Minecraft.getInstance().level == null) {
+            // Only over the wallpaper: in a world the fade from black would
+            // blank the game for a fifth of a second every time the menu opens.
+            //
             // Eased rather than linear: a veil that lifts at a constant rate
             // reads as a cut, because the eye notices the last few percent most
             // and that is exactly where linear spends the least time.
@@ -694,6 +776,18 @@ public class SpaceMenuScreen extends Screen {
     @Override
     public void onClose() {
         Minecraft.getInstance().gui.setScreen(null);
+    }
+
+    /**
+     * Nothing from the game in a world: its own backdrop there is a dark
+     * gradient over everything, which is the very thing that made the menu
+     * cover the whole screen. The light veil in paint() replaces it.
+     */
+    @Override
+    public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+        if (Minecraft.getInstance().level == null) {
+            super.extractBackground(graphics, mouseX, mouseY, delta);
+        }
     }
 
     @Override
