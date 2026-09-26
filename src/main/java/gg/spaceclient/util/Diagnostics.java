@@ -45,6 +45,10 @@ public final class Diagnostics {
         checks.add(new Check("Hitbox mixin", drawing,
                 drawing ? "attached and drawing" : "not reached yet - enable the module and look around"));
 
+        // --- hit colour, painted into the game's overlay texture ---
+        String tint = gg.spaceclient.render.HitTint.status();
+        checks.add(new Check("Hit colour", !tint.startsWith("failed"), tint));
+
         // --- raw keyboard, needed for keystrokes and the zoom key ---
         boolean keyboard = gg.spaceclient.input.RawKeyboard.isAvailable();
         checks.add(new Check("Raw keyboard", keyboard,

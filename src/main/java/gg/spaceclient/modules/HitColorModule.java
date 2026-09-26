@@ -1,5 +1,6 @@
 package gg.spaceclient.modules;
 
+import gg.spaceclient.access.TintHolder;
 import gg.spaceclient.module.Module;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
@@ -7,58 +8,76 @@ import gg.spaceclient.setting.IntSetting;
 import gg.spaceclient.setting.SettingGroup;
 
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
+import net.minecraft.world.entity.monster.Enemy;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Lights up entities you hit, and the one currently within your reach.
+ * Colours entities you hit, and the one currently within your reach.
  *
- * Two separate cues, both configurable, because they answer different
- * questions: the reach tint tells you whether a swing would connect at all,
- * while the hit tint confirms one landed. Having both in one module means one
- * place to set the colours rather than two that must be kept in step.
+ * The colour sits on the entity itself - its skin, its fur, the crystal - by
+ * way of the same overlay the game uses for its red hurt flash (see HitTint).
+ * It used to be a translucent box the size of the hitbox, which read as a box
+ * rather than as the entity being hit.
  *
- * The colour is drawn as a translucent shell over the entity rather than by
- * recolouring its model: tinting the model needs a hook into the entity
- * renderer whose shape has not been confirmed for this version, and a shell
- * through the pipeline that already works is worth more than a tint that may
- * never draw.
+ * Which entities are coloured is a setting per kind. Anything left out keeps
+ * the game's own red flash, so switching a kind off never loses the cue.
+ *
+ * For living entities "hit" means the game's own hurt flash, so the colour
+ * lasts exactly as long as the red one would have and only appears when the
+ * server agreed the hit landed. Crystals have no hurt state - they break - so
+ * for them a swing at one in reach counts, for a moment.
  */
 public class HitColorModule extends Module {
+    /** How long a swing at a crystal keeps it coloured, if it survives at all. */
+    private static final long CRYSTAL_FLASH_MS = 300;
 
     // --- when you land a hit ---
     private final BooleanSetting hitOn = new BooleanSetting(
-            "hit_on", "Show", "Light up an entity you hit", true);
+            "hit_on", "Show", "Colour an entity when it is hit", true);
     private final ColorSetting hitColor = new ColorSetting(
-            "hit_color", "Colour", "Colour of the flash", 0x60FF4444);
-    private final IntSetting hitDuration = new IntSetting(
-            "hit_duration", "Duration (tenths of a second)", "How long the flash lasts", 4, 1, 20);
-    private final BooleanSetting fadeOut = new BooleanSetting(
-            "fade", "Fade out", "Let the flash fade instead of cutting off", true);
+            "hit_color", "Colour", "Colour of the flash - transparency sets how strong", 0x60FF4444);
 
     // --- while a target is in range ---
     private final BooleanSetting reachOn = new BooleanSetting(
-            "reach_on", "Show", "Light up whatever is within reach", false);
+            "reach_on", "Show", "Colour whatever is within reach", false);
     private final ColorSetting reachColor = new ColorSetting(
-            "reach_color", "Colour", "Colour of the reach tint", 0x3038E0FF);
+            "reach_color", "Colour", "Colour of the reach tint - transparency sets how strong", 0x5038E0FF);
     private final IntSetting reachDistance = new IntSetting(
             "reach_distance", "Reach (tenths of a block)",
             "How far a hit is assumed to land", 30, 20, 60);
 
-    /** Entities hit recently, and when. */
-    private final Map<Integer, Long> hits = new LinkedHashMap<>();
+    // --- what gets coloured ---
+    private final BooleanSetting onPlayers = new BooleanSetting(
+            "on_players", "Players", "Other players", true);
+    private final BooleanSetting onSelf = new BooleanSetting(
+            "on_self", "Yourself", "You, in third person", true);
+    private final BooleanSetting onHostile = new BooleanSetting(
+            "on_hostile", "Hostile mobs", "Zombies, creepers, endermen and the like", true);
+    private final BooleanSetting onPassive = new BooleanSetting(
+            "on_passive", "Other mobs", "Animals, villagers, golems, armour stands", true);
+    private final BooleanSetting onCrystals = new BooleanSetting(
+            "on_crystals", "End crystals", "Crystals, for crystal PvP", true);
+
+    /** Crystals swung at recently, and when. */
+    private final Map<Integer, Long> crystalHits = new LinkedHashMap<>();
 
     private boolean wasAttacking = false;
     private Entity inReach = null;
 
     public HitColorModule() {
-        super("hitcolor", "Hit Colour", "Tints entities you hit or can reach", false);
+        super("hitcolor", "Hit Colour", "Colours entities you hit or can reach", false);
         addGroups(
                 SettingGroup.of("On hit", "The flash when a hit lands",
-                        hitOn, hitColor, hitDuration, fadeOut),
+                        hitOn, hitColor),
                 SettingGroup.of("In reach", "The tint while a target is close enough",
-                        reachOn, reachColor, reachDistance)
+                        reachOn, reachColor, reachDistance),
+                SettingGroup.of("Colour on", "Which entities get the colour - the rest keep the normal red",
+                        onPlayers, onSelf, onHostile, onPassive, onCrystals)
         );
     }
 
@@ -74,14 +93,14 @@ public class HitColorModule extends Module {
         inReach = target != null && target.distanceTo(mc.player) <= reach ? target : null;
 
         boolean attacking = mc.options != null && mc.options.keyAttack.isDown();
-        if (attacking && !wasAttacking && inReach != null) {
-            hits.put(inReach.getId(), System.currentTimeMillis());
+        if (attacking && !wasAttacking && inReach instanceof EndCrystal) {
+            crystalHits.put(inReach.getId(), System.currentTimeMillis());
         }
         wasAttacking = attacking;
 
-        // Forget old flashes so the map cannot grow without bound
-        long cutoff = System.currentTimeMillis() - hitDuration.get() * 100L;
-        hits.entrySet().removeIf(entry -> entry.getValue() < cutoff);
+        // Forget old swings so the map cannot grow without bound
+        long cutoff = System.currentTimeMillis() - CRYSTAL_FLASH_MS;
+        crystalHits.entrySet().removeIf(entry -> entry.getValue() < cutoff);
     }
 
     /** What the crosshair is on, read from the game's own pick result. */
@@ -107,34 +126,37 @@ public class HitColorModule extends Module {
     }
 
     /**
-     * The colour to shade an entity with, or 0 for none.
-     * Called from the renderer once per entity per frame.
+     * How to draw an entity this frame: TintHolder.NONE, HIT or REACH.
+     * Called from the renderers once per entity per frame.
+     *
+     * @param hurt whether the game is showing its red hurt flash on it
      */
-    public int tintFor(Entity entity) {
-        if (hitOn.get()) {
-            Long when = hits.get(entity.getId());
-            if (when != null) {
-                long age = System.currentTimeMillis() - when;
-                long life = hitDuration.get() * 100L;
-                if (age <= life) {
-                    int argb = hitColor.get();
-                    if (!fadeOut.get()) return argb;
+    public int kindFor(Entity entity, boolean hurt) {
+        if (!isEnabled() || !covers(entity)) return TintHolder.NONE;
 
-                    // Fade the alpha only, so the colour itself stays true
-                    int alpha = (int) (((argb >>> 24) & 0xFF) * (1.0 - age / (double) life));
-                    return (alpha << 24) | (argb & 0x00FFFFFF);
-                }
-            }
+        boolean hit = hurt || entity instanceof EndCrystal && crystalHits.containsKey(entity.getId());
+        if (hit) {
+            // With the hit colour off the game's red flash wins, even over
+            // the reach tint: a hit is the more important thing to see
+            return hitOn.get() ? TintHolder.HIT : TintHolder.NONE;
         }
 
-        if (reachOn.get() && entity == inReach) {
-            return reachColor.get();
-        }
-        return 0;
+        if (reachOn.get() && entity == inReach) return TintHolder.REACH;
+        return TintHolder.NONE;
     }
 
-    /** True when there is anything at all to draw. */
-    public boolean anythingToTint() {
-        return (hitOn.get() && !hits.isEmpty()) || (reachOn.get() && inReach != null);
+    /** Whether this kind of entity is ticked in the settings. */
+    private boolean covers(Entity entity) {
+        if (entity instanceof EndCrystal) return onCrystals.get();
+        if (entity instanceof Player) {
+            return entity == mc.player ? onSelf.get() : onPlayers.get();
+        }
+        if (entity instanceof Enemy) return onHostile.get();
+        if (entity instanceof LivingEntity) return onPassive.get();
+        return false;
     }
+
+    public int hitColour() { return hitColor.get(); }
+
+    public int reachColour() { return reachColor.get(); }
 }

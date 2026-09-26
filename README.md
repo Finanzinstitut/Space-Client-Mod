@@ -35,7 +35,7 @@ addition is confirmed building.
 | Click Graph | off | rolling graph, so bursts and steady clicking look different |
 | Marker | off | sneak + drop stores a spot; shows bearing and distance back |
 | Now Playing | off | Spotify or Amazon Music only, with controls in chat |
-| Hit Colour | off | tints what you hit, and what is within reach |
+| Hit Colour | off | colours the model of what you hit, and what is within reach |
 
 Press **Right Shift** to open the menu. The interface deliberately matches the
 launcher rather than vanilla Minecraft: the same violet and cyan accents, the
@@ -201,15 +201,22 @@ before the game has a window at all.
 
 Two cues in one module, because they answer different questions: the reach tint
 says whether a swing would connect at all, the hit tint confirms one landed.
-Each has its own sub-menu with a switch and a colour, plus a fade for the hit
-flash and an adjustable reach distance.
+Each has a switch and a colour; the colour's transparency sets how strong the
+tint is. A third group picks **what** gets coloured: other players, yourself in
+third person, hostile mobs, other mobs, end crystals. Anything left out keeps
+the game's normal red flash.
 
-The colour is drawn as a **translucent shell** over the entity rather than by
-recolouring its model. Tinting the model itself needs a hook into the entity
-renderer whose shape has not been confirmed for this version, and a shell
-through the pipeline that already works is worth more than a tint that might
-never draw. It shares the hitbox module's render pass, so it costs nothing
-extra.
+The colour sits **on the model itself** - skin, fur, crystal - not on a box
+around it. It uses the game's own mechanism for the red hurt flash: a small
+overlay texture that every entity model samples. Two of its rows are never used
+by the game; the chosen colours are painted into those, and a tinted entity is
+pointed at them instead of the red row. Layers such as the second skin layer or
+sheep wool follow automatically.
+
+For players and mobs a hit is the game's own hurt flash, so the colour lasts as
+long as the red one would and only shows when the server accepted the hit.
+Crystals have no hurt state - they break - so for them a swing at one in reach
+counts for a moment.
 
 ## Mouse only, on purpose
 

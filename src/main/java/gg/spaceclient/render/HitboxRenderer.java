@@ -1,7 +1,6 @@
 package gg.spaceclient.render;
 
 import gg.spaceclient.SpaceClient;
-import gg.spaceclient.modules.HitColorModule;
 import gg.spaceclient.modules.HitboxModule;
 import gg.spaceclient.util.Reflect;
 
@@ -59,11 +58,10 @@ public final class HitboxRenderer {
         available = true;
 
         HitboxModule module = (HitboxModule) SpaceClient.getModuleManager().get("hitbox");
-        HitColorModule tint = (HitColorModule) SpaceClient.getModuleManager().get("hitcolor");
 
-        boolean wantBoxes = module != null && module.isEnabled() && module.anyCategoryOn();
-        boolean wantTint = tint != null && tint.isEnabled() && tint.anythingToTint();
-        if (!wantBoxes && !wantTint) return;
+        // The hit colour used to be drawn here as a shell the size of the box.
+        // It now colours the model itself, see HitTint.
+        if (module == null || !module.isEnabled() || !module.anyCategoryOn()) return;
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) return;
@@ -94,20 +92,7 @@ public final class HitboxRenderer {
 
             // Anything else the game has hidden stays hidden unless asked
             boolean invisible = entity.isInvisible();
-            if (invisible && !(wantBoxes && module != null && module.showInvisible())) continue;
-
-            // The tinted shell is drawn first, so an outline sits on top of it
-            if (wantTint) {
-                int shade = tint.tintFor(entity);
-                if (shade != 0) {
-                    AABB shell = interpolated(entity, partialTick)
-                            .move(-camera.x, -camera.y, -camera.z)
-                            .inflate(0.02);
-                    submitFilled(collector, lines, shell, shade);
-                }
-            }
-
-            if (!wantBoxes || module == null) continue;
+            if (invisible && !module.showInvisible()) continue;
 
             HitboxModule.Category category = module.categoryOf(entity);
             if (!module.isEnabledFor(category)) continue;
@@ -173,11 +158,9 @@ public final class HitboxRenderer {
     }
 
     /**
-     * A solid, translucent shell around an entity.
+     * A solid, translucent box. Used by the block highlight.
      *
-     * Six faces rather than an outline: the point is to shade the whole body,
-     * and a box the size of the hitbox is close enough to it that the tint
-     * reads as the entity glowing.
+     * Six faces rather than an outline, for shading a whole volume.
      */
     static void submitFilled(SubmitNodeCollector collector, RenderType type,
                                      AABB box, int argb) {

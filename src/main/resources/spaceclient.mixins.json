@@ -14,7 +14,10 @@
     "ItemEntityRendererMixin",
     "ItemInHandRendererMixin",
     "GuiItemScaleMixin",
-    "TotemPopMixin"
+    "TotemPopMixin",
+    "EntityRenderStateMixin",
+    "LivingEntityRendererMixin",
+    "EndCrystalRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 0
