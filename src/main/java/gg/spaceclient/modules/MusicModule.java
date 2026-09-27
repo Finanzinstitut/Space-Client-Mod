@@ -270,10 +270,7 @@ public class MusicModule extends HudModule {
 
         if (lyrics.get() && !idle) {
             String line = position < 0 ? "" : Lyrics.line(playing.artist(), playing.title(), position);
-            if (!line.isEmpty()) {
-                graphics.text(mc.font, trim("\u266A " + line, room), textX, y + 31,
-                        0xFFE6E6E6, false);
-            }
+            if (!line.isEmpty()) drawLyric(graphics, "\u266A " + line, textX, y, room);
         }
 
         // Bottom row: bar and time on the left, the three controls on the right
@@ -343,6 +340,48 @@ public class MusicModule extends HudModule {
             int w = half - Math.abs(row - half) + 1;
             if (right) graphics.fill(x, y + row, x + w, y + row + 1, colour);
             else graphics.fill(x + half + 1 - w, y + row, x + half + 1, y + row + 1, colour);
+        }
+    }
+
+    /**
+     * The lyric line, whole.
+     *
+     * It used to be cut to the card's width with "..", which on a long line
+     * left most of the words off - the one thing the line is there for. Now a
+     * line that does not fit is drawn smaller, and if it still does not fit it
+     * is wrapped onto a second small line in the same space.
+     */
+    private void drawLyric(GuiGraphicsExtractor graphics, String line, int x, int y, int room) {
+        int colour = 0xFFE6E6E6;
+        if (mc.font.width(line) <= room) {
+            graphics.text(mc.font, line, x, y + 31, colour, false);
+            return;
+        }
+
+        int smallRoom = (int) (room / SMALL);
+        if (mc.font.width(line) <= smallRoom) {
+            small(graphics, line, x, y + 32, colour);
+            return;
+        }
+
+        // Two small lines, broken between words
+        String[] words = line.split(" ");
+        StringBuilder first = new StringBuilder();
+        int i = 0;
+        for (; i < words.length; i++) {
+            String next = first.length() == 0 ? words[i] : first + " " + words[i];
+            if (mc.font.width(next) > smallRoom && first.length() > 0) break;
+            first.setLength(0);
+            first.append(next);
+        }
+        StringBuilder second = new StringBuilder();
+        for (; i < words.length; i++) {
+            if (second.length() > 0) second.append(' ');
+            second.append(words[i]);
+        }
+        small(graphics, trim(first.toString(), smallRoom), x, y + 29, colour);
+        if (second.length() > 0) {
+            small(graphics, trim(second.toString(), smallRoom), x, y + 36, colour);
         }
     }
 
