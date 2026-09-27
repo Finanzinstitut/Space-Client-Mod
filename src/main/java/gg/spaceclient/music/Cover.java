@@ -97,7 +97,11 @@ public final class Cover {
         }
 
         // A cover from the previous song is worse than no cover
-        return hasTexture && shownFor.equals(key(track)) ? ID : null;
+        if (hasTexture && shownFor.equals(key(track))) return ID;
+
+        // Windows had none for this song, or has not answered yet: the
+        // catalogue lookup the song cards over other players use
+        return Artwork.texture(track.artist(), track.title());
     }
 
     /**
@@ -106,7 +110,7 @@ public final class Cover {
      * The game only reads PNG, and Spotify's covers are JPEG. Scaled down on
      * the way, since a 640 pixel cover drawn at forty is a waste of memory.
      */
-    private static byte[] toPng(byte[] raw) throws Exception {
+    static byte[] toPng(byte[] raw) throws Exception {
         BufferedImage source = javax.imageio.ImageIO.read(new ByteArrayInputStream(raw));
         if (source == null) return null;
 

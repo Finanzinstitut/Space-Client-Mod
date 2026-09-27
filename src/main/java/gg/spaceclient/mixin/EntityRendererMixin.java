@@ -181,32 +181,12 @@ public abstract class EntityRendererMixin {
             if (!(entity instanceof Player player)) return;
             if (player == mc.player && !NowPlayingShare.showOnSelf()) return;
 
-            String song = NowPlayingShare.songFor(player.getUUID());
-            if (song == null || song.isEmpty()) return;
+            var card = NowPlayingShare.cardFor(player.getUUID());
+            if (card == null) return;
 
-            collector.submitNameTag(
-                    poseStack,
-                    position.add(gg.spaceclient.render.NameLines.up(1)),
-                    background,
-                    Component.literal("\u266A " + song),
-                    flag,
-                    light,
-                    camera);
-
-            // Above the song rather than below, so the stack reads downward:
-            // lyric, track, name. Both sides have to have lyrics switched on
-            // before this appears at all.
-            String lyric = NowPlayingShare.lyricFor(player.getUUID());
-            if (lyric != null && !lyric.isEmpty()) {
-                collector.submitNameTag(
-                        poseStack,
-                        position.add(gg.spaceclient.render.NameLines.up(2)),
-                        background,
-                        Component.literal(lyric),
-                        flag,
-                        light,
-                        camera);
-            }
+            // Drawn as a card of its own, not as more name tags - see SongTag
+            // for why other mods' name tag hooks made the song line vanish
+            gg.spaceclient.render.SongTag.submit(collector, poseStack, position, camera, card);
 
             NowPlayingShare.noteHook(longOverload, true);
 

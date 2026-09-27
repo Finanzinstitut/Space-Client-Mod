@@ -73,7 +73,7 @@ public final class NowPlayingShare {
      * is carried forward locally in between, so the lyric line advances every
      * frame rather than lurching once per poll.
      */
-    private record Remote(String artist, String title, double position,
+    private record Remote(String artist, String title, String source, double position,
                           boolean playing, long receivedAt) {}
 
     private static final Map<UUID, Remote> remotes = new ConcurrentHashMap<>();
@@ -199,6 +199,27 @@ public final class NowPlayingShare {
                 : remote.position();
 
         return Lyrics.line(remote.artist(), remote.title(), position);
+    }
+
+    /**
+     * Everything the card over a player's head shows, or null when that player
+     * shares no song. Called from the render thread.
+     */
+    public static gg.spaceclient.render.SongTag.Card cardFor(UUID uuid) {
+        if (uuid == null) return null;
+        String song = songs.get(uuid);
+        if (song == null || song.isEmpty()) return null;
+
+        Remote remote = remotes.get(uuid);
+        String lyric = lyricFor(uuid);
+        if (lyric == null) lyric = "";
+
+        if (remote == null || remote.title().isEmpty()) {
+            // Only the combined line is known: shown as the title
+            return new gg.spaceclient.render.SongTag.Card(song, "", "", lyric);
+        }
+        return new gg.spaceclient.render.SongTag.Card(
+                remote.title(), remote.artist(), remote.source(), lyric);
     }
 
     /** Whether this player wants lyrics at all. */
@@ -406,6 +427,8 @@ public final class NowPlayingShare {
                         freshRemotes.put(uuid, new Remote(
                                 value.has("artist") ? value.get("artist").getAsString() : "",
                                 title,
+                                value.has("source") && !value.get("source").isJsonNull()
+                                        ? value.get("source").getAsString() : "",
                                 position + age,
                                 isPlaying,
                                 arrived));
