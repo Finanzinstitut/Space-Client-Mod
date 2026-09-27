@@ -91,7 +91,7 @@ public abstract class EntityRendererMixin {
 
         collector.submitNameTag(poseStack, position, background,
                 NameBadge.decorate(state, text), flag, light, camera);
-        addSong(collector, poseStack, position, background, flag, light, camera, state, true);
+        addSong(collector, poseStack, position, text, camera, state, true);
     }
 
     @Redirect(
@@ -118,7 +118,7 @@ public abstract class EntityRendererMixin {
 
         collector.submitNameTag(poseStack, position, background,
                 NameBadge.decorate(state, text), flag, light, camera);
-        addSong(collector, poseStack, position, background, flag, light, camera, state, false);
+        addSong(collector, poseStack, position, text, camera, state, false);
     }
 
     /**
@@ -165,14 +165,27 @@ public abstract class EntityRendererMixin {
     private void addSong(SubmitNodeCollector collector,
                          PoseStack poseStack,
                          Vec3 position,
-                         int background,
-                         boolean flag,
-                         int light,
+                         Component text,
                          CameraRenderState camera,
                          EntityRenderState state,
                          boolean longOverload) {
         try {
             if (!(state instanceof AvatarRenderState avatar)) return;
+
+            // Once per player, over the name. Vanilla makes this call twice
+            // when a server shows a score under the name - a health
+            // indicator, say - first for the score, then for the name one line
+            // up. The card used to go on both: two song lines, and the lyric
+            // of the lower one lying across the name.
+            //
+            // Recognised by being the score, not by being the name: another
+            // mod may hand the name through as a decorated copy, and then an
+            // identity check against the name would drop the card entirely.
+            Component score = state.scoreText;
+            if (score != null && state.nameTag != null
+                    && (text == score || text.getString().equals(score.getString()))) {
+                return;
+            }
 
             Minecraft mc = Minecraft.getInstance();
             if (mc.level == null) return;
