@@ -17,7 +17,9 @@
     "TotemPopMixin",
     "EntityRenderStateMixin",
     "LivingEntityRendererMixin",
-    "EndCrystalRendererMixin"
+    "EndCrystalRendererMixin",
+    "WaveyCapeEntityMixin",
+    "CapeLayerMixin"
   ],
   "injectors": {
     "defaultRequire": 0
