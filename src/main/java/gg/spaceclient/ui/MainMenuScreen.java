@@ -219,8 +219,34 @@ public class MainMenuScreen extends Screen {
 
     // --- the sequence ---
 
+    /**
+     * How far into the sequence we are, in milliseconds of frames actually
+     * shown - not of wall clock.
+     *
+     * The clock used to be the wall clock since the first frame. With a mod
+     * like Essential the game can stall for seconds right after the menu
+     * appears - logging in, loading its own assets - and the wall clock kept
+     * running through the stall, so the greeting was over before a single
+     * frame of it had been drawn. Each frame now adds at most a tenth of a
+     * second, so a stall pauses the sequence instead of skipping it.
+     */
+    private long animTime = 0L;
+    private long lastFrame = 0L;
+
+    private static final long MAX_FRAME_STEP = 100L;
+
     private long elapsed() {
-        return openedAt == 0L ? 0L : System.currentTimeMillis() - openedAt;
+        if (openedAt == 0L) return 0L;
+        long now = System.currentTimeMillis();
+        if (lastFrame == 0L) {
+            // First frame: whatever head start startClock gave (all of it,
+            // when the intro was already shown on this start)
+            animTime = now - openedAt;
+        } else {
+            animTime += Math.max(0L, Math.min(MAX_FRAME_STEP, now - lastFrame));
+        }
+        lastFrame = now;
+        return animTime;
     }
 
     /**
@@ -234,6 +260,11 @@ public class MainMenuScreen extends Screen {
      */
     private void startClock() {
         if (openedAt != 0L) return;
+
+        // Not while something else is the screen: another mod's popup opened
+        // over the menu would otherwise watch the greeting play behind it
+        var current = Minecraft.getInstance().gui.screen();
+        if (current != null && current != this) return;
 
         if (overlayUp()) {
             IntroReport.waitedForOverlay();
