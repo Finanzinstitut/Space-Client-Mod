@@ -6,8 +6,20 @@
 - https://github.com/tr7zw/WaveyCapes
 
 The licence permits use, modification and compilation, and forbids using the
-work for commercial advantage or monetary compensation. Space Client's cape
-motion is its own code; tr7zw's mod was the reference for the approach.
+work for commercial advantage or monetary compensation.
+
+**WaveyCapes code is included in Space Client.** The cape simulation and the
+cape renderer in `src/main/java/gg/spaceclient/wavey/` are tr7zw's WaveyCapes
+(26.2 branch), ported with the Stonecutter version branches for 26.2 resolved,
+Lombok and tr7zw's helper libraries replaced by plain code, and the optional
+integrations with other mods left out. Each ported file carries a header naming
+the source and the licence; the mixins that attach it
+(`WaveyCapeEntityMixin`, `AvatarRendererMixin`, `CapeLayerMixin`) say so too.
+
+Because of the licence's condition, Space Client must not be used to earn
+money while this code is in it: no paid ranks, paid cosmetics or other sales
+tied to the client. If that ever changes, the WaveyCapes code has to come out
+first (or tr7zw's permission obtained).
 
 ## ItemPhysic — CreativeMD / team.creative
 - Licence: LGPL-3.0

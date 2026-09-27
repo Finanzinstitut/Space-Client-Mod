@@ -47,4 +47,8 @@ jar {
     from("LICENSE") {
         rename { "${it}_${project.base.archivesName.get()}" }
     }
+    // WaveyCapes code is compiled into the jar, and its licence asks for the
+    // notice to travel with every copy
+    from("THIRD-PARTY-WaveyCapes-LICENSE.txt")
+    from("THIRD-PARTY.md")
 }
