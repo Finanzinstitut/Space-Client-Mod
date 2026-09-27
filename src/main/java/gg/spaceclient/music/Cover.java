@@ -80,8 +80,10 @@ public final class Cover {
     public static Identifier texture(NowPlaying track) {
         if (track == null || track.isEmpty()) return null;
 
+        // Nothing new goes to the graphics card while the window is minimised:
+        // the picture waits for the window to come back
         String waitingFor = pendingFor;
-        if (!waitingFor.isEmpty()) {
+        if (!waitingFor.isEmpty() && !net.minecraft.client.Minecraft.getInstance().getWindow().isMinimized()) {
             byte[] bytes = pending;
             boolean empty = pendingEmpty;
             pendingFor = "";
