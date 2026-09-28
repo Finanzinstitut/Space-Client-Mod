@@ -17,6 +17,14 @@ public final class WaveyCapes {
 
     public static Config config = new Config();
 
+    /**
+     * The WaveyCapes mod itself is installed as well. Then it draws the capes
+     * and the port stays out of its way: its entity and cape-layer mixins are
+     * not applied (see SpaceMixinPlugin) and the module never switches on.
+     */
+    public static final boolean EXTERNAL =
+            net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("waveycapes");
+
     /** Whether the module is on; the layer and the simulation both stand down otherwise. */
     public static volatile boolean enabled = false;
 

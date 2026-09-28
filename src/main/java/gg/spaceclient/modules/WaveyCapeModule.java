@@ -50,7 +50,7 @@ public class WaveyCapeModule extends Module {
     @Override
     protected void onEnable() {
         apply();
-        WaveyCapes.enabled = true;
+        WaveyCapes.enabled = !WaveyCapes.EXTERNAL;
     }
 
     @Override
@@ -62,7 +62,7 @@ public class WaveyCapeModule extends Module {
     public void onTick() {
         // Every tick is cheap and means a changed setting takes at once
         apply();
-        WaveyCapes.enabled = true;
+        WaveyCapes.enabled = !WaveyCapes.EXTERNAL;
     }
 
     private void apply() {

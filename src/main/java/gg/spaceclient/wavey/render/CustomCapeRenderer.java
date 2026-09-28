@@ -237,7 +237,7 @@ public class CustomCapeRenderer {
 
         var entity = capeRenderInfo.getAvatar();
 
-        BasicSimulation simulation = ((CapeHolder) entity).getSimulation();
+        BasicSimulation simulation = ((CapeHolder) entity).spaceclient$getSimulation();
         poseStack.pushPose();
         poseStack.translate(0.0D, 0.0D, 0.125D);
 

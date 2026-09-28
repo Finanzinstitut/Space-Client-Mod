@@ -45,7 +45,7 @@ public class CustomCapeRenderLayer
         // The simulation is built on the entity's first tick; a frame drawn
         // before that has no points to bend the cape along yet
         if (WaveyCapes.config.capeMovement != gg.spaceclient.wavey.CapeMovement.VANILLA) {
-            var simulation = ((gg.spaceclient.wavey.CapeHolder) avatar).getSimulation();
+            var simulation = ((gg.spaceclient.wavey.CapeHolder) avatar).spaceclient$getSimulation();
             if (simulation == null || simulation.getPoints().size() < 16) return;
         }
         float delta = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
