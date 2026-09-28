@@ -39,22 +39,22 @@ public abstract class WaveyCapeEntityMixin implements CapeHolder {
     private boolean spaceclient$dirty = false;
 
     @Override
-    public BasicSimulation getSimulation() { return spaceclient$simulation; }
+    public BasicSimulation spaceclient$getSimulation() { return spaceclient$simulation; }
 
     @Override
-    public void setSimulation(BasicSimulation sim) { this.spaceclient$simulation = sim; }
+    public void spaceclient$setSimulation(BasicSimulation sim) { this.spaceclient$simulation = sim; }
 
     @Override
-    public Vector3 getLastPlayerAnimatorPosition() { return spaceclient$animatorPosition; }
+    public Vector3 spaceclient$getLastPlayerAnimatorPosition() { return spaceclient$animatorPosition; }
 
     @Override
-    public void setLastPlayerAnimatorPosition(Vector3 pos) { this.spaceclient$animatorPosition = pos; }
+    public void spaceclient$setLastPlayerAnimatorPosition(Vector3 pos) { this.spaceclient$animatorPosition = pos; }
 
     @Override
-    public void setDirty() { this.spaceclient$dirty = true; }
+    public void spaceclient$setDirty() { this.spaceclient$dirty = true; }
 
     @Override
-    public UUID getWCUUID() { return ((Entity) (Object) this).getUUID(); }
+    public UUID spaceclient$getWCUUID() { return ((Entity) (Object) this).getUUID(); }
 
     @Inject(method = "tick", at = @At("TAIL"))
     private void spaceclient$moveCloak(CallbackInfo ci) {
@@ -64,15 +64,15 @@ public abstract class WaveyCapeEntityMixin implements CapeHolder {
         if (!avatar.level().isClientSide()) return;
 
         try {
-            updateSimulation(16);
+            spaceclient$updateSimulation(16);
             PlayerDelegate delegate = new PlayerDelegate(avatar);
             if (spaceclient$dirty) {
                 spaceclient$dirty = false;
                 spaceclient$simulation.applyMovement(new Vector3(1f, 1f, 0));
                 // A few steps at once so a fresh cape starts settled
-                for (int i = 0; i < 5; i++) simulate(delegate);
+                for (int i = 0; i < 5; i++) spaceclient$simulate(delegate);
             }
-            simulate(delegate);
+            spaceclient$simulate(delegate);
             gg.spaceclient.render.CapeReport.simulated();
         } catch (Throwable t) {
             gg.spaceclient.render.CapeReport.failed(t);

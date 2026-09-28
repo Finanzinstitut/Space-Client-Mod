@@ -20,33 +20,33 @@ import gg.spaceclient.wavey.util.Vector3;
 import java.util.UUID;
 
 public interface CapeHolder {
-    public BasicSimulation getSimulation();
+    public BasicSimulation spaceclient$getSimulation();
 
-    public Vector3 getLastPlayerAnimatorPosition();
+    public Vector3 spaceclient$getLastPlayerAnimatorPosition();
 
-    public void setLastPlayerAnimatorPosition(Vector3 pos);
+    public void spaceclient$setLastPlayerAnimatorPosition(Vector3 pos);
 
-    public void setSimulation(BasicSimulation sim);
+    public void spaceclient$setSimulation(BasicSimulation sim);
 
-    UUID getWCUUID();
+    UUID spaceclient$getWCUUID();
 
-    void setDirty();
+    void spaceclient$setDirty();
 
-    public default void updateSimulation(int partCount) {
-        BasicSimulation simulation = getSimulation();
-        if (simulation == null || incorrectSimulation(simulation)) {
-            simulation = createSimulation();
-            setSimulation(simulation);
+    public default void spaceclient$updateSimulation(int partCount) {
+        BasicSimulation simulation = spaceclient$getSimulation();
+        if (simulation == null || spaceclient$incorrectSimulation(simulation)) {
+            simulation = spaceclient$createSimulation();
+            spaceclient$setSimulation(simulation);
         }
         if (simulation == null) {
             return;
         }
         if (simulation.init(partCount))
-            setDirty();
+            spaceclient$setDirty();
 
     }
 
-    public default boolean incorrectSimulation(BasicSimulation sim) {
+    public default boolean spaceclient$incorrectSimulation(BasicSimulation sim) {
         CapeMovement style = WaveyCapes.config.capeMovement;
         if (style == CapeMovement.BASIC_SIMULATION && sim.getClass() != StickSimulation.class) {
             return true;
@@ -58,7 +58,7 @@ public interface CapeHolder {
         return false;
     }
 
-    public default BasicSimulation createSimulation() {
+    public default BasicSimulation spaceclient$createSimulation() {
         CapeMovement style = WaveyCapes.config.capeMovement;
         if (style == CapeMovement.BASIC_SIMULATION) {
             return new StickSimulation();
@@ -72,8 +72,8 @@ public interface CapeHolder {
         return null;
     }
 
-    public default void simulate(MinecraftPlayer abstractClientPlayer) {
-        BasicSimulation simulation = getSimulation();
+    public default void spaceclient$simulate(MinecraftPlayer abstractClientPlayer) {
+        BasicSimulation simulation = spaceclient$getSimulation();
         if (simulation == null || simulation.empty()) {
             return; // no cape, nothing to update
         }

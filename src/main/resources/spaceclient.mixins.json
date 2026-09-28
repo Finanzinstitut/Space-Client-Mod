@@ -2,6 +2,7 @@
   "required": false,
   "package": "gg.spaceclient.mixin",
   "compatibilityLevel": "JAVA_21",
+  "plugin": "gg.spaceclient.mixin.SpaceMixinPlugin",
   "client": [
     "CameraMixin",
     "LevelRendererMixin",
