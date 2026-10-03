@@ -1,10 +1,7 @@
 package gg.spaceclient.input;
 
-import gg.spaceclient.SpaceClient;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
-import org.lwjgl.glfw.GLFW;
-
-import java.lang.reflect.Field;
 
 /**
  * Reads the physical keyboard, independent of what each key is bound to.
@@ -13,160 +10,110 @@ import java.lang.reflect.Field;
  * hotbar slot 5 on F should see F light up when they press F, not see nothing
  * because "F" is not a control the game calls F.
  *
- * GLFW answers that directly, but it needs the window handle, and the accessor
- * for it has moved between versions. The handle is a long on the window object,
- * and it is the only one, so it is found by type through reflection.
+ * Since 26.3 Minecraft runs on SDL3 rather than GLFW, and asks SDL for the
+ * keyboard state itself through InputConstants.isKeyDown. The codes are SDL
+ * scancodes - the physical key, whatever the layout - which is exactly what a
+ * keyboard display wants. Going through the game's own call rather than SDL
+ * directly keeps this working however the game sets SDL up.
  */
 public final class RawKeyboard {
-    private static long handle = 0;
-    private static boolean lookedUp = false;
-    private static boolean warned = false;
 
-    /**
-     * GLFW must not be touched before the game has started it.
-     *
-     * Calling into it during mod initialisation queues a "library is not
-     * initialised" error that Minecraft finds moments later and turns into a
-     * crash before the window even opens. The flag is set from the first client
-     * tick, by which point the window certainly exists.
-     */
+    /** What a key with no code reads as. */
+    public static final int UNKNOWN = -1;
+
     private static volatile boolean ready = false;
 
+    /**
+     * The input system must not be asked anything before the game has started
+     * it. The flag is set from the first client tick, by which point the window
+     * certainly exists.
+     */
     public static void markReady() {
         ready = true;
     }
 
-    /** The GLFW window, for anything else that needs to talk to the device. */
-    public static long windowHandle() {
-        return handle();
-    }
-
-    private static long handle() {
-        if (!ready) return 0;
-        if (lookedUp && handle != 0) return handle;
-        lookedUp = true;
-
-        // GLFW knows the window it is currently drawing into, which is the one
-        // we want. Digging through the Window object for a long field was the
-        // roundabout way, and it found nothing on this version.
+    public static boolean isDown(int key) {
+        if (!ready || key <= 0) return false;
         try {
-            long current = GLFW.glfwGetCurrentContext();
-            if (current != 0) {
-                handle = current;
-                return handle;
-            }
-        } catch (Throwable ignored) {
-            // Falls through to the reflective attempt
-        }
-
-        try {
-            Object window = Minecraft.getInstance().getWindow();
-            if (window == null) return 0;
-
-            for (Field field : window.getClass().getDeclaredFields()) {
-                if (field.getType() != long.class) continue;
-                field.setAccessible(true);
-                long value = field.getLong(window);
-                // A window handle is a pointer, never zero
-                if (value != 0) {
-                    handle = value;
-                    return handle;
-                }
-            }
-        } catch (Throwable t) {
-            SpaceClient.LOGGER.warn("Could not find the window handle", t);
-        }
-        return 0;
-    }
-
-    /** True while the given GLFW key is physically held. */
-    public static boolean isDown(int glfwKey) {
-        long window = handle();
-        if (window == 0) {
-            if (!warned) {
-                warned = true;
-                SpaceClient.LOGGER.warn(
-                        "Raw keyboard unavailable - the keyboard view falls back to key bindings");
-            }
-            return false;
-        }
-        try {
-            return GLFW.glfwGetKey(window, glfwKey) == GLFW.GLFW_PRESS;
+            return InputConstants.isKeyDown(key);
         } catch (Throwable t) {
             return false;
         }
     }
 
-    /** Whether raw reading works at all, so callers can fall back. */
     public static boolean isAvailable() {
-        return handle() != 0;
+        return ready;
     }
 
-    /** True while the given GLFW mouse button is held. */
+    /**
+     * A mouse button by InputConstants.MOUSE_BUTTON_* number, as the game has
+     * seen it. The game tracks left, middle and right itself; those are the
+     * three anything here asks about.
+     */
     public static boolean isMouseDown(int button) {
-        long window = handle();
-        if (window == 0) return false;
-        try {
-            return GLFW.glfwGetMouseButton(window, button) == GLFW.GLFW_PRESS;
-        } catch (Throwable t) {
-            return false;
-        }
+        if (!ready) return false;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc == null || mc.mouseHandler == null) return false;
+        return switch (button) {
+            case InputConstants.MOUSE_BUTTON_LEFT -> mc.mouseHandler.isLeftPressed();
+            case InputConstants.MOUSE_BUTTON_MIDDLE -> mc.mouseHandler.isMiddlePressed();
+            case InputConstants.MOUSE_BUTTON_RIGHT -> mc.mouseHandler.isRightPressed();
+            default -> false;
+        };
     }
 
-    /** Maps a key label from the keyboard layout onto its GLFW code. */
     public static int codeFor(String label) {
         return switch (label) {
-            case "A" -> GLFW.GLFW_KEY_A;
-            case "B" -> GLFW.GLFW_KEY_B;
-            case "C" -> GLFW.GLFW_KEY_C;
-            case "D" -> GLFW.GLFW_KEY_D;
-            case "E" -> GLFW.GLFW_KEY_E;
-            case "F" -> GLFW.GLFW_KEY_F;
-            case "G" -> GLFW.GLFW_KEY_G;
-            case "H" -> GLFW.GLFW_KEY_H;
-            case "I" -> GLFW.GLFW_KEY_I;
-            case "J" -> GLFW.GLFW_KEY_J;
-            case "K" -> GLFW.GLFW_KEY_K;
-            case "L" -> GLFW.GLFW_KEY_L;
-            case "M" -> GLFW.GLFW_KEY_M;
-            case "N" -> GLFW.GLFW_KEY_N;
-            case "O" -> GLFW.GLFW_KEY_O;
-            case "P" -> GLFW.GLFW_KEY_P;
-            case "Q" -> GLFW.GLFW_KEY_Q;
-            case "R" -> GLFW.GLFW_KEY_R;
-            case "S" -> GLFW.GLFW_KEY_S;
-            case "T" -> GLFW.GLFW_KEY_T;
-            case "U" -> GLFW.GLFW_KEY_U;
-            case "V" -> GLFW.GLFW_KEY_V;
-            case "W" -> GLFW.GLFW_KEY_W;
-            case "X" -> GLFW.GLFW_KEY_X;
-            // German layout: the key where a US keyboard has Y sits at Z
-            case "Y" -> GLFW.GLFW_KEY_Y;
-            case "Z" -> GLFW.GLFW_KEY_Z;
-            case "1" -> GLFW.GLFW_KEY_1;
-            case "2" -> GLFW.GLFW_KEY_2;
-            case "3" -> GLFW.GLFW_KEY_3;
-            case "4" -> GLFW.GLFW_KEY_4;
-            case "5" -> GLFW.GLFW_KEY_5;
-            case "6" -> GLFW.GLFW_KEY_6;
-            case "7" -> GLFW.GLFW_KEY_7;
-            case "8" -> GLFW.GLFW_KEY_8;
-            case "9" -> GLFW.GLFW_KEY_9;
-            case "0" -> GLFW.GLFW_KEY_0;
-            case "TAB" -> GLFW.GLFW_KEY_TAB;
-            case "CAPS" -> GLFW.GLFW_KEY_CAPS_LOCK;
-            case "SHIFT" -> GLFW.GLFW_KEY_LEFT_SHIFT;
-            case "CTRL" -> GLFW.GLFW_KEY_LEFT_CONTROL;
-            case "ALT" -> GLFW.GLFW_KEY_LEFT_ALT;
-            case "SPACE" -> GLFW.GLFW_KEY_SPACE;
-            case "ESC" -> GLFW.GLFW_KEY_ESCAPE;
-            case "ENTER" -> GLFW.GLFW_KEY_ENTER;
-            case "F1" -> GLFW.GLFW_KEY_F1;
-            case "F2" -> GLFW.GLFW_KEY_F2;
-            case "F3" -> GLFW.GLFW_KEY_F3;
-            case "F4" -> GLFW.GLFW_KEY_F4;
-            case "F5" -> GLFW.GLFW_KEY_F5;
-            default -> GLFW.GLFW_KEY_UNKNOWN;
+            case "A" -> InputConstants.KEY_A;
+            case "B" -> InputConstants.KEY_B;
+            case "C" -> InputConstants.KEY_C;
+            case "D" -> InputConstants.KEY_D;
+            case "E" -> InputConstants.KEY_E;
+            case "F" -> InputConstants.KEY_F;
+            case "G" -> InputConstants.KEY_G;
+            case "H" -> InputConstants.KEY_H;
+            case "I" -> InputConstants.KEY_I;
+            case "J" -> InputConstants.KEY_J;
+            case "K" -> InputConstants.KEY_K;
+            case "L" -> InputConstants.KEY_L;
+            case "M" -> InputConstants.KEY_M;
+            case "N" -> InputConstants.KEY_N;
+            case "O" -> InputConstants.KEY_O;
+            case "P" -> InputConstants.KEY_P;
+            case "Q" -> InputConstants.KEY_Q;
+            case "R" -> InputConstants.KEY_R;
+            case "S" -> InputConstants.KEY_S;
+            case "T" -> InputConstants.KEY_T;
+            case "U" -> InputConstants.KEY_U;
+            case "V" -> InputConstants.KEY_V;
+            case "W" -> InputConstants.KEY_W;
+            case "X" -> InputConstants.KEY_X;
+            case "Y" -> InputConstants.KEY_Y;
+            case "Z" -> InputConstants.KEY_Z;
+            case "1" -> InputConstants.KEY_1;
+            case "2" -> InputConstants.KEY_2;
+            case "3" -> InputConstants.KEY_3;
+            case "4" -> InputConstants.KEY_4;
+            case "5" -> InputConstants.KEY_5;
+            case "6" -> InputConstants.KEY_6;
+            case "7" -> InputConstants.KEY_7;
+            case "8" -> InputConstants.KEY_8;
+            case "9" -> InputConstants.KEY_9;
+            case "0" -> InputConstants.KEY_0;
+            case "TAB" -> InputConstants.KEY_TAB;
+            case "CAPS" -> InputConstants.KEY_CAPSLOCK;
+            case "SHIFT" -> InputConstants.KEY_LSHIFT;
+            case "CTRL" -> InputConstants.KEY_LCONTROL;
+            case "ALT" -> InputConstants.KEY_LALT;
+            case "SPACE" -> InputConstants.KEY_SPACE;
+            case "ESC" -> InputConstants.KEY_ESCAPE;
+            case "ENTER" -> InputConstants.KEY_RETURN;
+            case "F1" -> InputConstants.KEY_F1;
+            case "F2" -> InputConstants.KEY_F2;
+            case "F3" -> InputConstants.KEY_F3;
+            case "F4" -> InputConstants.KEY_F4;
+            case "F5" -> InputConstants.KEY_F5;
+            default -> UNKNOWN;
         };
     }
 

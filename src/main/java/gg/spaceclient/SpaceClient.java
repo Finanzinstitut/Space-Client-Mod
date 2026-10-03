@@ -102,7 +102,7 @@ public class SpaceClient implements ClientModInitializer {
 
         menuKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.spaceclient.menu",
-                InputConstants.Type.KEYSYM,
+                InputConstants.Type.KEYBOARD,
                 InputConstants.KEY_RSHIFT,
                 category
         ));
@@ -110,13 +110,13 @@ public class SpaceClient implements ClientModInitializer {
         middleClickKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.spaceclient.middleclick",
                 InputConstants.Type.MOUSE,
-                2, // GLFW middle mouse button
+                InputConstants.MOUSE_BUTTON_MIDDLE,
                 category
         ));
 
         zoomKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.spaceclient.zoom",
-                InputConstants.Type.KEYSYM,
+                InputConstants.Type.KEYBOARD,
                 InputConstants.KEY_C,
                 category
         ));
@@ -126,7 +126,7 @@ public class SpaceClient implements ClientModInitializer {
         // the game's own controls screen like the three above it.
         clipKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.spaceclient.clip",
-                InputConstants.Type.KEYSYM,
+                InputConstants.Type.KEYBOARD,
                 InputConstants.KEY_F9,
                 category
         ));
@@ -212,7 +212,7 @@ public class SpaceClient implements ClientModInitializer {
         });
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            // From here on the window exists, so GLFW is safe to talk to
+            // From here on the window exists, so the input system is safe to ask
             gg.spaceclient.input.RawKeyboard.markReady();
 
             while (menuKey.consumeClick()) {

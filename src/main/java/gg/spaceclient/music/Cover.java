@@ -83,7 +83,7 @@ public final class Cover {
         // Nothing new goes to the graphics card while the window is minimised:
         // the picture waits for the window to come back
         String waitingFor = pendingFor;
-        if (!waitingFor.isEmpty() && !net.minecraft.client.Minecraft.getInstance().getWindow().isMinimized()) {
+        if (!waitingFor.isEmpty() && !net.minecraft.client.Minecraft.getInstance().getWindow().isIconified()) {
             byte[] bytes = pending;
             boolean empty = pendingEmpty;
             pendingFor = "";

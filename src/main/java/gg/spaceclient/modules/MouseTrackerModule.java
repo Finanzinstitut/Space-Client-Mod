@@ -92,7 +92,7 @@ public class MouseTrackerModule extends HudModule {
         // Read straight from the device when possible; the registered binding
         // is the fallback.
         boolean middle = RawKeyboard.isAvailable()
-                ? RawKeyboard.isMouseDown(org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_MIDDLE)
+                ? RawKeyboard.isMouseDown(com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_MIDDLE)
                 : SpaceClient.isMiddleClickDown();
 
         int body = bodyColor.get();

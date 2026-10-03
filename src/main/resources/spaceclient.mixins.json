@@ -20,7 +20,8 @@
     "LivingEntityRendererMixin",
     "EndCrystalRendererMixin",
     "WaveyCapeEntityMixin",
-    "CapeLayerMixin"
+    "CapeLayerMixin",
+    "MouseScrollMixin"
   ],
   "injectors": {
     "defaultRequire": 0

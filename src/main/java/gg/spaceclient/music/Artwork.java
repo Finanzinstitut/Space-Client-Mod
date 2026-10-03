@@ -87,7 +87,7 @@ public final class Artwork {
 
         // Registered only while the window is showing - see Cover
         if (entry.texture == null && entry.png != null
-                && !Minecraft.getInstance().getWindow().isMinimized()) {
+                && !Minecraft.getInstance().getWindow().isIconified()) {
             Identifier id = Identifier.fromNamespaceAndPath("spaceclient", "music/art_" + entry.number);
             entry.texture = TextureLoader.register(entry.png, id);
             entry.png = null;

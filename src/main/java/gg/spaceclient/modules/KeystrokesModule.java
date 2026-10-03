@@ -139,7 +139,7 @@ public class KeystrokesModule extends HudModule {
 
         if (RawKeyboard.isAvailable()) {
             int code = RawKeyboard.codeFor(label);
-            if (code != org.lwjgl.glfw.GLFW.GLFW_KEY_UNKNOWN) {
+            if (code != RawKeyboard.UNKNOWN) {
                 return RawKeyboard.isDown(code);
             }
         }

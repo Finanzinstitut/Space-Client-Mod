@@ -2,7 +2,7 @@ package gg.spaceclient.mixin;
 
 import gg.spaceclient.render.TotemActivation;
 
-import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.item.ItemStack;
 
 import org.spongepowered.asm.mixin.Mixin;
@@ -23,7 +23,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * did. If this injection never applies, TotemActivation falls back to the
  * field, and the diagnostics page says which of the two is carrying it.
  */
-@Mixin(GameRenderer.class)
+@Mixin(LocalPlayer.class)
+// 26.3 moved the item activation (the totem pop) from GameRenderer onto the
+// local player, which now owns an ItemActivation; displayItemActivation kept
+// its name and signature there.
 public class TotemPopMixin {
 
     @Inject(method = "displayItemActivation(Lnet/minecraft/world/item/ItemStack;)V",

@@ -36,13 +36,9 @@ public class CapeNodeCollector {
         if (capeInfo == null) {
             return;
         }
-        if (capeInfo.isGlint()) {
-            submitNodeCollector.submitCustomGeometry(stack, RenderTypes.entityGlint(), (pose, vertexConsumer) -> {
-                PoseStack sharedStack = new PoseStack();
-                sharedStack.last().set(pose);
-                customCapeRenderer.render(playerWrapper, renderer, vertexConsumer, sharedStack, packedLight, delta);
-            });
-        }
+        // WaveyCapes drew an extra glint pass for glinting capes here. No cape
+        // renderer in this port sets isGlint, and 26.3 removed the texture-less
+        // entity glint type it used, so the pass is left out.
 
         submitNodeCollector.submitCustomGeometry(stack, capeInfo.renderType(), (pose, vertexConsumer) -> {
             PoseStack sharedStack = new PoseStack();
