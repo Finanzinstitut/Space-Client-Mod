@@ -33,9 +33,6 @@ public final class SongTag {
     /** Full brightness: a label should not go dark because it is night. */
     private static final int FULL_BRIGHT = 0xF000F0;
 
-    /** Darker than vanilla's quarter-opacity plate, which vanished against sky. */
-    private static final int PLATE = 0xA0000000;
-
     private SongTag() {}
 
     /** What one card shows. Any part but the title may be empty. */
@@ -60,16 +57,26 @@ public final class SongTag {
 
         Identifier cover = Artwork.texture(card.artist(), card.title());
         int coverSize = cover == null ? 0 : (hasLyric ? 20 : 10);
-        int coverRoom = coverSize == 0 ? 0 : coverSize + 3;
 
-        int textW = Math.max(font.width(top), bottom == null ? 0 : font.width(bottom));
-        int left = -(coverRoom + textW) / 2;
-        int textX = left + coverRoom;
+        int topW = font.width(top);
 
         // Rows above the name, which vanilla draws from y = 0 downwards
         int bottomRowY = -12;
         int topRowY = hasLyric ? -23 : -12;
 
+        // Each line goes through the game's own name tag call. 26.3 sorts name
+        // tag text into a see-through phase of its own; text submitted any other
+        // way lands in a different phase, and the plates and letters came out
+        // in the wrong order - the card looked broken. The same call vanilla
+        // uses for the name puts the card in the same place in the frame.
+        // That call centres each line itself, so the cover sits left of the
+        // centred title rather than shifting it.
+        collector.submitNameTag(poseStack, position, topRowY, top, true, FULL_BRIGHT, camera);
+        if (bottom != null) {
+            collector.submitNameTag(poseStack, position, bottomRowY, bottom, true, FULL_BRIGHT, camera);
+        }
+
+        if (cover == null) return;
         poseStack.pushPose();
         try {
             // The frame vanilla puts a name tag in: half a block above the
@@ -78,39 +85,19 @@ public final class SongTag {
             poseStack.rotate(camera.orientation);
             poseStack.scale(0.025f, -0.025f, 0.025f);
 
-            line(collector, poseStack, font, top, textX, topRowY);
-            if (bottom != null) {
-                line(collector, poseStack, font, bottom, textX + (textW - font.width(bottom)) / 2, bottomRowY);
-            }
-
-            if (cover != null) {
-                int x0 = left;
-                int y0 = (hasLyric ? topRowY : bottomRowY) - 1;
-                int x1 = x0 + coverSize;
-                int y1 = y0 + coverSize;
-                collector.submitCustomGeometry(poseStack, RenderTypes.text(cover), (pose, buffer) -> {
-                    buffer.addVertex(pose, x0, y0, 0f).setColor(-1).setUv(0f, 0f).setLight(FULL_BRIGHT);
-                    buffer.addVertex(pose, x0, y1, 0f).setColor(-1).setUv(0f, 1f).setLight(FULL_BRIGHT);
-                    buffer.addVertex(pose, x1, y1, 0f).setColor(-1).setUv(1f, 1f).setLight(FULL_BRIGHT);
-                    buffer.addVertex(pose, x1, y0, 0f).setColor(-1).setUv(1f, 0f).setLight(FULL_BRIGHT);
-                });
-            }
+            int x1 = -topW / 2 - 3;
+            int x0 = x1 - coverSize;
+            int y0 = topRowY - 1;
+            int y1 = y0 + coverSize;
+            collector.submitCustomGeometry(poseStack, RenderTypes.text(cover), (pose, buffer) -> {
+                buffer.addVertex(pose, x0, y0, 0f).setColor(-1).setUv(0f, 0f).setLight(FULL_BRIGHT);
+                buffer.addVertex(pose, x0, y1, 0f).setColor(-1).setUv(0f, 1f).setLight(FULL_BRIGHT);
+                buffer.addVertex(pose, x1, y1, 0f).setColor(-1).setUv(1f, 1f).setLight(FULL_BRIGHT);
+                buffer.addVertex(pose, x1, y0, 0f).setColor(-1).setUv(1f, 0f).setLight(FULL_BRIGHT);
+            });
         } finally {
             poseStack.popPose();
         }
-    }
-
-    /**
-     * One line, the way vanilla draws a name: a faint pass that shows through
-     * walls, with the plate, and a full pass on top that the world can hide.
-     */
-    private static void line(SubmitNodeCollector collector, PoseStack poseStack, Font font,
-                             Component text, int x, int y) {
-        var sequence = text.getVisualOrderText();
-        collector.submitText(poseStack, x, y, sequence, false, Font.DisplayMode.SEE_THROUGH,
-                FULL_BRIGHT, 0x80FFFFFF, PLATE, 0);
-        collector.submitText(poseStack, x, y, sequence, false, Font.DisplayMode.NORMAL,
-                FULL_BRIGHT, 0xFFFFFFFF, 0, 0);
     }
 
     /** Spotify green, Amazon Music light blue, white when the player is unknown. */

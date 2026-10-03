@@ -5,6 +5,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 
 /**
  * A hue/saturation wheel with a brightness bar beside it.
@@ -218,21 +219,14 @@ public class ColorWheel extends Button {
         int cx = wheelX + radius;
         int cy = wheelY + radius;
 
-        // The disc is drawn as small squares: hue around, saturation outward
-        for (int py = 0; py < size; py += STEP) {
-            for (int px = 0; px < size; px += STEP) {
-                double dx = px - radius;
-                double dy = py - radius;
-                double distance = Math.sqrt(dx * dx + dy * dy);
-                if (distance > radius) continue;
-
-                float hue = (float) ((Math.toDegrees(Math.atan2(dy, dx)) + 360) % 360) / 360f;
-                float saturation = (float) (distance / radius);
-                int rgb = fromHsb(hue, saturation, brightness);
-
-                graphics.fill(wheelX + px, wheelY + py,
-                        wheelX + px + STEP, wheelY + py + STEP, 0xFF000000 | rgb);
-            }
+        // The disc comes from a texture made once per brightness step. Drawing
+        // it as small squares meant some 1800 fills and as many colour
+        // conversions per wheel per frame - with four or five colour settings
+        // on one page (Now Playing has that many) the settings screen alone
+        // was enough to stutter a weaker machine.
+        Identifier disc = discTexture(brightness);
+        if (disc == null || !Textures.draw(graphics, disc, wheelX, wheelY, size, size)) {
+            drawDiscBySquares(graphics, wheelX, wheelY, radius);
         }
 
         // Marker on the currently selected colour
@@ -268,6 +262,69 @@ public class ColorWheel extends Button {
             Minecraft mc = Minecraft.getInstance();
             graphics.text(mc.font, "move to pick, click to keep",
                     wheelX - 3, bottom + 4, Theme.TEXT_DIM, false);
+        }
+    }
+
+    /** Brightness steps a disc texture is made for; finer than the eye can tell apart. */
+    private static final int LEVELS = 48;
+    private static final int TEXTURE = 96;
+    private static final Identifier[] DISCS = new Identifier[LEVELS + 1];
+    private static boolean texturesFailed = false;
+
+    private static Identifier discTexture(float brightness) {
+        if (texturesFailed) return null;
+        int level = Math.round(Math.max(0f, Math.min(1f, brightness)) * LEVELS);
+        if (DISCS[level] != null) return DISCS[level];
+        try {
+            com.mojang.blaze3d.platform.NativeImage image =
+                    new com.mojang.blaze3d.platform.NativeImage(TEXTURE, TEXTURE, false);
+            float value = level / (float) LEVELS;
+            double radius = TEXTURE / 2.0;
+            for (int y = 0; y < TEXTURE; y++) {
+                for (int x = 0; x < TEXTURE; x++) {
+                    double dx = x + 0.5 - radius;
+                    double dy = y + 0.5 - radius;
+                    double distance = Math.sqrt(dx * dx + dy * dy);
+                    // One pixel of soft edge instead of a staircase
+                    double alpha = Math.max(0, Math.min(1, radius - distance));
+                    if (alpha <= 0) {
+                        image.setPixel(x, y, 0);
+                        continue;
+                    }
+                    float hue = (float) ((Math.toDegrees(Math.atan2(dy, dx)) + 360) % 360) / 360f;
+                    float saturation = (float) Math.min(1, distance / radius);
+                    int rgb = fromHsb(hue, saturation, value);
+                    image.setPixel(x, y, ((int) Math.round(alpha * 255) << 24) | rgb);
+                }
+            }
+            Identifier id = Identifier.fromNamespaceAndPath("spaceclient", "colour_wheel/" + level);
+            var texture = new net.minecraft.client.renderer.texture.DynamicTexture(() -> "Space Client colour wheel", image);
+            Minecraft.getInstance().getTextureManager().register(id, texture);
+            DISCS[level] = id;
+            return id;
+        } catch (Throwable t) {
+            texturesFailed = true;
+            gg.spaceclient.SpaceClient.LOGGER.warn("Colour wheel texture unavailable, drawing it by hand", t);
+            return null;
+        }
+    }
+
+    /** The old way, kept for a version where the texture cannot be made. */
+    private void drawDiscBySquares(GuiGraphicsExtractor graphics, int wheelX, int wheelY, int radius) {
+        for (int py = 0; py < size; py += STEP) {
+            for (int px = 0; px < size; px += STEP) {
+                double dx = px - radius;
+                double dy = py - radius;
+                double distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance > radius) continue;
+
+                float hue = (float) ((Math.toDegrees(Math.atan2(dy, dx)) + 360) % 360) / 360f;
+                float saturation = (float) (distance / radius);
+                int rgb = fromHsb(hue, saturation, brightness);
+
+                graphics.fill(wheelX + px, wheelY + py,
+                        wheelX + px + STEP, wheelY + py + STEP, 0xFF000000 | rgb);
+            }
         }
     }
 }

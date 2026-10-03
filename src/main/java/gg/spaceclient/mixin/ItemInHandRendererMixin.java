@@ -12,6 +12,7 @@ import net.minecraft.client.renderer.state.level.FirstPersonHandsAndItemsRenderS
 import net.minecraft.client.renderer.state.level.PlayerRenderState;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -36,12 +37,16 @@ public class ItemInHandRendererMixin {
     @Unique
     private static ItemStack spaceclient$stack = ItemStack.EMPTY;
 
+    @Unique
+    private static InteractionHand spaceclient$hand = InteractionHand.MAIN_HAND;
+
     @Inject(method = "submitArmWithItem", at = @At("HEAD"))
     private void spaceclient$note(PlayerRenderState player, FirstPersonHandsAndItemsRenderState state,
                                   float a, float b, InteractionHand hand, float c, ItemStack stack,
                                   float d, PoseStack poseStack, SubmitNodeCollector collector, int light,
                                   CallbackInfo ci) {
         spaceclient$stack = stack;
+        spaceclient$hand = hand;
     }
 
     @Redirect(method = "submitArmWithItem", at = @At(value = "INVOKE",
@@ -52,13 +57,16 @@ public class ItemInHandRendererMixin {
                                     SubmitNodeCollector collector, int light, int overlay, int outline) {
         ItemScaleReport.sawHand();
         float scale = spaceclient$scaleFor(spaceclient$stack);
-        if (scale == 1f) {
+        boolean shield = spaceclient$stack.is(Items.SHIELD);
+        if (scale == 1f && !shield) {
             item.submit(poseStack, collector, light, overlay, outline);
             return;
         }
         poseStack.pushPose();
         try {
-            poseStack.scale(scale, scale, scale);
+            // The Overlay module's shield height and turn, then the item size
+            if (shield) gg.spaceclient.modules.OverlayModule.shield(poseStack, spaceclient$hand);
+            if (scale != 1f) poseStack.scale(scale, scale, scale);
             item.submit(poseStack, collector, light, overlay, outline);
         } finally {
             poseStack.popPose();
@@ -68,7 +76,7 @@ public class ItemInHandRendererMixin {
     @Unique
     private static float spaceclient$scaleFor(ItemStack stack) {
         try {
-            return ItemSizes.get(ItemSizes.keyFor(stack)).hand();
+            return ItemSizes.effective(ItemSizes.keyFor(stack)).hand();
         } catch (Throwable ignored) {
             return 1f;
         }

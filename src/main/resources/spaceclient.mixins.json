@@ -21,7 +21,11 @@
     "EndCrystalRendererMixin",
     "WaveyCapeEntityMixin",
     "CapeLayerMixin",
-    "MouseScrollMixin"
+    "MouseScrollMixin",
+    "LightmapMixin",
+    "GameRendererPostMixin",
+    "HudOverlayMixin",
+    "ScreenEffectMixin"
   ],
   "injectors": {
     "defaultRequire": 0

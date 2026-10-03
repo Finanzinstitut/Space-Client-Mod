@@ -38,6 +38,8 @@ public final class ModuleCategories {
             Map.entry("backdrop", VISUAL),
             Map.entry("camera", VISUAL),
             Map.entry("fullbright", VISUAL),
+            Map.entry("containerbrand", VISUAL),
+            Map.entry("overlay", VISUAL),
             Map.entry("saturation", VISUAL),
             Map.entry("clip", UTILITY),
             Map.entry("itemphysics", VISUAL),
