@@ -215,7 +215,7 @@ public class ItemEntityRendererMixin {
 
         try {
             String id = ((ItemIdHolder) (Object) state).spaceclient$itemId();
-            return ItemSizes.get(id).ground();
+            return ItemSizes.effective(id).ground();
         } catch (Throwable ignored) {
             return 1f;
         }

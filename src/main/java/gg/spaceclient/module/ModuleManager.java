@@ -50,6 +50,9 @@ public class ModuleManager {
         register(new HealthModule());
         register(new DurabilityModule());
         register(new SaturationModule());
+        register(new FullbrightModule());
+        register(new ContainerBrandModule());
+        register(new OverlayModule());
         register(new ClipModule());
         register(new NutritionModule());
         register(new ServerModule());

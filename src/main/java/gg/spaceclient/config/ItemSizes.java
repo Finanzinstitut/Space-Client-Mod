@@ -64,12 +64,38 @@ public final class ItemSizes {
         }
     }
 
+    /** The id the item shower uses for its "every item" row. */
+    public static final String ALL_ITEMS = "*";
+
+    /** Applies to every item, on top of any item's own size. */
+    private static Sizes global = Sizes.DEFAULT;
+
+    public static Sizes global() { return global; }
+
     public static Sizes get(String itemId) {
+        if (ALL_ITEMS.equals(itemId)) return global;
         if (itemId == null) return Sizes.DEFAULT;
         return overrides.getOrDefault(itemId, Sizes.DEFAULT);
     }
 
+    /**
+     * The size an item is actually drawn at: its own setting times the one for
+     * every item. So "everything in my hand at 80%" still lets the totem be
+     * twice that.
+     */
+    public static Sizes effective(String itemId) {
+        Sizes own = itemId == null ? Sizes.DEFAULT : overrides.getOrDefault(itemId, Sizes.DEFAULT);
+        if (global.isDefault()) return own;
+        return new Sizes(clamp(own.hotbar() * global.hotbar()),
+                clamp(own.hand() * global.hand()),
+                clamp(own.ground() * global.ground()));
+    }
+
     public static void set(String itemId, Sizes sizes) {
+        if (ALL_ITEMS.equals(itemId)) {
+            global = sizes;
+            return;
+        }
         if (itemId == null) return;
         // Defaults are removed rather than stored, so the config stays a list
         // of decisions instead of a copy of the item list
@@ -79,32 +105,47 @@ public final class ItemSizes {
 
     public static Map<String, Sizes> all() { return overrides; }
 
-    public static void clear() { overrides.clear(); }
+    public static void clear() {
+        overrides.clear();
+        global = Sizes.DEFAULT;
+    }
+
+    private static JsonObject write(Sizes sizes) {
+        JsonObject entry = new JsonObject();
+        entry.addProperty("hotbar", sizes.hotbar());
+        entry.addProperty("hand", sizes.hand());
+        entry.addProperty("ground", sizes.ground());
+        return entry;
+    }
+
+    private static Sizes read(JsonObject value) {
+        return new Sizes(
+                clamp(value.get("hotbar").getAsFloat()),
+                clamp(value.get("hand").getAsFloat()),
+                clamp(value.get("ground").getAsFloat()));
+    }
 
     public static void save(JsonObject json) {
         JsonObject items = new JsonObject();
-        overrides.forEach((id, sizes) -> {
-            JsonObject entry = new JsonObject();
-            entry.addProperty("hotbar", sizes.hotbar());
-            entry.addProperty("hand", sizes.hand());
-            entry.addProperty("ground", sizes.ground());
-            items.add(id, entry);
-        });
+        overrides.forEach((id, sizes) -> items.add(id, write(sizes)));
         json.add("items", items);
+        json.add("global", write(global));
     }
 
     public static void load(JsonObject json) {
         overrides.clear();
+        global = Sizes.DEFAULT;
+        try {
+            if (json.has("global")) global = read(json.getAsJsonObject("global"));
+        } catch (Exception ignored) {
+            // A malformed global entry leaves every item at its own size
+        }
         if (!json.has("items")) return;
 
         JsonObject items = json.getAsJsonObject("items");
         for (Map.Entry<String, JsonElement> entry : items.entrySet()) {
             try {
-                JsonObject value = entry.getValue().getAsJsonObject();
-                overrides.put(entry.getKey(), new Sizes(
-                        clamp(value.get("hotbar").getAsFloat()),
-                        clamp(value.get("hand").getAsFloat()),
-                        clamp(value.get("ground").getAsFloat())));
+                overrides.put(entry.getKey(), read(entry.getValue().getAsJsonObject()));
             } catch (Exception ignored) {
                 // One malformed entry should not cost the rest of the list
             }

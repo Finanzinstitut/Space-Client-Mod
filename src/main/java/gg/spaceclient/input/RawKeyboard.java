@@ -3,6 +3,10 @@ package gg.spaceclient.input;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 
+import org.lwjgl.sdl.SDLMouse;
+
+import java.nio.FloatBuffer;
+
 /**
  * Reads the physical keyboard, independent of what each key is bound to.
  *
@@ -46,20 +50,31 @@ public final class RawKeyboard {
     }
 
     /**
-     * A mouse button by InputConstants.MOUSE_BUTTON_* number, as the game has
-     * seen it. The game tracks left, middle and right itself; those are the
-     * three anything here asks about.
+     * A mouse button by InputConstants.MOUSE_BUTTON_* number, which since 26.3
+     * are SDL's own button numbers (left 1, middle 2, right 3).
+     *
+     * Asked of SDL directly rather than of the game's MouseHandler: the game
+     * only records its pressed flags while no screen is open, so inside the HUD
+     * editor it reported every button as up and elements could not be dragged.
+     * SDL's state is the real one, in a screen or not.
      */
     public static boolean isMouseDown(int button) {
-        if (!ready) return false;
-        Minecraft mc = Minecraft.getInstance();
-        if (mc == null || mc.mouseHandler == null) return false;
-        return switch (button) {
-            case InputConstants.MOUSE_BUTTON_LEFT -> mc.mouseHandler.isLeftPressed();
-            case InputConstants.MOUSE_BUTTON_MIDDLE -> mc.mouseHandler.isMiddlePressed();
-            case InputConstants.MOUSE_BUTTON_RIGHT -> mc.mouseHandler.isRightPressed();
-            default -> false;
-        };
+        if (!ready || button < 1 || button > 32) return false;
+        try {
+            int buttons = SDLMouse.SDL_GetMouseState((FloatBuffer) null, (FloatBuffer) null);
+            return (buttons & (1 << (button - 1))) != 0;
+        } catch (Throwable t) {
+            // SDL not reachable for some reason: the game's own view, which is
+            // right in game even if it is blind inside screens
+            Minecraft mc = Minecraft.getInstance();
+            if (mc == null || mc.mouseHandler == null) return false;
+            return switch (button) {
+                case InputConstants.MOUSE_BUTTON_LEFT -> mc.mouseHandler.isLeftPressed();
+                case InputConstants.MOUSE_BUTTON_MIDDLE -> mc.mouseHandler.isMiddlePressed();
+                case InputConstants.MOUSE_BUTTON_RIGHT -> mc.mouseHandler.isRightPressed();
+                default -> false;
+            };
+        }
     }
 
     public static int codeFor(String label) {

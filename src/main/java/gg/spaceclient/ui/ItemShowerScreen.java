@@ -62,6 +62,8 @@ public class ItemShowerScreen extends Screen {
      */
     private void collect() {
         known.clear();
+        // First row: the size for every item at once
+        known.put(ItemSizes.ALL_ITEMS, ItemStack.EMPTY);
         try {
             if (mc.player != null) {
                 for (int slot = 0; slot < 41; slot++) {
@@ -83,6 +85,7 @@ public class ItemShowerScreen extends Screen {
     private List<String> ids() { return new ArrayList<>(known.keySet()); }
 
     private String labelFor(String id, ItemStack stack) {
+        if (ItemSizes.ALL_ITEMS.equals(id)) return "All items";
         try {
             if (stack != null && !stack.isEmpty()) return stack.getHoverName().getString();
         } catch (Throwable ignored) {
@@ -157,7 +160,7 @@ public class ItemShowerScreen extends Screen {
         y += ROW_H + GAP * 2;
 
         this.addRenderableWidget(new FlatButton(left, y, 120, ROW_H,
-                () -> "Reset this item", () -> false,
+                () -> ItemSizes.ALL_ITEMS.equals(id) ? "Reset all items" : "Reset this item", () -> false,
                 () -> {
                     ItemSizes.set(id, ItemSizes.Sizes.DEFAULT);
                     SpaceClient.getConfigManager().save();
@@ -218,6 +221,10 @@ public class ItemShowerScreen extends Screen {
             graphics.text(this.font, summary, right, this.height - 92, Theme.OFF, false);
         }
 
+        if (ItemSizes.ALL_ITEMS.equals(selected)) {
+            graphics.text(this.font, "Applies to every item, on top of each item's own size",
+                    left + LIST_W + 20, listTop() + 10, Theme.TEXT_DIM, false);
+        }
         graphics.text(this.font,
                 ItemSizes.all().size() + " item(s) configured",
                 left, this.height - 92, Theme.TEXT_DIM, false);

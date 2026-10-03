@@ -48,7 +48,7 @@ public class GuiItemScaleMixin {
         try {
             if (stack == null || stack.isEmpty()) return;
 
-            float scale = ItemSizes.get(ItemSizes.keyFor(stack)).hotbar();
+            float scale = ItemSizes.effective(ItemSizes.keyFor(stack)).hotbar();
             if (scale == 1f) return;
 
             // Around the middle of the 16 pixel icon rather than its corner
