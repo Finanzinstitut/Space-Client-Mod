@@ -8,7 +8,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.Model;
 import net.minecraft.client.renderer.entity.EndCrystalRenderer;
 import net.minecraft.client.renderer.entity.state.EndCrystalRenderState;
-import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
 
@@ -49,12 +48,10 @@ public abstract class EndCrystalRendererMixin {
                     target = "Lnet/minecraft/client/renderer/SubmitNodeCollector;submitModel("
                             + "Lnet/minecraft/client/model/Model;Ljava/lang/Object;"
                             + "Lcom/mojang/blaze3d/vertex/PoseStack;"
-                            + "Lnet/minecraft/resources/Identifier;III"
-                            + "Lnet/minecraft/client/renderer/feature/ModelFeatureRenderer$CrumblingOverlay;)V"),
+                            + "Lnet/minecraft/resources/Identifier;III)V"),
             index = 5)
     private int spaceclient$tintOverlay(Model<?> model, Object state, PoseStack poseStack,
-                                        Identifier texture, int light, int overlay, int outline,
-                                        ModelFeatureRenderer.CrumblingOverlay crumbling) {
+                                        Identifier texture, int light, int overlay, int outline) {
         try {
             if (!(state instanceof TintHolder holder)) return overlay;
             int tint = holder.spaceclient$tint();

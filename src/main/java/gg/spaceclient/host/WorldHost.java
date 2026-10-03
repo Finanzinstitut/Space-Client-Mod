@@ -83,8 +83,11 @@ public final class WorldHost {
 
         try {
             port = HttpUtil.getAvailablePort();
+            // 26.3 sets the joining players' mode on the world first, then
+            // opens the port - the same two calls the game's own screen makes
+            server.setWorldGameType(mode);
             boolean opened = server.publishServer(
-                    MinecraftServer.MultiplayerScope.LAN, mode, cheats, port);
+                    MinecraftServer.MultiplayerScope.LAN, cheats, port);
 
             if (!opened) {
                 working = false;

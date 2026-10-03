@@ -227,10 +227,10 @@ public class CustomCapeRenderer {
 
         var entity = capeRenderInfo.getAvatar();
 
-        poseStack.mulPose(Axis.XP.rotationDegrees(6.0F + renderState.capeLean / 2.0F + renderState.capeFlap
+        poseStack.rotate(Axis.XP.rotationDegrees(6.0F + renderState.capeLean / 2.0F + renderState.capeFlap
                 + getNatrualWindSwing(part, entity.isUnderWater())));
-        poseStack.mulPose(Axis.ZP.rotationDegrees(renderState.capeLean2 / 2.0F));
-        poseStack.mulPose(Axis.YP.rotationDegrees(180.0F - renderState.capeLean2 / 2.0F));
+        poseStack.rotate(Axis.ZP.rotationDegrees(renderState.capeLean2 / 2.0F));
+        poseStack.rotate(Axis.YP.rotationDegrees(180.0F - renderState.capeLean2 / 2.0F));
     }
 
     private void modifyPoseStackSimulation(PoseStack poseStack, PlayerWrapper capeRenderInfo, float delta, int part) {
@@ -261,16 +261,16 @@ public class CustomCapeRenderer {
         float naturalWindSwing = getNatrualWindSwing(part, entity.isUnderWater());
 
         // vanilla rotating and wind
-        poseStack.mulPose(Axis.XP.rotationDegrees(6.0F + height + naturalWindSwing));
-        poseStack.mulPose(Axis.ZP.rotationDegrees(sidewaysRotationOffset / 2.0F));
-        poseStack.mulPose(Axis.YP.rotationDegrees(180.0F - sidewaysRotationOffset / 2.0F));
+        poseStack.rotate(Axis.XP.rotationDegrees(6.0F + height + naturalWindSwing));
+        poseStack.rotate(Axis.ZP.rotationDegrees(sidewaysRotationOffset / 2.0F));
+        poseStack.rotate(Axis.YP.rotationDegrees(180.0F - sidewaysRotationOffset / 2.0F));
         poseStack.translate(-z / PART_COUNT, y / PART_COUNT, x / PART_COUNT); // movement from the simulation
         // offsetting so the rotation is on the cape part
         // float offset = (float) (part * (16 / partCount))/16; // to fold the entire
         // cape into one position for debugging
         poseStack.translate(0, /*-offset*/ +(0.48 / 16), -(0.48 / 16)); // (0.48/16)
         poseStack.translate(0, part * 1f / PART_COUNT, part * (0) / PART_COUNT);
-        poseStack.mulPose(Axis.XP.rotationDegrees(-partRotation)); // apply actual rotation
+        poseStack.rotate(Axis.XP.rotationDegrees(-partRotation)); // apply actual rotation
         // undoing the rotation
         poseStack.translate(0, -part * 1f / PART_COUNT, -part * (0) / PART_COUNT);
         poseStack.translate(0, -(0.48 / 16), (0.48 / 16));

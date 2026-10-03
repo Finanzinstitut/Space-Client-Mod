@@ -5,52 +5,67 @@ import gg.spaceclient.config.ItemSizes;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 
-import net.minecraft.client.renderer.ItemInHandRenderer;
+import net.minecraft.client.renderer.FirstPersonHandsAndItemsRenderer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.client.renderer.item.ItemStackRenderState;
+import net.minecraft.client.renderer.state.level.FirstPersonHandsAndItemsRenderState;
+import net.minecraft.client.renderer.state.level.PlayerRenderState;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * Scales the item held in first person.
  *
- * Easier than the ground case: the stack is right there in the signature, so
- * nothing has to be carried across from anywhere.
+ * 26.3 replaced ItemInHandRenderer with FirstPersonHandsAndItemsRenderer, and
+ * the item is no longer drawn by a method of its own: submitArmWithItem moves
+ * the pose for the arm and then hands the item's render state to submit. So the
+ * stack is noted when the arm starts, and the scale goes around that one submit
+ * call - after the arm transforms, exactly where renderItem used to start.
  */
-@Mixin(ItemInHandRenderer.class)
+@Mixin(FirstPersonHandsAndItemsRenderer.class)
 public class ItemInHandRendererMixin {
 
-    private static final String TARGET =
-            "renderItem(Lnet/minecraft/world/entity/LivingEntity;"
-            + "Lnet/minecraft/world/item/ItemStack;"
-            + "Lnet/minecraft/world/item/ItemDisplayContext;"
-            + "Lcom/mojang/blaze3d/vertex/PoseStack;"
-            + "Lnet/minecraft/client/renderer/SubmitNodeCollector;I)V";
+    /** The stack of the arm being drawn; render thread only. */
+    @Unique
+    private static ItemStack spaceclient$stack = ItemStack.EMPTY;
 
-    @Inject(method = TARGET, at = @At("HEAD"))
-    private void spaceclient$grow(LivingEntity owner, ItemStack stack,
-                                  ItemDisplayContext context, PoseStack poseStack,
-                                  SubmitNodeCollector collector, int light,
+    @Inject(method = "submitArmWithItem", at = @At("HEAD"))
+    private void spaceclient$note(PlayerRenderState player, FirstPersonHandsAndItemsRenderState state,
+                                  float a, float b, InteractionHand hand, float c, ItemStack stack,
+                                  float d, PoseStack poseStack, SubmitNodeCollector collector, int light,
                                   CallbackInfo ci) {
+        spaceclient$stack = stack;
+    }
+
+    @Redirect(method = "submitArmWithItem", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/renderer/item/ItemStackRenderState;submit("
+                    + "Lcom/mojang/blaze3d/vertex/PoseStack;"
+                    + "Lnet/minecraft/client/renderer/SubmitNodeCollector;III)V"))
+    private void spaceclient$scaled(ItemStackRenderState item, PoseStack poseStack,
+                                    SubmitNodeCollector collector, int light, int overlay, int outline) {
         ItemScaleReport.sawHand();
+        float scale = spaceclient$scaleFor(spaceclient$stack);
+        if (scale == 1f) {
+            item.submit(poseStack, collector, light, overlay, outline);
+            return;
+        }
         poseStack.pushPose();
-        float scale = spaceclient$scaleFor(stack);
-        if (scale != 1f) poseStack.scale(scale, scale, scale);
+        try {
+            poseStack.scale(scale, scale, scale);
+            item.submit(poseStack, collector, light, overlay, outline);
+        } finally {
+            poseStack.popPose();
+        }
     }
 
-    @Inject(method = TARGET, at = @At("RETURN"))
-    private void spaceclient$shrink(LivingEntity owner, ItemStack stack,
-                                    ItemDisplayContext context, PoseStack poseStack,
-                                    SubmitNodeCollector collector, int light,
-                                    CallbackInfo ci) {
-        poseStack.popPose();
-    }
-
+    @Unique
     private static float spaceclient$scaleFor(ItemStack stack) {
         try {
             return ItemSizes.get(ItemSizes.keyFor(stack)).hand();

@@ -2,7 +2,7 @@ package gg.spaceclient.ui;
 
 import gg.spaceclient.input.RawKeyboard;
 
-import org.lwjgl.glfw.GLFW;
+import com.mojang.blaze3d.platform.InputConstants;
 
 /**
  * Scrolling a list by holding the left button and pulling.
@@ -104,13 +104,6 @@ public final class DragScroll {
     }
 
     private static boolean isLeftDown() {
-        try {
-            long window = RawKeyboard.windowHandle();
-            if (window == 0) return false;
-            return GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_LEFT)
-                    == GLFW.GLFW_PRESS;
-        } catch (Throwable ignored) {
-            return false;
-        }
+        return RawKeyboard.isMouseDown(InputConstants.MOUSE_BUTTON_LEFT);
     }
 }

@@ -7,7 +7,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
 
-import org.lwjgl.glfw.GLFW;
+import com.mojang.blaze3d.platform.InputConstants;
 
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
@@ -79,7 +79,7 @@ public class KeyRow extends Button {
         return null;
     }
 
-    /** Asks GLFW what is held and takes the first answer. */
+    /** Asks the keyboard what is held and takes the first answer. */
     private void listen() {
         int held = KeyBinds.pressedKey();
 
@@ -92,8 +92,8 @@ public class KeyRow extends Button {
 
         listening = false;
 
-        if (held == GLFW.GLFW_KEY_ESCAPE) return;                 // leave it alone
-        if (held == GLFW.GLFW_KEY_BACKSPACE || held == GLFW.GLFW_KEY_DELETE) {
+        if (held == InputConstants.KEY_ESCAPE) return;                 // leave it alone
+        if (held == InputConstants.KEY_BACKSPACE || held == InputConstants.KEY_DELETE) {
             write.accept(KeyBinds.UNBOUND);                        // no key at all
             return;
         }

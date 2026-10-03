@@ -40,7 +40,9 @@ jobs:
       # attached asset and the jar on disk cannot drift apart.
       - name: Read mod version
         id: version
-        run: echo "value=$(grep '^mod_version=' gradle.properties | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "value=$(grep '^mod_version=' gradle.properties | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+          echo "mc=$(grep '^minecraft_version=' gradle.properties | cut -d= -f2)" >> "$GITHUB_OUTPUT"
 
       - name: Upload jar
         uses: actions/upload-artifact@v4
@@ -54,6 +56,12 @@ jobs:
       # Two ways in, because a tag cannot always be pushed from outside: a
       # token scoped to one branch is refused on refs/tags. The release API
       # creates the tag itself, and the token inside a run is allowed to.
+      # The release asset carries the Minecraft version in its name, so the
+      # launcher can pick the newest build for each instance's version without
+      # downloading every jar to look inside.
+      - name: Name the jar after its Minecraft version
+        run: cp "build/libs/spaceclient-${{ steps.version.outputs.value }}.jar" "build/libs/spaceclient-${{ steps.version.outputs.value }}-mc${{ steps.version.outputs.mc }}.jar"
+
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/') || inputs.release
         uses: softprops/action-gh-release@v2
@@ -65,5 +73,5 @@ jobs:
           # which is the one thing a tag is for.
           target_commitish: ${{ github.sha }}
           name: Release v${{ steps.version.outputs.value }}
-          files: build/libs/spaceclient-${{ steps.version.outputs.value }}.jar
+          files: build/libs/spaceclient-${{ steps.version.outputs.value }}-mc${{ steps.version.outputs.mc }}.jar
           fail_on_unmatched_files: true

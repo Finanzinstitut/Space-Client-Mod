@@ -11,7 +11,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
-import org.lwjgl.glfw.GLFW;
+import com.mojang.blaze3d.platform.InputConstants;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -379,7 +379,7 @@ public class HudEditorScreen extends Screen {
      * the selection.
      */
     private void pointer(int mouseX, int mouseY) {
-        boolean down = RawKeyboard.isMouseDown(GLFW.GLFW_MOUSE_BUTTON_LEFT);
+        boolean down = RawKeyboard.isMouseDown(InputConstants.MOUSE_BUTTON_LEFT);
 
         if (!primed) {
             primed = true;
@@ -516,10 +516,10 @@ public class HudEditorScreen extends Screen {
 
         int dx = 0;
         int dy = 0;
-        if (RawKeyboard.isDown(GLFW.GLFW_KEY_LEFT)) dx -= 1;
-        if (RawKeyboard.isDown(GLFW.GLFW_KEY_RIGHT)) dx += 1;
-        if (RawKeyboard.isDown(GLFW.GLFW_KEY_UP)) dy -= 1;
-        if (RawKeyboard.isDown(GLFW.GLFW_KEY_DOWN)) dy += 1;
+        if (RawKeyboard.isDown(InputConstants.KEY_LEFT)) dx -= 1;
+        if (RawKeyboard.isDown(InputConstants.KEY_RIGHT)) dx += 1;
+        if (RawKeyboard.isDown(InputConstants.KEY_UP)) dy -= 1;
+        if (RawKeyboard.isDown(InputConstants.KEY_DOWN)) dy += 1;
 
         if (dx == 0 && dy == 0) {
             nudgeFresh = true;
@@ -539,7 +539,7 @@ public class HudEditorScreen extends Screen {
             nudgedAt = now;
         }
 
-        int step = RawKeyboard.isDown(GLFW.GLFW_KEY_LEFT_CONTROL) ? GRID : 1;
+        int step = RawKeyboard.isDown(InputConstants.KEY_LCONTROL) ? GRID : 1;
         int x = selected.getX(this.width) + dx * step;
         int y = selected.getY(this.height) + dy * step;
         selected.setPosition(x / (float) this.width, y / (float) this.height);

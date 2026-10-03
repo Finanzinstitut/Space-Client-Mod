@@ -101,7 +101,7 @@ public class FriendChatScreen extends Screen {
     @Override
     public void tick() {
         boolean down = gg.spaceclient.input.RawKeyboard.isDown(
-                org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER);
+                com.mojang.blaze3d.platform.InputConstants.KEY_RETURN);
 
         // On the edge, not while held: a held Enter would send the same line
         // twenty times a second

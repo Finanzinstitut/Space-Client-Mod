@@ -85,7 +85,7 @@ public final class HitTint {
 
             // No uploads to the card while minimised; the old colours stay
             // until the window is back, which is the next time anyone sees them
-            if (Minecraft.getInstance().getWindow().isMinimized()) return ready;
+            if (Minecraft.getInstance().getWindow().isIconified()) return ready;
 
             NativeImage pixels = texture.getPixels();
             if (pixels == null) return fail("overlay texture has no pixels");

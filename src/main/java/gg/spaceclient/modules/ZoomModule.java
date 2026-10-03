@@ -94,7 +94,7 @@ public class ZoomModule extends Module {
     private boolean keyDown() {
         if (!key.is("BINDING") && RawKeyboard.isAvailable()) {
             int code = RawKeyboard.codeFor(key.get());
-            if (code != org.lwjgl.glfw.GLFW.GLFW_KEY_UNKNOWN) {
+            if (code != RawKeyboard.UNKNOWN) {
                 return RawKeyboard.isDown(code);
             }
         }
