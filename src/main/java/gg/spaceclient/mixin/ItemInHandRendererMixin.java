@@ -56,15 +56,20 @@ public class ItemInHandRendererMixin {
     private void spaceclient$scaled(ItemStackRenderState item, PoseStack poseStack,
                                     SubmitNodeCollector collector, int light, int overlay, int outline) {
         ItemScaleReport.sawHand();
+        // The Overlay module can leave the off-hand item out entirely
+        if (spaceclient$hand == InteractionHand.OFF_HAND && !gg.spaceclient.modules.OverlayModule.offhand()) return;
         float scale = spaceclient$scaleFor(spaceclient$stack);
         boolean shield = spaceclient$stack.is(Items.SHIELD);
-        if (scale == 1f && !shield) {
+        boolean moved = gg.spaceclient.modules.OverlayModule.movesHands();
+        if (scale == 1f && !shield && !moved) {
             item.submit(poseStack, collector, light, overlay, outline);
             return;
         }
         poseStack.pushPose();
         try {
-            // The Overlay module's shield height and turn, then the item size
+            // The Overlay module's hand position, its shield height and turn,
+            // then the item size
+            gg.spaceclient.modules.OverlayModule.hand(poseStack, spaceclient$hand);
             if (shield) gg.spaceclient.modules.OverlayModule.shield(poseStack, spaceclient$hand);
             if (scale != 1f) poseStack.scale(scale, scale, scale);
             item.submit(poseStack, collector, light, overlay, outline);

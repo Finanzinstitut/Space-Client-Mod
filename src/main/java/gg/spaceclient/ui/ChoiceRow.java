@@ -113,7 +113,7 @@ public class ChoiceRow extends Button {
                     y1 + h / 2 + 2, Theme.TEXT_DIM, false);
         }
 
-        Glass.pill(graphics, chipX, chipY, chipW, chipH,
+        Glass.flat(graphics, chipX, chipY, chipW, chipH,
                 Ease.color(0xFF1A1A1E, 0xFF26262C, hover), chipH / 2);
 
         boolean overChip = isHovered() && mouseX >= chipX && mouseX < chipX + chipW;

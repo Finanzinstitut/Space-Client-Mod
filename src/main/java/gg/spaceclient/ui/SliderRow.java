@@ -154,16 +154,16 @@ public class SliderRow extends AbstractSliderButton {
         int trackW = w - 28;
         int trackY = y1 + h - 12;
 
-        Glass.pill(graphics, trackX, trackY, trackW, 4, 0xFF232327, 2);
+        Glass.flat(graphics, trackX, trackY, trackW, 4, 0xFF232327, 2);
 
         int filled = Math.max(0, Math.round((float) (this.value * trackW)));
         if (filled > 0) {
-            Glass.pill(graphics, trackX, trackY, filled, 4,
+            Glass.flat(graphics, trackX, trackY, filled, 4,
                     Ease.color(Theme.accent(), Theme.CYAN, hover), 2);
         }
 
         int knobX = trackX + Math.min(trackW - 8, Math.max(0, filled - 4));
-        Glass.pill(graphics, knobX, trackY - 3, 8, 10,
+        Glass.flat(graphics, knobX, trackY - 3, 8, 10,
                 Ease.color(0xFF8E8E98, Theme.CYAN, hover), 4);
     }
 

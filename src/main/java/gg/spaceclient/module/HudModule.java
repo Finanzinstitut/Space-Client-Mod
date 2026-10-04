@@ -228,8 +228,23 @@ public abstract class HudModule extends Module {
     public float getXPercent() { return xPercent; }
     public float getYPercent() { return yPercent; }
 
-    public int getX(int screenWidth) { return (int) (xPercent * screenWidth); }
-    public int getY(int screenHeight) { return (int) (yPercent * screenHeight); }
+    /**
+     * Where the element's corner goes, kept on screen.
+     *
+     * The position is a fraction of the screen, but an element can grow after
+     * it was placed - the effects list gains a line, a name gets longer - and
+     * one placed near the right edge then ran off it. It is pulled back in by
+     * however much it would overhang.
+     */
+    public int getX(int screenWidth) {
+        int x = (int) (xPercent * screenWidth);
+        return Math.max(0, Math.min(x, screenWidth - getScaledWidth()));
+    }
+
+    public int getY(int screenHeight) {
+        int y = (int) (yPercent * screenHeight);
+        return Math.max(0, Math.min(y, screenHeight - getScaledHeight()));
+    }
 
     public abstract void render(GuiGraphicsExtractor graphics, int x, int y);
 
