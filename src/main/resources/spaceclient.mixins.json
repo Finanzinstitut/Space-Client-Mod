@@ -25,7 +25,8 @@
     "LightmapMixin",
     "GameRendererPostMixin",
     "HudOverlayMixin",
-    "ScreenEffectMixin"
+    "ScreenEffectMixin",
+    "HudAccessor"
   ],
   "injectors": {
     "defaultRequire": 0

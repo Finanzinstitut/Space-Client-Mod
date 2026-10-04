@@ -53,6 +53,7 @@ public class ModuleManager {
         register(new FullbrightModule());
         register(new ContainerBrandModule());
         register(new OverlayModule());
+        register(new ScoreboardModule());
         register(new ClipModule());
         register(new NutritionModule());
         register(new ServerModule());

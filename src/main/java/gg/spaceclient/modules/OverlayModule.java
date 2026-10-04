@@ -60,6 +60,28 @@ public class OverlayModule extends Module {
     private final IntSetting shieldTurn = new IntSetting(
             "shield_turn", "Shield sideways (degrees)", "Turn the shield to the side so it covers less of the view", 0, 0, 90);
 
+    // --- camera and hands ---
+    private final BooleanSetting hurtCam = new BooleanSetting(
+            "hurt_cam", "Camera shake on hit", "The view tilting when you take damage", true);
+    private final IntSetting handX = new IntSetting(
+            "hand_x", "Hand sideways (100 = normal)", "Move the held items left or right", 100, 0, 200);
+    private final IntSetting handY = new IntSetting(
+            "hand_y", "Hand height (100 = normal)", "Move the held items up or down - lower for a low sword", 100, 0, 200);
+    private final IntSetting handZ = new IntSetting(
+            "hand_z", "Hand distance (100 = normal)", "Move the held items closer or further away", 100, 0, 200);
+    private final BooleanSetting offhand = new BooleanSetting(
+            "offhand", "Off-hand item", "Draw whatever is in your off hand; off clears the left of the view", true);
+
+    // --- HUD text and tools ---
+    private final IntSetting bossBar = new IntSetting(
+            "boss_bar", "Boss bar (percent)", "Size of boss bars at the top; 0 hides them", 100, 0, 200);
+    private final IntSetting titles = new IntSetting(
+            "title_size", "Title size (percent)", "Size of the big titles servers show in the middle", 100, 25, 200);
+    private final BooleanSetting spyglass = new BooleanSetting(
+            "spyglass", "Spyglass overlay", "The black ring while looking through a spyglass", true);
+    private final IntSetting nausea = new IntSetting(
+            "nausea", "Nausea overlay (percent)", "How strongly nausea tints the screen; 0 hides it", 100, 0, 100);
+
     public OverlayModule() {
         super("overlay", "Overlay", "Size of hearts and bars, fire, pumpkin, shield and more", false);
         addGroups(
@@ -70,7 +92,11 @@ public class OverlayModule extends Module {
                 SettingGroup.of("Fire and first person", "What is drawn in front of your eyes",
                         fireLower, fireOpacity, water, inWall),
                 SettingGroup.of("Shield", "Where the shield sits in your hand",
-                        shieldHeight, shieldTurn)
+                        shieldHeight, shieldTurn),
+                SettingGroup.of("Camera and hands", "Hurt shake and where your items are held",
+                        hurtCam, handX, handY, handZ, offhand),
+                SettingGroup.of("Boss bar, titles and tools", "Other things laid over the view",
+                        bossBar, titles, spyglass, nausea)
         );
         instance = this;
     }
@@ -126,6 +152,37 @@ public class OverlayModule extends Module {
     public static boolean underwater() { var m = on(); return m == null || m.water.get(); }
 
     public static boolean inWall() { var m = on(); return m == null || m.inWall.get(); }
+
+    // ---------------------------------------------------------------- camera and hands
+
+    public static boolean hurtCam() { var m = on(); return m == null || m.hurtCam.get(); }
+
+    /** Whether the off-hand item is drawn at all. */
+    public static boolean offhand() { var m = on(); return m == null || m.offhand.get(); }
+
+    /** Shifts every held item by the hand position settings; mirrored for the off hand. */
+    public static void hand(PoseStack poseStack, InteractionHand hand) {
+        var m = on();
+        if (m == null) return;
+        float x = (m.handX.get() - 100) / 100f * 0.5f;
+        float y = (m.handY.get() - 100) / 100f * 0.5f;
+        float z = (m.handZ.get() - 100) / 100f * 0.5f;
+        if (x == 0f && y == 0f && z == 0f) return;
+        if (hand == InteractionHand.OFF_HAND) x = -x;
+        poseStack.translate(x, y, -z);
+    }
+
+    public static boolean movesHands() {
+        var m = on();
+        return m != null && (m.handX.get() != 100 || m.handY.get() != 100 || m.handZ.get() != 100);
+    }
+
+    // ---------------------------------------------------------------- HUD text and tools
+
+    public static float bossBarScale() { var m = on(); return m == null ? 1f : percent(m.bossBar); }
+    public static float titleScale() { var m = on(); return m == null ? 1f : percent(m.titles); }
+    public static boolean spyglass() { var m = on(); return m == null || m.spyglass.get(); }
+    public static float nauseaAlpha() { var m = on(); return m == null ? 1f : percent(m.nausea); }
 
     /**
      * Moves the shield before it is drawn: up or down in the hand, and turned

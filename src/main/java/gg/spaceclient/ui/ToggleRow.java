@@ -100,25 +100,51 @@ public class ToggleRow extends Button {
 
         // The track darkens to the accent as the knob travels, so colour and
         // position say the same thing and a glance at either settles it.
-        Glass.pill(graphics, trackX, trackY, trackW, trackH,
+        // The small parts are drawn flat: the soft rings around a pill are
+        // four extra shapes each, invisible at this size, on every row
+        Glass.flat(graphics, trackX, trackY, trackW, trackH,
                 Ease.color(0xFF232327, Theme.accent(), knob), trackH / 2);
 
         int knobSize = trackH - 4;
         int travel = trackW - knobSize - 4;
         int knobX = trackX + 2 + Math.round(travel * Ease.inOutCubic(knob));
-        Glass.pill(graphics, knobX, trackY + 2, knobSize, knobSize,
+        Glass.flat(graphics, knobX, trackY + 2, knobSize, knobSize,
                 Ease.color(0xFF6E679A, Theme.CYAN, knob), knobSize / 2);
     }
 
     /** Trims to what the row has room for, with an ellipsis where it was cut. */
     static String fit(net.minecraft.client.gui.Font font, String text, int room) {
         if (room <= 8 || text == null || text.isEmpty()) return text == null ? "" : text;
-        if (font.width(text) <= room) return text;
 
-        String out = text;
-        while (out.length() > 1 && font.width(out + "..") > room) {
-            out = out.substring(0, out.length() - 1);
+        // Remembered, because every row asks again every frame with the same
+        // text and the same room. Shortening measures the string once per
+        // character it drops, so a long description - Now Playing's lyrics
+        // note is three lines of it - cost tens of thousands of glyph lookups
+        // per row per frame, and that was most of why settings pages stuttered.
+        String key = room + "\u0000" + text;
+        String cached = FIT_CACHE.get(key);
+        if (cached != null) return cached;
+
+        String result;
+        if (font.width(text) <= room) {
+            result = text;
+        } else {
+            // Halving instead of one character at a time: the answer is the
+            // longest prefix that fits, and that is a search, not a walk
+            int low = 1;
+            int high = text.length();
+            while (low < high) {
+                int mid = (low + high + 1) / 2;
+                if (font.width(text.substring(0, mid) + "..") <= room) low = mid;
+                else high = mid - 1;
+            }
+            result = text.substring(0, low) + "..";
         }
-        return out + "..";
+        if (FIT_CACHE.size() > 2048) FIT_CACHE.clear();
+        FIT_CACHE.put(key, result);
+        return result;
     }
+
+    /** Shortened texts by room and text; cleared wholesale if it ever grows large. */
+    private static final java.util.Map<String, String> FIT_CACHE = new java.util.HashMap<>();
 }

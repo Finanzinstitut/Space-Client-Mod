@@ -175,6 +175,30 @@ public class SettingsScreen extends Screen {
 
         contentHeight = (y + scroll) - top;
 
+        // Rows scrolled out of the panel are switched off rather than drawn
+        // where nobody sees them: a module with many settings used to draw
+        // every row of the whole list every frame, most of them off screen.
+        for (var child : this.children()) {
+            if (!(child instanceof net.minecraft.client.gui.components.AbstractWidget widget)) continue;
+            // Whole rows only: one that would hang over the Back button waits
+            // for the next scroll instead of being drawn across it
+            boolean inView = widget.getY() >= top && widget.getY() + widget.getHeight() <= bottom;
+            widget.visible = inView;
+        }
+        // A colour row is a wheel with its opacity slider beside it: when the
+        // wheel does not fit, the slider goes with it rather than standing alone
+        for (int[] row : colourRows) {
+            int rowTop = row[0];
+            int rowBottom = rowTop + 14 + 84;
+            if (rowTop >= top && rowBottom <= bottom) continue;
+            for (var child : this.children()) {
+                if (child instanceof net.minecraft.client.gui.components.AbstractWidget widget
+                        && widget.getY() >= rowTop && widget.getY() < rowBottom) {
+                    widget.visible = false;
+                }
+            }
+        }
+
         this.addRenderableWidget(new FlatButton(
                 left, bottom, PANEL_W, 24,
                 () -> "Back",
@@ -236,8 +260,12 @@ public class SettingsScreen extends Screen {
         for (Setting setting : visibleSettings) {
             if (!(setting instanceof ColorSetting)) continue;
             if (index >= colourRows.size()) break;
-            graphics.text(this.font, setting.getName(),
-                    left, colourRows.get(index)[0], Theme.TEXT, false);
+            int labelY = colourRows.get(index)[0];
+            // Only for a wheel that is on screen; the row culling in init()
+            // leaves out wheels that would cross the panel's edges
+            if (labelY >= ScreenChrome.TOP && labelY + 14 + 84 <= ScreenChrome.bottomRow(this.height)) {
+                graphics.text(this.font, setting.getName(), left, labelY, Theme.TEXT, false);
+            }
             index++;
         }
 

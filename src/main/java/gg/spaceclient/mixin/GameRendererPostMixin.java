@@ -27,6 +27,15 @@ public abstract class GameRendererPostMixin {
 
     @Shadow @Final private List<Identifier> requestedPostEffects;
 
+    /** The Overlay module's switch for the view tilting when hit; death still turns the camera. */
+    @Inject(method = "bobHurt", at = @At("HEAD"), cancellable = true)
+    private void spaceclient$hurtCam(net.minecraft.client.renderer.state.level.CameraRenderState camera,
+                                     com.mojang.blaze3d.vertex.PoseStack poseStack, CallbackInfo ci) {
+        if (gg.spaceclient.modules.OverlayModule.hurtCam()) return;
+        if (camera.entityRenderState != null && camera.entityRenderState.isDeadOrDying) return;
+        ci.cancel();
+    }
+
     @Inject(method = "update", at = @At("TAIL"))
     private void spaceclient$saturation(DeltaTracker deltaTracker, CallbackInfo ci) {
         try {

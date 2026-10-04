@@ -125,6 +125,81 @@ public abstract class HudOverlayMixin {
         if (!OverlayModule.vignette()) ci.cancel();
     }
 
+    /** The game's own effect icons, top right, left out while the Effects module replaces them. */
+    @Inject(method = "extractEffects", at = @At("HEAD"), cancellable = true)
+    private void spaceclient$effects(GuiGraphicsExtractor graphics, net.minecraft.client.DeltaTracker delta, CallbackInfo ci) {
+        if (gg.spaceclient.modules.EffectsModule.replacesVanilla()) ci.cancel();
+    }
+
+    // ---------------------------------------------------------------- scoreboard
+
+    /** The game's own scoreboard pass, skipped while the Scoreboard module draws it instead. */
+    @Inject(method = "extractScoreboardSidebar", at = @At("HEAD"), cancellable = true)
+    private void spaceclient$scoreboard(GuiGraphicsExtractor graphics, net.minecraft.client.DeltaTracker delta, CallbackInfo ci) {
+        if (gg.spaceclient.modules.ScoreboardModule.replacesVanilla()) ci.cancel();
+    }
+
+    /** The board's two background fills: the title's first, then the lines'. */
+    @org.spongepowered.asm.mixin.injection.Redirect(method = "displayScoreboardSidebar", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/gui/GuiGraphicsExtractor;fill(IIIII)V", ordinal = 0))
+    private void spaceclient$titleFill(GuiGraphicsExtractor graphics, int x1, int y1, int x2, int y2, int colour) {
+        graphics.fill(x1, y1, x2, y2, gg.spaceclient.modules.ScoreboardModule.backgroundColour(true, colour));
+    }
+
+    @org.spongepowered.asm.mixin.injection.Redirect(method = "displayScoreboardSidebar", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/gui/GuiGraphicsExtractor;fill(IIIII)V", ordinal = 1))
+    private void spaceclient$bodyFill(GuiGraphicsExtractor graphics, int x1, int y1, int x2, int y2, int colour) {
+        graphics.fill(x1, y1, x2, y2, gg.spaceclient.modules.ScoreboardModule.backgroundColour(false, colour));
+    }
+
+    /** No red numbers: the board is asked to format every score as blank. */
+    @org.spongepowered.asm.mixin.injection.Redirect(method = "displayScoreboardSidebar", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/world/scores/Objective;numberFormatOrDefault(Lnet/minecraft/network/chat/numbers/NumberFormat;)Lnet/minecraft/network/chat/numbers/NumberFormat;"))
+    private net.minecraft.network.chat.numbers.NumberFormat spaceclient$numbers(net.minecraft.world.scores.Objective objective,
+                                                                                net.minecraft.network.chat.numbers.NumberFormat fallback) {
+        return gg.spaceclient.modules.ScoreboardModule.numberFormat(objective.numberFormatOrDefault(fallback));
+    }
+
+    // ---------------------------------------------------------------- boss bar, titles, tools
+
+    @Inject(method = "extractBossOverlay", at = @At("HEAD"), cancellable = true)
+    private void spaceclient$bossIn(GuiGraphicsExtractor graphics, net.minecraft.client.DeltaTracker delta, CallbackInfo ci) {
+        float scale = OverlayModule.bossBarScale();
+        if (scale <= 0f) {
+            ci.cancel();
+            return;
+        }
+        // Grows from the top centre, where the bars hang
+        spaceclient$push(graphics, graphics.guiWidth() / 2f, 0f, scale, 0);
+    }
+
+    @Inject(method = "extractBossOverlay", at = @At("RETURN"))
+    private void spaceclient$bossOut(GuiGraphicsExtractor graphics, net.minecraft.client.DeltaTracker delta, CallbackInfo ci) {
+        // A cancelled call never pushed; only a zero scale cancels, so it is
+        // read again here to keep push and pop paired
+        if (OverlayModule.bossBarScale() > 0f) graphics.pose().popMatrix();
+    }
+
+    @Inject(method = "extractTitle", at = @At("HEAD"))
+    private void spaceclient$titleIn(GuiGraphicsExtractor graphics, net.minecraft.client.DeltaTracker delta, CallbackInfo ci) {
+        spaceclient$push(graphics, graphics.guiWidth() / 2f, graphics.guiHeight() / 2f, OverlayModule.titleScale(), 0);
+    }
+
+    @Inject(method = "extractTitle", at = @At("RETURN"))
+    private void spaceclient$titleOut(GuiGraphicsExtractor graphics, net.minecraft.client.DeltaTracker delta, CallbackInfo ci) {
+        graphics.pose().popMatrix();
+    }
+
+    @Inject(method = "extractSpyglassOverlay", at = @At("HEAD"), cancellable = true)
+    private void spaceclient$spyglass(GuiGraphicsExtractor graphics, float scale, CallbackInfo ci) {
+        if (!OverlayModule.spyglass()) ci.cancel();
+    }
+
+    @ModifyVariable(method = "extractConfusionOverlay", at = @At("HEAD"), argsOnly = true)
+    private float spaceclient$nausea(float strength) {
+        return strength * OverlayModule.nauseaAlpha();
+    }
+
     @ModifyVariable(method = "extractPortalOverlay", at = @At("HEAD"), argsOnly = true)
     private float spaceclient$portal(float alpha) {
         return alpha * OverlayModule.portalAlpha();
