@@ -207,6 +207,26 @@ public final class NowPlayingShare {
      */
     public static gg.spaceclient.render.SongTag.Card cardFor(UUID uuid) {
         if (uuid == null) return null;
+
+        // Your own card is built from what is playing here, not from the
+        // round trip through the song server. That round trip came back empty
+        // whenever the server was slow or unreachable, and the card over your
+        // own head flickered and then disappeared.
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player != null && uuid.equals(mc.player.getUUID())) {
+            MusicModule module = module();
+            if (module == null || !module.isEnabled()) return null;
+            NowPlaying own = module.track();
+            if (own.isEmpty()) return null;
+            String lyric = "";
+            if (module.showsLyrics()) {
+                double position = MediaSession.position();
+                if (position >= 0) lyric = Lyrics.line(own.artist(), own.title(), position);
+            }
+            return new gg.spaceclient.render.SongTag.Card(own.title(), own.artist(), own.source(),
+                    lyric == null ? "" : lyric);
+        }
+
         String song = songs.get(uuid);
         if (song == null || song.isEmpty()) return null;
 
@@ -353,9 +373,7 @@ public final class NowPlayingShare {
         // Deliberately fetched rather than read from the local module: the
         // point of the self setting is to prove the round trip, and taking a
         // shortcut here would prove nothing.
-        if (showOnSelf() && mc.player.getUUID() != null) {
-            wanted.add(mc.player.getUUID());
-        }
+        // Your own card is built locally (see cardFor), so it is not asked for
 
         for (Player player : mc.level.players()) {
             if (player == mc.player) continue;

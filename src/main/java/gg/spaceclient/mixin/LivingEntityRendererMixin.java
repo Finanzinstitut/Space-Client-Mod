@@ -44,6 +44,28 @@ public abstract class LivingEntityRendererMixin {
         ((TintHolder) (Object) state).spaceclient$setTint(tint);
     }
 
+    /**
+     * The game never shows your own name, even in third person - and the song
+     * card hangs off the name tag. With "Over my own name" on and something
+     * playing, your name is drawn in third person so the card has its place.
+     */
+    @Inject(method = "shouldShowName(Lnet/minecraft/world/entity/LivingEntity;D)Z",
+            at = @At("RETURN"), cancellable = true)
+    private void spaceclient$ownName(net.minecraft.world.entity.LivingEntity entity, double distance,
+                                     org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Boolean> cir) {
+        try {
+            if (cir.getReturnValueZ()) return;
+            net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+            if (entity != mc.player || mc.options.getCameraType().isFirstPerson()) return;
+            if (mc.gui.hud.isHidden() || entity.isInvisible()) return;
+            if (!gg.spaceclient.net.NowPlayingShare.showOnSelf()) return;
+            if (gg.spaceclient.net.NowPlayingShare.cardFor(entity.getUUID()) == null) return;
+            cir.setReturnValue(true);
+        } catch (Throwable ignored) {
+            // Vanilla's answer stands
+        }
+    }
+
     @Inject(method = "getOverlayCoords(Lnet/minecraft/client/renderer/entity/state/LivingEntityRenderState;F)I",
             at = @At("RETURN"), cancellable = true)
     private static void spaceclient$tintOverlay(LivingEntityRenderState state, float whiteOverlay,
