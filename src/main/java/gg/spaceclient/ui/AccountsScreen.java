@@ -160,7 +160,7 @@ public class AccountsScreen extends Screen {
 
     @Override
     public void onClose() {
-        Minecraft.getInstance().gui.setScreen(parent);
+        gg.spaceclient.compat.Screens.set(parent);
     }
 
     @Override

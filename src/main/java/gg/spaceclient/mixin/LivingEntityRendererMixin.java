@@ -57,7 +57,7 @@ public abstract class LivingEntityRendererMixin {
             if (cir.getReturnValueZ()) return;
             net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
             if (entity != mc.player || mc.options.getCameraType().isFirstPerson()) return;
-            if (mc.gui.hud.isHidden() || entity.isInvisible()) return;
+            if (gg.spaceclient.compat.HudCompat.isHidden() || entity.isInvisible()) return;
             if (!gg.spaceclient.net.NowPlayingShare.showOnSelf()) return;
             if (gg.spaceclient.net.NowPlayingShare.cardFor(entity.getUUID()) == null) return;
             cir.setReturnValue(true);

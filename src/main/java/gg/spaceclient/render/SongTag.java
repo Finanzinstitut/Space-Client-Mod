@@ -82,7 +82,7 @@ public final class SongTag {
             // The frame vanilla puts a name tag in: half a block above the
             // anchor, turned to the camera, scaled to text pixels with y down
             poseStack.translate(position.x, position.y + 0.5, position.z);
-            poseStack.rotate(camera.orientation);
+            gg.spaceclient.compat.Pose.rotate(poseStack, camera.orientation);
             poseStack.scale(0.025f, -0.025f, 0.025f);
 
             int x1 = -topW / 2 - 3;

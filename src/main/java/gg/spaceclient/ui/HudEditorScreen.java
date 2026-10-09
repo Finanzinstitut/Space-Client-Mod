@@ -892,7 +892,7 @@ public class HudEditorScreen extends Screen {
         dragging = null;
         resizing = null;
         SpaceClient.getConfigManager().save();
-        Minecraft.getInstance().gui.setScreen(parent);
+        gg.spaceclient.compat.Screens.set(parent);
     }
 
     @Override

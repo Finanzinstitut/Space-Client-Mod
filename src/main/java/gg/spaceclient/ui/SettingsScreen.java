@@ -88,7 +88,7 @@ public class SettingsScreen extends Screen {
             this.addRenderableWidget(new GroupRow(
                     left, y, PANEL_W, ROW_H,
                     group.name(), group.description(),
-                    () -> Minecraft.getInstance().gui.setScreen(new SettingsScreen(
+                    () -> gg.spaceclient.compat.Screens.set(new SettingsScreen(
                             this, group.name(), group.description(),
                             group.settings(), List.of()))
             ));
@@ -280,7 +280,7 @@ public class SettingsScreen extends Screen {
 
     @Override
     public void onClose() {
-        Minecraft.getInstance().gui.setScreen(parent);
+        gg.spaceclient.compat.Screens.set(parent);
     }
 
     @Override

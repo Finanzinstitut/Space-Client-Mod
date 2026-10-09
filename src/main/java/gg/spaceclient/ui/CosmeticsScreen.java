@@ -104,11 +104,11 @@ public class CosmeticsScreen extends Screen {
         Minecraft mc = Minecraft.getInstance();
         switch (name) {
             case "Cosmetica" -> { /* already here */ }
-            case "Move HUD" -> mc.gui.setScreen(new HudEditorScreen(this));
-            case "Accounts" -> mc.gui.setScreen(new AccountsScreen(this));
-            case "Appearance" -> mc.gui.setScreen(new AppearanceScreen(this));
-            case "Diagnostics" -> mc.gui.setScreen(new DiagnosticsScreen(this));
-            default -> mc.gui.setScreen(new SpaceMenuScreen());
+            case "Move HUD" -> gg.spaceclient.compat.Screens.set(new HudEditorScreen(this));
+            case "Accounts" -> gg.spaceclient.compat.Screens.set(new AccountsScreen(this));
+            case "Appearance" -> gg.spaceclient.compat.Screens.set(new AppearanceScreen(this));
+            case "Diagnostics" -> gg.spaceclient.compat.Screens.set(new DiagnosticsScreen(this));
+            default -> gg.spaceclient.compat.Screens.set(new SpaceMenuScreen());
         }
     }
 
@@ -428,7 +428,7 @@ public class CosmeticsScreen extends Screen {
 
     @Override
     public void onClose() {
-        Minecraft.getInstance().gui.setScreen(parent);
+        gg.spaceclient.compat.Screens.set(parent);
     }
 
     @Override

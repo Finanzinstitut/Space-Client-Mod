@@ -9,7 +9,7 @@ import gg.spaceclient.setting.SettingGroup;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.NaturalSpawner;
 import net.minecraft.world.level.block.state.BlockState;
@@ -131,6 +131,13 @@ public class LightLevelModule extends HudModule {
 
     public static final byte SAFE = 0, DANGER = 1, NIGHT = 2;
 
+    /** A monster the spawn rules are checked for; any surface monster gives the same answer. */
+    //#if MC >= 26.2
+    private static final EntityType<?> SPAWN_TEST = net.minecraft.world.entity.EntityTypes.ZOMBIE;
+    //#else
+    //$$ private static final EntityType<?> SPAWN_TEST = EntityType.ZOMBIE;
+    //#endif
+
     public int markCount() { return markCount; }
     public long[] marks() { return marks; }
     public byte[] kinds() { return kinds; }
@@ -215,8 +222,8 @@ public class LightLevelModule extends HudModule {
             below.set(x, y - 1, z);
             BlockState ground = level.getBlockState(below);
             if (ground.isAir()) continue;
-            if (!ground.isValidSpawn(level, below, EntityTypes.ZOMBIE)) continue;
-            if (!NaturalSpawner.isValidEmptySpawnBlock(level, pos, space, space.getFluidState(), EntityTypes.ZOMBIE)) continue;
+            if (!ground.isValidSpawn(level, below, SPAWN_TEST)) continue;
+            if (!NaturalSpawner.isValidEmptySpawnBlock(level, pos, space, space.getFluidState(), SPAWN_TEST)) continue;
 
             int blockLight = level.getBrightness(LightLayer.BLOCK, pos);
             byte kind;

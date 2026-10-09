@@ -73,7 +73,7 @@ public class MotionBlurModule extends Module {
         if (module == null || !module.isEnabled()) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) return;
-        if (module.skipGui.get() && mc.gui.screen() != null) {
+        if (module.skipGui.get() && gg.spaceclient.compat.Screens.current() != null) {
             // Leaving a menu should not show the frame from before it opened
             module.activeStep = -1;
             status = "paused in a menu";
@@ -108,7 +108,14 @@ public class MotionBlurModule extends Module {
     private static void freshHistory(Minecraft mc, Identifier id) {
         try {
             PostChain chain = mc.getShaderManager().getPostChain(id, LevelTargetBundle.MAIN_TARGETS);
-            if (chain != null) chain.closePersistentTargets();
+            if (chain == null) return;
+            //#if MC >= 26.3
+            chain.closePersistentTargets();
+            //#else
+            //$$ var targets = ((gg.spaceclient.mixin.PostChainAccessor) chain).spaceclient$persistentTargets();
+            //$$ targets.values().forEach(com.mojang.blaze3d.pipeline.RenderTarget::destroyBuffers);
+            //$$ targets.clear();
+            //#endif
         } catch (Throwable ignored) {
             // At worst one stale frame shows through for a moment
         }

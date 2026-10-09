@@ -11,7 +11,8 @@ import org.joml.Quaternionf;
  * renamed method could not fail the build. On 26.3 it was renamed - to
  * {@code rotate(Quaternionfc)} - and the lookup quietly found nothing, which
  * meant Item Physics never turned a single item. A compile error would have
- * said so at once; the silent fallback hid it. So it is called directly now.
+ * said so at once; the silent fallback hid it. So it is called directly now,
+ * through the version switch in compat.Pose.
  */
 public final class PoseOps {
 
@@ -30,7 +31,7 @@ public final class PoseOps {
      */
     public static void rotate(PoseStack poseStack, float yawDegrees, float pitchDegrees) {
         if (poseStack == null) return;
-        poseStack.rotate(new Quaternionf()
+        gg.spaceclient.compat.Pose.rotate(poseStack, new Quaternionf()
                 .rotateY((float) Math.toRadians(yawDegrees))
                 .rotateX((float) Math.toRadians(pitchDegrees)));
     }

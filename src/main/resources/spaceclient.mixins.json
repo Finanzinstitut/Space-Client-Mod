@@ -24,6 +24,7 @@
     "MouseScrollMixin",
     "LightmapMixin",
     "GameRendererPostMixin",
+    "PostChainAccessor",
     "HudOverlayMixin",
     "HudGuiMixin",
     "ServerTimeMixin",

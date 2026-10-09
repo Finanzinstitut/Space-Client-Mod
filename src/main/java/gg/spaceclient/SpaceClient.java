@@ -102,7 +102,7 @@ public class SpaceClient implements ClientModInitializer {
 
         menuKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.spaceclient.menu",
-                InputConstants.Type.KEYBOARD,
+                gg.spaceclient.compat.Keys.KEYBOARD,
                 InputConstants.KEY_RSHIFT,
                 category
         ));
@@ -116,7 +116,7 @@ public class SpaceClient implements ClientModInitializer {
 
         zoomKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.spaceclient.zoom",
-                InputConstants.Type.KEYBOARD,
+                gg.spaceclient.compat.Keys.KEYBOARD,
                 InputConstants.KEY_C,
                 category
         ));
@@ -126,7 +126,7 @@ public class SpaceClient implements ClientModInitializer {
         // the game's own controls screen like the three above it.
         clipKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.spaceclient.clip",
-                InputConstants.Type.KEYBOARD,
+                gg.spaceclient.compat.Keys.KEYBOARD,
                 InputConstants.KEY_F9,
                 category
         ));
@@ -166,7 +166,7 @@ public class SpaceClient implements ClientModInitializer {
             // the original and never again for ours.
             if (screen.getClass().getName().endsWith("TitleScreen")
                     && settings.customMenu()) {
-                client.gui.setScreen(new gg.spaceclient.ui.MainMenuScreen());
+                gg.spaceclient.compat.Screens.set(new gg.spaceclient.ui.MainMenuScreen());
                 return;
             }
 
@@ -197,7 +197,7 @@ public class SpaceClient implements ClientModInitializer {
             if (screen instanceof JoinMultiplayerScreen
                     && settings.customMenu()
                     && gg.spaceclient.ui.ServersScreen.shouldReplaceVanillaList()) {
-                client.gui.setScreen(new gg.spaceclient.ui.ServersScreen(
+                gg.spaceclient.compat.Screens.set(new gg.spaceclient.ui.ServersScreen(
                         new gg.spaceclient.ui.MainMenuScreen()));
                 return;
             }
@@ -207,7 +207,7 @@ public class SpaceClient implements ClientModInitializer {
                     10, 10, 116, 20,
                     () -> "Space Client",
                     () -> false,
-                    () -> client.gui.setScreen(new AccountsScreen(screen))
+                    () -> gg.spaceclient.compat.Screens.set(new AccountsScreen(screen))
             ).asAction());
         });
 
@@ -216,7 +216,7 @@ public class SpaceClient implements ClientModInitializer {
             gg.spaceclient.input.RawKeyboard.markReady();
 
             while (menuKey.consumeClick()) {
-                client.gui.setScreen(new SpaceMenuScreen());
+                gg.spaceclient.compat.Screens.set(new SpaceMenuScreen());
             }
 
             // Answered even when the module is off, so a press can say why
@@ -366,7 +366,7 @@ public class SpaceClient implements ClientModInitializer {
         if (now == null) return;
         if (!now.getClass().getName().endsWith("TitleScreen")) return;
 
-        client.gui.setScreen(new gg.spaceclient.ui.MainMenuScreen());
+        gg.spaceclient.compat.Screens.set(new gg.spaceclient.ui.MainMenuScreen());
     }
 
 }

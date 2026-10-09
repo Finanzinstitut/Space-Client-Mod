@@ -2,13 +2,21 @@ package gg.spaceclient.mixin;
 
 import gg.spaceclient.modules.OverlayModule;
 
+//#if MC >= 26.3
 import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+//#else
+//$$ import com.mojang.blaze3d.pipeline.RenderPipeline;
+//#endif
 
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+//#if MC >= 26.2
 import net.minecraft.client.gui.Hud;
+//#else
+//$$ import net.minecraft.client.gui.Gui;
+//#endif
 import net.minecraft.client.gui.contextualbar.ContextualBar;
 import net.minecraft.client.gui.contextualbar.ExperienceBar;
 import net.minecraft.resources.Identifier;
@@ -27,8 +35,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * about the bottom middle of the screen. Done as one, so nothing above the
  * hotbar ends up overlapping it or floating away from it.
  */
+//#if MC >= 26.2
 @Mixin(Hud.class)
+//#else
+//$$ @Mixin(Gui.class)
+//#endif
 public abstract class HudGuiMixin {
+
+    //#if MC >= 26.3
+    private static final String PIPELINE = "Lcom/mojang/renderpearl/api/pipeline/RenderPipeline;";
+    //#else
+    //$$ private static final String PIPELINE = "Lcom/mojang/blaze3d/pipeline/RenderPipeline;";
+    //#endif
 
     @Inject(method = "extractHotbarAndDecorations", at = @At("HEAD"))
     private void spaceclient$hotbarIn(GuiGraphicsExtractor graphics, DeltaTracker delta, CallbackInfo ci) {
@@ -50,7 +68,7 @@ public abstract class HudGuiMixin {
     /** The hotbar frame, the selected-slot frame and the off-hand frame. */
     @Redirect(method = "extractItemHotbar", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/gui/GuiGraphicsExtractor;blitSprite("
-                    + "Lcom/mojang/renderpearl/api/pipeline/RenderPipeline;"
+                    + PIPELINE
                     + "Lnet/minecraft/resources/Identifier;IIII)V"))
     private void spaceclient$frame(GuiGraphicsExtractor graphics, RenderPipeline pipeline, Identifier sprite,
                                    int x, int y, int width, int height) {

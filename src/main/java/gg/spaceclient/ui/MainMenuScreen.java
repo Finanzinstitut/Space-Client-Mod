@@ -263,7 +263,7 @@ public class MainMenuScreen extends Screen {
 
         // Not while something else is the screen: another mod's popup opened
         // over the menu would otherwise watch the greeting play behind it
-        var current = Minecraft.getInstance().gui.screen();
+        var current = gg.spaceclient.compat.Screens.current();
         if (current != null && current != this) return;
 
         if (overlayUp()) {

@@ -1,0 +1,109 @@
+// Shared build for every Minecraft version under versions/. Each version's
+// own gradle.properties says which game, which Fabric API and how the game
+// is shipped; the source is the one tree in src/, run through the
+// preprocessor for this version.
+
+import gg.spaceclient.build.Preprocessor
+
+def mc = project.minecraft_version
+def label = project.mc_label
+def obfuscated = project.obfuscated.toBoolean()
+
+apply plugin: obfuscated ? 'fabric-loom' : 'net.fabricmc.fabric-loom'
+
+version = "${rootProject.mod_version}-mc${label}"
+group = rootProject.maven_group
+
+base {
+    archivesName = rootProject.archives_base_name
+}
+
+repositories {
+    maven { url = 'https://maven.terraformersmc.com/releases/' }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${mc}"
+    if (obfuscated) {
+        // Up to 1.21.11 the game ships obfuscated: compiled against Mojang's
+        // names, remapped to intermediary in the jar
+        mappings loom.officialMojangMappings()
+        modImplementation "net.fabricmc:fabric-loader:${rootProject.loader_version}"
+        modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    } else {
+        // From 26.1 the game ships unobfuscated: nothing to map
+        implementation "net.fabricmc:fabric-loader:${rootProject.loader_version}"
+        implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    }
+}
+
+def generated = layout.buildDirectory.dir('preprocessed')
+def common = rootProject.file('src/main')
+
+// The version's source, generated from the common tree. Line numbers match
+// the originals, so compiler errors can be looked up in src/ directly.
+def preprocess = tasks.register('preprocess') {
+    inputs.dir(common)
+    inputs.property('mc', mc)
+    outputs.dir(generated)
+    doLast {
+        def out = generated.get().asFile
+        project.delete(out)
+        common.eachFileRecurse { file ->
+            if (file.isDirectory()) return
+            def relative = common.toPath().relativize(file.toPath()).toString()
+            def target = new File(out, relative)
+            target.parentFile.mkdirs()
+            if (['.java', '.json', '.fsh', '.vsh', '.glsl'].any { file.name.endsWith(it) }) {
+                target.setText(Preprocessor.process(file.getText('UTF-8'), mc, relative), 'UTF-8')
+            } else {
+                target.bytes = file.bytes
+            }
+        }
+    }
+}
+
+sourceSets {
+    main {
+        java.srcDirs = [generated.map { new File(it.asFile, 'java') }]
+        resources.srcDirs = [generated.map { new File(it.asFile, 'resources') }]
+    }
+}
+
+tasks.named('compileJava') { dependsOn preprocess }
+tasks.named('processResources') { dependsOn preprocess }
+tasks.matching { it.name == 'sourcesJar' }.configureEach { dependsOn preprocess }
+
+processResources {
+    inputs.property 'version', project.version
+    inputs.property 'mc_dep', project.mc_dep
+    inputs.property 'java_dep', project.java_release
+    filesMatching('fabric.mod.json') {
+        expand 'version': rootProject.mod_version,
+               'mc_dep': project.mc_dep,
+               'java_dep': project.java_release
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = project.java_release as int
+    it.options.encoding = 'UTF-8'
+    it.options.compilerArgs += ['-Xmaxerrs', '100000']
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+loom {
+    runConfigs.configureEach {
+        runDir = 'run'
+    }
+}
+
+tasks.named('jar') {
+    from(rootProject.file('THIRD-PARTY-WaveyCapes-LICENSE.txt'))
+    from(rootProject.file('THIRD-PARTY.md'))
+}

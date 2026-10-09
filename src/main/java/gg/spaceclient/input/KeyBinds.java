@@ -37,7 +37,7 @@ public final class KeyBinds {
     public static int codeOf(KeyMapping mapping) {
         if (mapping == null || mapping.isUnbound()) return UNBOUND;
         InputConstants.Key key = readKey(mapping);
-        if (key == null || key.getType() != InputConstants.Type.KEYBOARD) return UNBOUND;
+        if (key == null || key.getType() != gg.spaceclient.compat.Keys.KEYBOARD) return UNBOUND;
         return key.getValue();
     }
 
@@ -66,7 +66,7 @@ public final class KeyBinds {
 
     private static InputConstants.Key keyFor(int code) {
         if (code == UNBOUND || code <= 0) return InputConstants.UNKNOWN;
-        return InputConstants.Type.KEYBOARD.getOrCreate(code);
+        return gg.spaceclient.compat.Keys.KEYBOARD.getOrCreate(code);
     }
 
     /** The mapping's key; the field is protected, so it is read directly. */
@@ -140,12 +140,11 @@ public final class KeyBinds {
     // ---------------------------------------------------------------- catching
 
     /**
-     * The scancodes worth scanning for a press: SDL numbers letters from 4 and
-     * the modifiers end at 231 (right GUI). Everything a binding is made of
-     * sits between.
+     * The key numbers worth scanning for a press; see compat.Keys for the
+     * span on each input system. Everything a binding is made of sits between.
      */
-    private static final int FIRST_KEY = InputConstants.KEY_A;
-    private static final int LAST_KEY = InputConstants.KEY_RGUI;
+    private static final int FIRST_KEY = gg.spaceclient.compat.Keys.FIRST_KEY;
+    private static final int LAST_KEY = gg.spaceclient.compat.Keys.LAST_KEY;
 
     /**
      * The key being held right now, or UNBOUND if none is.

@@ -1,5 +1,7 @@
 #version 330
+//#if MC >= 26.3
 #extension GL_ARB_separate_shader_objects : require
+//#endif
 
 // Motion blur by accumulation: each frame is mixed with what was shown the
 // frame before, so anything that moves across the screen leaves a short,
@@ -14,9 +16,17 @@ layout(std140) uniform MotionBlurConfig {
     float BlendFactor;
 };
 
+//#if MC >= 26.3
 layout(location = 0) in vec2 texCoord;
+//#else
+//$$ in vec2 texCoord;
+//#endif
 
+//#if MC >= 26.3
 layout(location = 0) out vec4 fragColor;
+//#else
+//$$ out vec4 fragColor;
+//#endif
 
 void main() {
     vec4 current = texture(InSampler, texCoord);

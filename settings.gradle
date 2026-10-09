@@ -7,3 +7,9 @@ pluginManagement {
 }
 
 rootProject.name = 'spaceclient'
+
+// One project per supported Minecraft version (full releases only)
+['1.21.11', '26.1', '26.2', '26.3'].each { mc ->
+    include ":${mc}"
+    project(":${mc}").projectDir = file("versions/${mc}")
+}
