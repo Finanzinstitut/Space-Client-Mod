@@ -30,6 +30,9 @@ public final class Theme {
     public static final int CYAN      = 0xFFEDEDF2;
     public static final int OFF       = 0xFF3A3A40;
 
+    /** A feature this account lacks the rank for: the name struck through in red. */
+    public static final int LOCKED    = 0xFFE5484D;
+
     // --- surfaces for the card layout ---
     public static final int SIDEBAR      = 0xF0070708;
     public static final int SIDEBAR_PICK = 0x24FFFFFF;

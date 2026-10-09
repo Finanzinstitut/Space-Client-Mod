@@ -489,6 +489,7 @@ public class SpaceMenuScreen extends Screen {
                     x, y, cardW, ModuleCard.HEIGHT,
                     module::getName, module.getDescription(),
                     module::isEnabled, module.hasSettings(),
+                    module::hasAccess, module.getAccess().reason(),
                     () -> {
                         // A press that ends a pull is the pull's, not the
                         // card's - otherwise letting go after scrolling toggles
@@ -500,6 +501,7 @@ public class SpaceMenuScreen extends Screen {
                                     ungrouped(module), module.getGroups()));
                             return;
                         }
+                        if (!module.hasAccess()) return;
                         module.toggle();
                         SpaceClient.getConfigManager().save();
                     });

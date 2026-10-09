@@ -89,6 +89,7 @@ public class MusicModule extends HudModule {
         // Top centre by default, where the players' own mini views sit
         super("music", "Now Playing", "Shows the track from Spotify or Amazon Music",
                 0.34f, 0.02f, false);
+        requires(gg.spaceclient.module.Access.VIP);
         addSettings(source, theme, showCover, showProgress, showSource, hideWhenIdle,
                 overName, showOnSelf, lyrics, titleColor, artistColor, accentColor);
     }

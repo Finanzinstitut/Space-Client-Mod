@@ -85,6 +85,7 @@ public class ModuleManager {
 
     public void onTick() {
         for (Module m : modules.values()) {
+            m.syncAccess();
             if (m.isEnabled()) m.onTick();
         }
     }

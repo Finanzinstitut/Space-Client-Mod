@@ -801,6 +801,7 @@ public class HudEditorScreen extends Screen {
         private void pressed() {
             if (justDragged()) return;
             if (overSwitch()) {
+                if (!module.hasAccess()) return;
                 module.toggle();
                 SpaceClient.getConfigManager().save();
                 return;
@@ -848,11 +849,16 @@ public class HudEditorScreen extends Screen {
 
             int textY = y1 + (height - 8) / 2;
             String name = ToggleRow.fit(font, module.getName(), width - 60);
+            boolean locked = !module.hasAccess();
             graphics.text(font, name, x1 + 12, textY,
-                    module.isEnabled()
+                    locked ? Theme.LOCKED
+                            : module.isEnabled()
                             ? Ease.color(Theme.TEXT_DIM, Theme.TEXT, Math.max(hover, pick))
                             : Theme.OFF,
                     false);
+            if (locked) {
+                graphics.fill(x1 + 11, textY + 4, x1 + 13 + font.width(name), textY + 5, Theme.LOCKED);
+            }
 
             // The padlock. Shut, the shackle sits over the body; open, it is
             // lifted and pushed to one side. Shape carries the state rather

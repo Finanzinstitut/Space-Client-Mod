@@ -80,6 +80,7 @@ public class ClipModule extends Module {
                 "Keeps the last seconds of play - press the clip key to save them. "
                         + "Clips are recorded and watched in the launcher.",
                 false);
+        requires(gg.spaceclient.module.Access.VIP);
         addSettings(key, seconds, announce);
     }
 
@@ -181,6 +182,12 @@ public class ClipModule extends Module {
      * and says nothing is indistinguishable from a broken one.
      */
     public void request() {
+        if (!hasAccess()) {
+            if (announce.get()) {
+                Screens.chat("[Space Client] Clips need the " + getAccess().tag() + " rank.");
+            }
+            return;
+        }
         if (!isEnabled()) {
             if (announce.get()) {
                 Screens.chat("[Space Client] Clips are switched off - turn them on in the menu.");
