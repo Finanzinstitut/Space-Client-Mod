@@ -266,7 +266,7 @@ public final class Diagnostics {
         // "invalid_public_key_signature" on servers with secure profiles on
         String signing = "no manager on this version";
         for (var field : Minecraft.class.getDeclaredFields()) {
-            if (field.getType().getSimpleName().contains("ProfileKeyPairManager")) {
+            if (gg.spaceclient.compat.Names.isClass(field.getType(), "ProfileKeyPairManager")) {
                 signing = field.getType().getSimpleName() + " present";
                 break;
             }
@@ -354,7 +354,7 @@ public final class Diagnostics {
     private static Class<?> findClass(String... names) {
         for (String name : names) {
             try {
-                return Class.forName(name);
+                return gg.spaceclient.compat.Names.forName(name);
             } catch (Throwable ignored) {
                 // Try the next
             }
@@ -364,9 +364,9 @@ public final class Diagnostics {
 
     private static Method findMethod(String className, String method, int parameters) {
         try {
-            Class<?> type = Class.forName(className);
+            Class<?> type = gg.spaceclient.compat.Names.forName(className);
             for (Method candidate : type.getMethods()) {
-                if (candidate.getName().equals(method)
+                if (gg.spaceclient.compat.Names.isMethod(candidate.getName(), method)
                         && candidate.getParameterCount() == parameters) {
                     return candidate;
                 }

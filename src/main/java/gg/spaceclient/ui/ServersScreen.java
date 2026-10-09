@@ -438,7 +438,7 @@ public class ServersScreen extends Screen {
         if (known != null) return known;
 
         for (Method method : serverList.getClass().getMethods()) {
-            if (!method.getName().equals("swap")) continue;
+            if (!gg.spaceclient.compat.Names.isMethod(method.getName(), "swap")) continue;
             Class<?>[] params = method.getParameterTypes();
             if (params.length != 2 || params[0] != int.class || params[1] != int.class) continue;
             method.setAccessible(true);
@@ -705,7 +705,7 @@ public class ServersScreen extends Screen {
         Class<?> current = target.getClass();
         while (current != null) {
             try {
-                Field field = current.getDeclaredField(name);
+                Field field = gg.spaceclient.compat.Names.declaredField(current, name);
                 field.setAccessible(true);
                 return field.get(target);
             } catch (NoSuchFieldException ignored) {
@@ -923,7 +923,7 @@ public class ServersScreen extends Screen {
      */
     private Object newServerData(String name, String address) {
         try {
-            Class<?> type = Class.forName("net.minecraft.client.multiplayer.ServerData");
+            Class<?> type = gg.spaceclient.compat.Names.forName("net.minecraft.client.multiplayer.ServerData");
             Constructor<?>[] constructors = type.getConstructors();
             java.util.Arrays.sort(constructors,
                     (a, b) -> a.getParameterCount() - b.getParameterCount());
@@ -996,7 +996,7 @@ public class ServersScreen extends Screen {
             Class<?> current = target.getClass();
             while (current != null) {
                 try {
-                    Field field = current.getDeclaredField(name);
+                    Field field = gg.spaceclient.compat.Names.declaredField(current, name);
                     if (field.getType() != String.class) break;
                     field.setAccessible(true);
                     field.set(target, value);

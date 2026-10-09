@@ -310,14 +310,14 @@ public final class HitboxRenderer {
         if (!lookedUp) {
             lookedUp = true;
             try {
-                Class<?> types = Class.forName(
+                Class<?> types = gg.spaceclient.compat.Names.forName(
                         "net.minecraft.client.renderer.rendertype.RenderTypes");
                 // Quads, not lines: the debug quad type is what this pipeline
                 // offers, and drawing edges as thin quads is also what makes a
                 // configurable thickness possible at all.
                 for (String name : new String[]{"debugQuads", "debugFilledBox", "lines"}) {
                     for (Method method : types.getMethods()) {
-                        if (!method.getName().equals(name)) continue;
+                        if (!gg.spaceclient.compat.Names.isMethod(method.getName(), name)) continue;
                         if (method.getParameterCount() != 0) continue;
                         if (!RenderType.class.isAssignableFrom(method.getReturnType())) continue;
                         renderTypeGetter = method;

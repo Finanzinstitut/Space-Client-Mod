@@ -101,8 +101,8 @@ public final class TextureLoader {
     private static Object decode(byte[] bytes) {
         for (String className : IMAGE_CLASSES) {
             try {
-                Class<?> type = Class.forName(className);
-                Method read = type.getMethod("read", byte[].class);
+                Class<?> type = gg.spaceclient.compat.Names.forName(className);
+                Method read = gg.spaceclient.compat.Names.method(type, "read", byte[].class);
                 Object image = read.invoke(null, (Object) bytes);
                 if (image != null) return image;
             } catch (Throwable ignored) {

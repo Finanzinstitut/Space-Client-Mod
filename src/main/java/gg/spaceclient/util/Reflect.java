@@ -81,7 +81,7 @@ public final class Reflect {
                 .computeIfAbsent(name, k -> {
                     for (Class<?> c = type; c != null; c = c.getSuperclass()) {
                         for (Field f : c.getDeclaredFields()) {
-                            if (!f.getName().equals(name)) continue;
+                            if (!gg.spaceclient.compat.Names.isField(f.getName(), name)) continue;
                             try {
                                 f.setAccessible(true);
                                 return f;
@@ -116,7 +116,7 @@ public final class Reflect {
                     List<Method> out = new java.util.ArrayList<>();
                     for (Class<?> c = type; c != null; c = c.getSuperclass()) {
                         for (Method method : c.getDeclaredMethods()) {
-                            if (!method.getName().equals(name)) continue;
+                            if (!gg.spaceclient.compat.Names.isMethod(method.getName(), name)) continue;
                             try {
                                 method.setAccessible(true);
                                 out.add(method);
@@ -137,7 +137,7 @@ public final class Reflect {
         Class<?> current = type;
         while (current != null) {
             for (Method method : current.getDeclaredMethods()) {
-                if (method.getParameterCount() == 0 && method.getName().equals(name)) {
+                if (method.getParameterCount() == 0 && gg.spaceclient.compat.Names.isMethod(method.getName(), name)) {
                     return method;
                 }
             }

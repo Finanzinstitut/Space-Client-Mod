@@ -91,7 +91,7 @@ public final class Scale {
     private static Method find(Class<?> type, Class<?>[] params, String... names) {
         for (String name : names) {
             for (Method method : type.getMethods()) {
-                if (!method.getName().equals(name)) continue;
+                if (!gg.spaceclient.compat.Names.isMethod(method.getName(), name)) continue;
                 if (!java.util.Arrays.equals(method.getParameterTypes(), params)) continue;
                 method.setAccessible(true);
                 return method;

@@ -234,7 +234,7 @@ public final class CosmeticaBridge {
             Object key = keyType.getConstructor(String.class, String.class)
                     .newInstance("cosmetica", path);
             for (Method method : screens.getMethods()) {
-                if (!method.getName().equals("setScreen")) continue;
+                if (!gg.spaceclient.compat.Names.isMethod(method.getName(), "setScreen")) continue;
                 if (method.getParameterCount() != 1) continue;
                 if (!method.getParameterTypes()[0].isInstance(key)) continue;
                 method.setAccessible(true);
@@ -277,7 +277,7 @@ public final class CosmeticaBridge {
     private static Class<?> type(String name) {
         return CLASSES.computeIfAbsent(name, key -> {
             try {
-                return Class.forName(key);
+                return gg.spaceclient.compat.Names.forName(key);
             } catch (Throwable ignored) {
                 return null;
             }
@@ -288,7 +288,7 @@ public final class CosmeticaBridge {
         Class<?> type = type(className);
         if (type == null) return null;
         try {
-            Field field = type.getDeclaredField(fieldName);
+            Field field = gg.spaceclient.compat.Names.declaredField(type, fieldName);
             field.setAccessible(true);
             return field.get(null);
         } catch (Throwable ignored) {
@@ -302,7 +302,7 @@ public final class CosmeticaBridge {
         Class<?> current = type;
         while (current != null) {
             for (Method method : current.getDeclaredMethods()) {
-                if (!method.getName().equals(methodName)) continue;
+                if (!gg.spaceclient.compat.Names.isMethod(method.getName(), methodName)) continue;
                 if (method.getParameterCount() != 0) continue;
                 try {
                     method.setAccessible(true);
@@ -321,7 +321,7 @@ public final class CosmeticaBridge {
         Class<?> current = target.getClass();
         while (current != null) {
             for (Method method : current.getDeclaredMethods()) {
-                if (!method.getName().equals(methodName)) continue;
+                if (!gg.spaceclient.compat.Names.isMethod(method.getName(), methodName)) continue;
                 if (method.getParameterCount() != 0) continue;
                 try {
                     method.setAccessible(true);
@@ -340,7 +340,7 @@ public final class CosmeticaBridge {
         Class<?> current = target.getClass();
         while (current != null) {
             try {
-                Field field = current.getDeclaredField(fieldName);
+                Field field = gg.spaceclient.compat.Names.declaredField(current, fieldName);
                 field.setAccessible(true);
                 return field.get(target);
             } catch (NoSuchFieldException ignored) {

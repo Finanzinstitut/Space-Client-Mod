@@ -134,7 +134,7 @@ public final class TagReport {
         Class<?> current = type;
         while (current != null) {
             try {
-                return current.getDeclaredField(name);
+                return gg.spaceclient.compat.Names.declaredField(current, name);
             } catch (NoSuchFieldException ignored) {
                 current = current.getSuperclass();
             }
@@ -146,7 +146,7 @@ public final class TagReport {
         Class<?> current = type;
         while (current != null) {
             for (Method candidate : current.getDeclaredMethods()) {
-                if (candidate.getParameterCount() == 0 && candidate.getName().equals(name)) {
+                if (candidate.getParameterCount() == 0 && gg.spaceclient.compat.Names.isMethod(candidate.getName(), name)) {
                     return candidate;
                 }
             }

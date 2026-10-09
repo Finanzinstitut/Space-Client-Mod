@@ -97,7 +97,7 @@ public class SuppliesModule extends HudModule {
         if (!countResolved) {
             countResolved = true;
             try {
-                countMethod = ItemStack.class.getMethod("getCount");
+                countMethod = gg.spaceclient.compat.Names.method(ItemStack.class, "getCount");
             } catch (Throwable ignored) {
                 countMethod = null;
             }

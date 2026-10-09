@@ -134,7 +134,7 @@ public class TotemPopModule extends Module {
                     // not - a production mapping leaves the field called
                     // something like f_91063_ and only the type still speaks.
                     boolean byName = f.getName().toLowerCase().contains("gamerenderer");
-                    boolean byType = "GameRenderer".equals(f.getType().getSimpleName());
+                    boolean byType = gg.spaceclient.compat.Names.isClass(f.getType(), "GameRenderer");
                     if (!byName && !byType) continue;
                     try {
                         f.setAccessible(true);

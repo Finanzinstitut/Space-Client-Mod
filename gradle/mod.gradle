@@ -46,16 +46,29 @@ def preprocess = tasks.register('preprocess') {
     inputs.dir(common)
     inputs.property('mc', mc)
     outputs.dir(generated)
+    def renameFile = project.file('renames.txt')
+    if (renameFile.exists()) inputs.file(renameFile)
     doLast {
+        def renames = Preprocessor.readRenames(renameFile)
         def out = generated.get().asFile
         project.delete(out)
+        if (obfuscated) {
+            // The runtime names for whatever the source names in strings; see NameTable
+            def tiny = project.extensions.getByName('loom').mappingConfiguration.tinyMappings.toFile()
+            def javaFiles = []
+            new File(common, 'java').eachFileRecurse { if (it.name.endsWith('.java')) javaFiles << it }
+            def table = new File(out, 'resources/assets/spaceclient/names.tsv')
+            table.parentFile.mkdirs()
+            table.setText(gg.spaceclient.build.NameTable.build(tiny, javaFiles), 'UTF-8')
+        }
         common.eachFileRecurse { file ->
             if (file.isDirectory()) return
             def relative = common.toPath().relativize(file.toPath()).toString()
             def target = new File(out, relative)
             target.parentFile.mkdirs()
             if (['.java', '.json', '.fsh', '.vsh', '.glsl'].any { file.name.endsWith(it) }) {
-                target.setText(Preprocessor.process(file.getText('UTF-8'), mc, relative), 'UTF-8')
+                target.setText(Preprocessor.process(file.getText('UTF-8'), mc, relative,
+                        file.name.endsWith('.java') ? renames : []), 'UTF-8')
             } else {
                 target.bytes = file.bytes
             }

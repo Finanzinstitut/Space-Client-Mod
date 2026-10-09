@@ -156,7 +156,7 @@ public final class Textures {
         };
         for (String className : classes) {
             try {
-                Class<?> type = Class.forName(className);
+                Class<?> type = gg.spaceclient.compat.Names.forName(className);
                 Field best = null;
                 for (Field field : type.getFields()) {
                     String name = field.getName();

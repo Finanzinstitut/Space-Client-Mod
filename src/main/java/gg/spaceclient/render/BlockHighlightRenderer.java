@@ -350,7 +350,7 @@ public final class BlockHighlightRenderer {
         Class<?> current = target.getClass();
         while (current != null) {
             try {
-                Field field = current.getDeclaredField(name);
+                Field field = gg.spaceclient.compat.Names.declaredField(current, name);
                 field.setAccessible(true);
                 return field.get(target);
             } catch (NoSuchFieldException ignored) {

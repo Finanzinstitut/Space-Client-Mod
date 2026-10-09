@@ -179,7 +179,7 @@ public class HitboxModule extends Module {
         // so the old lookup grabbed the shadows and switching the module off
         // turned every entity shadow off with it.
         try {
-            java.lang.reflect.Field named = dispatcher.getClass().getDeclaredField("renderHitBoxes");
+            java.lang.reflect.Field named = gg.spaceclient.compat.Names.declaredField(dispatcher.getClass(), "renderHitBoxes");
             if (named.getType() == boolean.class) {
                 named.setAccessible(true);
                 vanillaFlag = named;

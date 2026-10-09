@@ -42,7 +42,11 @@ public final class Screens {
     public static void chat(String text) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
+        //#if MC >= 26.1
         mc.player.sendSystemMessage(Component.literal(text));
+        //#else
+        //$$ mc.player.displayClientMessage(Component.literal(text), false);
+        //#endif
     }
 
     private Screens() {}

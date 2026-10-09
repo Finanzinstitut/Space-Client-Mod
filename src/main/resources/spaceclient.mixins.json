@@ -23,6 +23,9 @@
     "CapeLayerMixin",
     "MouseScrollMixin",
     "LightmapMixin",
+//#if MC < 26.1
+//$$    "LightTextureInvoker",
+//#endif
     "GameRendererPostMixin",
     "PostChainAccessor",
     "HudOverlayMixin",

@@ -61,6 +61,13 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 public abstract class EntityRendererMixin {
 
 
+    // The entity's own name method: submitNameDisplay from 26.1, submitNameTag before
+    //#if MC >= 26.1
+    private static final String NAME_DISPLAY = "submitNameDisplay";
+    //#else
+    //$$ private static final String NAME_DISPLAY = "submitNameTag";
+    //#endif
+
     private static final String SUBMIT_NAME_TAG =
             "submitNameTag(Lcom/mojang/blaze3d/vertex/PoseStack;"
                     + "Lnet/minecraft/world/phys/Vec3;"
@@ -73,6 +80,8 @@ public abstract class EntityRendererMixin {
                     //#endif
                     + "Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V";
 
+    // The overload with a colour exists from 26.1
+    //#if MC >= 26.1
     @Redirect(
             method = "submitNameDisplay(Lnet/minecraft/client/renderer/entity/state/EntityRenderState;"
                     + "Lcom/mojang/blaze3d/vertex/PoseStack;"
@@ -103,9 +112,10 @@ public abstract class EntityRendererMixin {
                 NameBadge.decorate(state, text), flag, light, state.distanceToCameraSq, camera);
         addSong(collector, poseStack, position, text, camera, state, true);
     }
+    //#endif
 
     @Redirect(
-            method = "submitNameDisplay(Lnet/minecraft/client/renderer/entity/state/EntityRenderState;"
+            method = NAME_DISPLAY + "(Lnet/minecraft/client/renderer/entity/state/EntityRenderState;"
                     + "Lcom/mojang/blaze3d/vertex/PoseStack;"
                     + "Lnet/minecraft/client/renderer/SubmitNodeCollector;"
                     + "Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V",
@@ -194,7 +204,13 @@ public abstract class EntityRendererMixin {
             // Recognised by being the score, not by being the name: another
             // mod may hand the name through as a decorated copy, and then an
             // identity check against the name would drop the card entirely.
+            //#if MC >= 26.1
             Component score = state.scoreText;
+            //#else
+            //$$ // 1.21.11 keeps the score off the render state; it is drawn by
+            //$$ // the living entity renderer through its own call
+            //$$ Component score = null;
+            //#endif
             if (score != null && state.nameTag != null
                     && (text == score || text.getString().equals(score.getString()))) {
                 return;

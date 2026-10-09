@@ -4,7 +4,9 @@ import gg.spaceclient.module.Module;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.IntSetting;
 
+//#if MC >= 26.1
 import net.minecraft.client.renderer.state.LightmapRenderState;
+//#endif
 
 import org.joml.Vector3f;
 
@@ -54,6 +56,7 @@ public class FullbrightModule extends Module {
     @Override
     protected void onDisable() { refresh = true; }
 
+    //#if MC >= 26.1
     public static void apply(LightmapRenderState state) {
         FullbrightModule module = instance;
         if (module == null) return;
@@ -77,4 +80,36 @@ public class FullbrightModule extends Module {
         // moves anyway, and the light map is a 16 by 16 texture
         state.needsUpdate = true;
     }
+    //#else
+    //$$ // 1.21.11 has no light map state to adjust; the light texture's inputs
+    //$$ // are adjusted one by one instead, in LightmapMixin.
+    //$$
+    //$$ private static FullbrightModule on() {
+    //$$     FullbrightModule module = instance;
+    //$$     return module != null && module.isEnabled() ? module : null;
+    //$$ }
+    //$$
+    //$$ /** Night vision strength to light the world with; vanilla's value when off. */
+    //$$ public static float nightVision(float vanilla) {
+    //$$     var m = on();
+    //$$     return m == null ? vanilla : Math.max(vanilla, m.strength.get() / 100f);
+    //$$ }
+    //$$
+    //$$ public static boolean forcesNightVision() { return on() != null; }
+    //$$
+    //$$ public static Object gamma(Object vanilla) {
+    //$$     var m = on();
+    //$$     return m != null && m.gamma.get() ? (Object) Double.valueOf(1.0) : vanilla;
+    //$$ }
+    //$$
+    //$$ public static float darkness(float vanilla) {
+    //$$     var m = on();
+    //$$     return m != null && m.noDarkness.get() ? 0f : vanilla;
+    //$$ }
+    //$$
+    //$$ public static boolean bossFog(boolean vanilla) {
+    //$$     var m = on();
+    //$$     return m != null && m.noBossFog.get() ? false : vanilla;
+    //$$ }
+    //#endif
 }

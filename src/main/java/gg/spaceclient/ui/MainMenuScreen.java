@@ -163,7 +163,7 @@ public class MainMenuScreen extends Screen {
 
     private Object construct(String className, Screen parent) {
         try {
-            Class<?> type = Class.forName(className);
+            Class<?> type = gg.spaceclient.compat.Names.forName(className);
             for (var constructor : type.getConstructors()) {
                 Class<?>[] params = constructor.getParameterTypes();
                 if (params.length == 1 && params[0].isAssignableFrom(Screen.class)) {
