@@ -2,6 +2,7 @@ package gg.spaceclient.modules;
 
 import gg.spaceclient.module.Module;
 import gg.spaceclient.setting.BooleanSetting;
+import gg.spaceclient.setting.ColorSetting;
 import gg.spaceclient.setting.IntSetting;
 import gg.spaceclient.setting.SettingGroup;
 
@@ -15,7 +16,8 @@ import net.minecraft.world.InteractionHand;
  * Everything the game lays over the view, adjustable in one place: the size of
  * the hearts and bars, how strongly the pumpkin, powder snow and portal tint
  * the screen, the vignette, how high the fire burns in first person, the
- * underwater and in-wall overlays, and where the shield sits in your hand.
+ * underwater and in-wall overlays, where the shield sits in your hand, and the
+ * hotbar itself: its size, height, frame, slot numbers and the XP bar.
  *
  * The module only holds the numbers. HudOverlayMixin, ScreenEffectMixin and
  * the first-person item mixin read them where the game draws each piece. With
@@ -26,13 +28,13 @@ public class OverlayModule extends Module {
 
     // --- the bars under the hotbar ---
     private final IntSetting hearts = new IntSetting(
-            "heart_size", "Hearts (percent)", "Size of the health hearts", 100, 50, 200);
+            "heart_size", "Hearts (percent)", "Size of the health hearts; for bigger, use Hotbar size", 100, 50, 110);
     private final IntSetting armor = new IntSetting(
-            "armor_size", "Armour bar (percent)", "Size of the armour bar", 100, 50, 200);
+            "armor_size", "Armour bar (percent)", "Size of the armour bar", 100, 50, 110);
     private final IntSetting food = new IntSetting(
-            "food_size", "Hunger bar (percent)", "Size of the hunger bar", 100, 50, 200);
+            "food_size", "Hunger bar (percent)", "Size of the hunger bar; for bigger, use Hotbar size", 100, 50, 110);
     private final IntSetting air = new IntSetting(
-            "air_size", "Air bubbles (percent)", "Size of the air bubbles underwater", 100, 50, 200);
+            "air_size", "Air bubbles (percent)", "Size of the air bubbles underwater", 100, 50, 110);
 
     // --- tints over the whole screen ---
     private final IntSetting pumpkin = new IntSetting(
@@ -40,7 +42,7 @@ public class OverlayModule extends Module {
     private final IntSetting powderSnow = new IntSetting(
             "powder_snow", "Powder snow overlay (percent)", "How visible the frost border is; 0 hides it", 100, 0, 100);
     private final IntSetting portal = new IntSetting(
-            "portal", "Portal overlay (percent)", "How strongly a nether portal tints the screen; 0 hides it", 100, 0, 100);
+            "portal", "Portal overlay (percent)", "How strongly a nether portal tints and warps the screen; 0 turns it off", 100, 0, 100);
     private final BooleanSetting vignette = new BooleanSetting(
             "vignette", "Vignette", "The darkened screen edges", true);
 
@@ -80,11 +82,34 @@ public class OverlayModule extends Module {
     private final BooleanSetting spyglass = new BooleanSetting(
             "spyglass", "Spyglass overlay", "The black ring while looking through a spyglass", true);
     private final IntSetting nausea = new IntSetting(
-            "nausea", "Nausea overlay (percent)", "How strongly nausea tints the screen; 0 hides it", 100, 0, 100);
+            "nausea", "Nausea overlay (percent)", "How strongly nausea warps the view; 0 turns it off", 100, 0, 100);
+
+    // --- hotbar and GUI ---
+    private final IntSetting hotbarSize = new IntSetting(
+            "hotbar_size", "Hotbar size (percent)", "Size of the hotbar together with the hearts, bars and XP above it", 100, 50, 200);
+    private final IntSetting hotbarRaise = new IntSetting(
+            "hotbar_raise", "Raise hotbar (pixels)", "Move the hotbar and everything above it up from the bottom edge", 0, 0, 120);
+    private final IntSetting hotbarOpacity = new IntSetting(
+            "hotbar_opacity", "Hotbar background (percent)", "How visible the hotbar's grey frame is; 0 leaves only the items", 100, 0, 100);
+    private final ColorSetting selectionColour = new ColorSetting(
+            "selection_color", "Selected slot colour", "Tint of the frame around the selected slot", 0xFFFFFFFF);
+    private final BooleanSetting slotNumbers = new BooleanSetting(
+            "slot_numbers", "Slot numbers", "Show 1 to 9 on the hotbar slots", false);
+    private final BooleanSetting xpBar = new BooleanSetting(
+            "xp_bar", "Experience bar", "The green bar above the hotbar", true);
+    private final BooleanSetting xpLevel = new BooleanSetting(
+            "xp_level", "Experience level", "The green level number", true);
+    private final BooleanSetting itemName = new BooleanSetting(
+            "item_name", "Held item name", "The name shown above the hotbar when you switch items", true);
+    private final IntSetting inventoryDim = new IntSetting(
+            "inventory_dim", "Inventory background (percent)", "How much the world darkens behind an open inventory or chest", 100, 0, 100);
 
     public OverlayModule() {
         super("overlay", "Overlay", "Size of hearts and bars, fire, pumpkin, shield and more", false);
         addGroups(
+                SettingGroup.of("Hotbar and GUI", "The hotbar, XP bar and inventory screens",
+                        hotbarSize, hotbarRaise, hotbarOpacity, selectionColour, slotNumbers,
+                        xpBar, xpLevel, itemName, inventoryDim),
                 SettingGroup.of("Hearts and bars", "The bars above the hotbar",
                         hearts, armor, food, air),
                 SettingGroup.of("Screen overlays", "Tints the game lays over the view",
@@ -101,6 +126,9 @@ public class OverlayModule extends Module {
         instance = this;
     }
 
+    /** How far, in blocks, the hand and shield sliders move at 0 or 200. */
+    private static final float HAND_RANGE = 0.25f;
+
     private static OverlayModule on() {
         OverlayModule module = instance;
         return module != null && module.isEnabled() ? module : null;
@@ -110,12 +138,23 @@ public class OverlayModule extends Module {
         return setting.get() / 100f;
     }
 
+    /**
+     * The hearts grow from the left and the food from the right, and the two
+     * meet in the middle above the hotbar. Past 110 percent they overlap, so
+     * that is the limit - also for a value saved before the limit existed.
+     * Everything larger goes through the hotbar size, which scales the whole
+     * block together.
+     */
+    private static float barPercent(IntSetting setting) {
+        return Math.min(setting.get(), 110) / 100f;
+    }
+
     // ---------------------------------------------------------------- bars
 
-    public static float heartScale() { var m = on(); return m == null ? 1f : percent(m.hearts); }
-    public static float armorScale() { var m = on(); return m == null ? 1f : percent(m.armor); }
-    public static float foodScale() { var m = on(); return m == null ? 1f : percent(m.food); }
-    public static float airScale() { var m = on(); return m == null ? 1f : percent(m.air); }
+    public static float heartScale() { var m = on(); return m == null ? 1f : barPercent(m.hearts); }
+    public static float armorScale() { var m = on(); return m == null ? 1f : barPercent(m.armor); }
+    public static float foodScale() { var m = on(); return m == null ? 1f : barPercent(m.food); }
+    public static float airScale() { var m = on(); return m == null ? 1f : barPercent(m.air); }
 
     // ---------------------------------------------------------------- screen tints
 
@@ -164,9 +203,11 @@ public class OverlayModule extends Module {
     public static void hand(PoseStack poseStack, InteractionHand hand) {
         var m = on();
         if (m == null) return;
-        float x = (m.handX.get() - 100) / 100f * 0.5f;
-        float y = (m.handY.get() - 100) / 100f * 0.5f;
-        float z = (m.handZ.get() - 100) / 100f * 0.5f;
+        // A quarter block either way at the ends of the slider. Half a block,
+        // as it was, pushed the item out of the view after a few steps.
+        float x = (m.handX.get() - 100) / 100f * HAND_RANGE;
+        float y = (m.handY.get() - 100) / 100f * HAND_RANGE;
+        float z = (m.handZ.get() - 100) / 100f * HAND_RANGE;
         if (x == 0f && y == 0f && z == 0f) return;
         if (hand == InteractionHand.OFF_HAND) x = -x;
         poseStack.translate(x, y, -z);
@@ -176,6 +217,19 @@ public class OverlayModule extends Module {
         var m = on();
         return m != null && (m.handX.get() != 100 || m.handY.get() != 100 || m.handZ.get() != 100);
     }
+
+    // ---------------------------------------------------------------- hotbar and GUI
+
+    public static float hotbarScale() { var m = on(); return m == null ? 1f : percent(m.hotbarSize); }
+    public static int hotbarRaise() { var m = on(); return m == null ? 0 : m.hotbarRaise.get(); }
+    public static float hotbarOpacity() { var m = on(); return m == null ? 1f : percent(m.hotbarOpacity); }
+    /** ARGB tint for the selected-slot frame; white leaves it as the game draws it. */
+    public static int selectionColour() { var m = on(); return m == null ? 0xFFFFFFFF : m.selectionColour.get(); }
+    public static boolean slotNumbers() { var m = on(); return m != null && m.slotNumbers.get(); }
+    public static boolean xpBar() { var m = on(); return m == null || m.xpBar.get(); }
+    public static boolean xpLevel() { var m = on(); return m == null || m.xpLevel.get(); }
+    public static boolean itemName() { var m = on(); return m == null || m.itemName.get(); }
+    public static float inventoryDim() { var m = on(); return m == null ? 1f : percent(m.inventoryDim); }
 
     // ---------------------------------------------------------------- HUD text and tools
 
@@ -192,7 +246,7 @@ public class OverlayModule extends Module {
     public static void shield(PoseStack poseStack, InteractionHand hand) {
         var m = on();
         if (m == null) return;
-        float height = (m.shieldHeight.get() - 100) / 100f * 0.5f;
+        float height = (m.shieldHeight.get() - 100) / 100f * HAND_RANGE;
         if (height != 0f) poseStack.translate(0f, height, 0f);
         int turn = m.shieldTurn.get();
         if (turn != 0) {

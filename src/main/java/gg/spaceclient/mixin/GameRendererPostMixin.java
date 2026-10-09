@@ -36,6 +36,27 @@ public abstract class GameRendererPostMixin {
         ci.cancel();
     }
 
+    /**
+     * The Overlay module's nausea and portal sliders, applied to the warp the
+     * game puts on the view. The green nausea tint is only drawn when the
+     * game's own "distortion effects" option is turned down; with it at full,
+     * which is the default, this warp is all nausea does - so scaling only the
+     * tint left the slider doing nothing for most people.
+     */
+    @org.spongepowered.asm.mixin.injection.Redirect(method = "renderLevel", at = @At(value = "FIELD",
+            target = "Lnet/minecraft/client/renderer/state/level/PlayerRenderState;nauseaEffectIntensity:F",
+            opcode = org.objectweb.asm.Opcodes.GETFIELD))
+    private float spaceclient$nauseaWarp(net.minecraft.client.renderer.state.level.PlayerRenderState state) {
+        return state.nauseaEffectIntensity * gg.spaceclient.modules.OverlayModule.nauseaAlpha();
+    }
+
+    @org.spongepowered.asm.mixin.injection.Redirect(method = "renderLevel", at = @At(value = "FIELD",
+            target = "Lnet/minecraft/client/renderer/state/level/PlayerRenderState;portalEffectIntensity:F",
+            opcode = org.objectweb.asm.Opcodes.GETFIELD))
+    private float spaceclient$portalWarp(net.minecraft.client.renderer.state.level.PlayerRenderState state) {
+        return state.portalEffectIntensity * gg.spaceclient.modules.OverlayModule.portalAlpha();
+    }
+
     @Inject(method = "update", at = @At("TAIL"))
     private void spaceclient$saturation(DeltaTracker deltaTracker, CallbackInfo ci) {
         try {
