@@ -747,32 +747,50 @@ public class ServersScreen extends Screen {
     private static final java.util.Map<Object, Identifier> BY_SERVER =
             new java.util.IdentityHashMap<>();
 
+    /** The game's own picture for a server without an icon of its own. */
+    private static final Identifier UNKNOWN_SERVER =
+            Identifier.withDefaultNamespace("textures/misc/unknown_server.png");
+
+    /** Which bytes each server's settled icon was made from, by reference. */
+    private static final java.util.Map<Object, byte[]> SETTLED_FROM =
+            new java.util.IdentityHashMap<>();
+
     private Identifier icon(Object server, String address) {
+        byte[] bytes = iconBytes(server);
+
+        // Still the same array the icon was made from: nothing to do. Compared
+        // by reference, which is free - the pinger hands over a new array only
+        // when the icon actually changed, so a server that switched its icon
+        // gets the new one instead of keeping the first forever.
         Identifier settled = BY_SERVER.get(server);
-        if (settled != null) return settled;
+        if (settled != null && SETTLED_FROM.get(server) == bytes) return settled;
 
-        Object value = readAny(server, "iconBytes", "getIconBytes", "getIcon");
-
-        byte[] bytes = null;
-        if (value instanceof byte[] raw) {
-            bytes = raw;
-        } else if (value != null) {
-            Object unwrapped = Reflect.call(value, "iconBytes", "bytes", "getBytes");
-            if (unwrapped instanceof byte[] raw) bytes = raw;
-        }
-        if (bytes == null || bytes.length == 0) return null;
+        if (bytes == null || bytes.length == 0) return UNKNOWN_SERVER;
 
         int key = java.util.Arrays.hashCode(bytes);
         Identifier known = ICONS.get(key);
         if (known != null) {
             BY_SERVER.put(server, known);
+            SETTLED_FROM.put(server, bytes);
             return known;
         }
 
         // Not decoded here. Queued instead, and worked through a couple per
         // frame from the draw loop, so a list of twenty fills in over half a
-        // second without any single frame paying for all of them.
+        // second without any single frame paying for all of them. Until then
+        // the row shows the game's placeholder rather than an empty square.
         if (!iconQueue.contains(server)) iconQueue.add(server);
+        return settled != null ? settled : UNKNOWN_SERVER;
+    }
+
+    private static byte[] iconBytes(Object server) {
+        if (server instanceof net.minecraft.client.multiplayer.ServerData data) return data.getIconBytes();
+        Object value = readAny(server, "iconBytes", "getIconBytes", "getIcon");
+        if (value instanceof byte[] raw) return raw;
+        if (value != null) {
+            Object unwrapped = Reflect.call(value, "iconBytes", "bytes", "getBytes");
+            if (unwrapped instanceof byte[] raw) return raw;
+        }
         return null;
     }
 
@@ -784,15 +802,7 @@ public class ServersScreen extends Screen {
      * the draw loop and is allowed to cost something.
      */
     private Identifier registerIcon(Object server) {
-        Object value = readAny(server, "iconBytes", "getIconBytes", "getIcon");
-
-        byte[] bytes = null;
-        if (value instanceof byte[] raw) {
-            bytes = raw;
-        } else if (value != null) {
-            Object unwrapped = Reflect.call(value, "iconBytes", "bytes", "getBytes");
-            if (unwrapped instanceof byte[] raw) bytes = raw;
-        }
+        byte[] bytes = iconBytes(server);
         if (bytes == null || bytes.length == 0) return null;
 
         int key = java.util.Arrays.hashCode(bytes);
@@ -800,6 +810,7 @@ public class ServersScreen extends Screen {
         Identifier known = ICONS.get(key);
         if (known != null) {
             BY_SERVER.put(server, known);
+            SETTLED_FROM.put(server, bytes);
             return known;
         }
 
@@ -810,6 +821,7 @@ public class ServersScreen extends Screen {
         if (registered != null) {
             ICONS.put(key, registered);
             BY_SERVER.put(server, registered);
+            SETTLED_FROM.put(server, bytes);
         }
         return registered;
     }
@@ -1183,15 +1195,59 @@ public class ServersScreen extends Screen {
     private void markDirty() { rowsDirty = true; }
 
     private void ping(Object server) {
-        if (pinger == null) return;
+        if (!(pinger instanceof net.minecraft.client.multiplayer.ServerStatusPinger statusPinger)) return;
+        if (!(server instanceof net.minecraft.client.multiplayer.ServerData data)) return;
 
-        // Asked whether it ran: callWith cannot say, so the shorter shape
-        // used to be skipped even when the longer one had not matched
-        if (Construct.invokedOn(pinger, "pingServer", server,
-                (Runnable) this::markDirty, (Runnable) this::markDirty)) {
-            return;
+        // Called directly. It used to be found by name and handed the two
+        // callbacks it was offered - but the game's method also wants the
+        // network thread group, and the reflective call filled that slot with
+        // null. Every ping then failed inside the game, so nothing new ever
+        // arrived: icons only showed up from what servers.dat already held,
+        // which is to say after a restart.
+        try {
+            statusPinger.pingServer(data,
+                    () -> { markDirty(); saveSoon = true; },
+                    this::markDirty,
+                    net.minecraft.server.network.EventLoopGroupHolder.remote(
+                            Minecraft.getInstance().options.useNativeTransport()));
+        } catch (Throwable t) {
+            // The server could not even be looked up; the row says so
+            data.ping = -1L;
+            data.motd = Component.translatable("multiplayer.status.cannot_resolve");
+            markDirty();
         }
-        Construct.invokedOn(pinger, "pingServer", server, (Runnable) this::markDirty);
+    }
+
+    /** A ping brought a new icon or description worth keeping in servers.dat. */
+    private volatile boolean saveSoon = false;
+
+    /**
+     * Keeps the game's pinger going: it times out servers that never answer
+     * and closes finished connections. Its own screen does this every tick;
+     * without it a silent server stayed on "pinging" forever.
+     */
+    @Override
+    public void tick() {
+        super.tick();
+        if (pinger instanceof net.minecraft.client.multiplayer.ServerStatusPinger statusPinger) {
+            try {
+                statusPinger.tick();
+            } catch (Throwable ignored) {
+                // One bad connection must not take the screen with it
+            }
+        }
+        if (saveSoon && serverList != null) {
+            saveSoon = false;
+            Object list = serverList;
+            // Off the render thread: it is a small file, but it is a file
+            PING_POOL.submit(() -> {
+                try {
+                    Construct.invokedOn(list, "save");
+                } catch (Throwable ignored) {
+                    // Kept in memory for this session either way
+                }
+            });
+        }
     }
 
     /**
