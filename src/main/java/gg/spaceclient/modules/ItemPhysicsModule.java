@@ -6,7 +6,8 @@ import gg.spaceclient.setting.IntSetting;
 import gg.spaceclient.setting.SettingGroup;
 
 /**
- * Dropped items lie on the ground instead of hovering and spinning.
+ * Dropped items lie on the ground instead of hovering and spinning, and turn
+ * over while they fall.
  *
  * Vanilla floats every dropped item at knee height and turns it slowly, which
  * is readable but has never looked like anything. An item that has been thrown
@@ -56,11 +57,19 @@ public class ItemPhysicsModule extends Module {
      */
     private final IntSetting sink = new IntSetting(
             "sink", "Sink", "How far items settle into the ground, in hundredths of a block",
-            4, 0, 20);
+            1, 0, 10);
 
-    private final IntSetting lift = new IntSetting(
-            "lift", "Tilt", "How far items lean while still in the air, in degrees",
-            0, 0, 90);
+    /**
+     * Items that are still in the air turn over as they fall, the way a thrown
+     * thing does, and land on their face. Without it a dropped item hangs
+     * upright until the moment it touches down and then flips flat at once.
+     */
+    private final BooleanSetting airTumble = new BooleanSetting(
+            "air_tumble", "Tumble in the air", "Dropped and thrown items turn over while they fall", true);
+
+    private final IntSetting tumbleSpeed = new IntSetting(
+            "tumble_speed", "Tumble speed", "How fast items turn over in the air, in degrees per tick",
+            18, 2, 60);
 
     public ItemPhysicsModule() {
         super("itemphysics", "Item Physics",
@@ -69,7 +78,9 @@ public class ItemPhysicsModule extends Module {
                 SettingGroup.of("Resting", "How settled items sit",
                         layFlat, randomYaw, sink),
                 SettingGroup.of("Motion", "What the game does that this stops",
-                        stopSpin, stopBob, lift)
+                        stopSpin, stopBob),
+                SettingGroup.of("In the air", "Items that are still falling",
+                        airTumble, tumbleSpeed)
         );
     }
 
@@ -84,8 +95,22 @@ public class ItemPhysicsModule extends Module {
     /** How far to sink a settled item, in blocks. */
     public float sinkDepth() { return sink.get() / 100f; }
 
-    /** The lean given to items that are still falling, in degrees. */
-    public float airTilt() { return lift.get(); }
+    /** Whether falling items turn over instead of hanging upright. */
+    public boolean tumblesInAir() { return isEnabled() && layFlat.get() && airTumble.get(); }
+
+    /**
+     * How far a falling item has turned over, in degrees.
+     *
+     * From its age and nothing else, so each frame agrees with the last - a
+     * rate that followed the item's speed would make the angle jump whenever
+     * the speed changed, because the whole age is multiplied by it. The
+     * entity id shifts the start so a handful thrown together do not all turn
+     * in step.
+     */
+    public float tumbleFor(int entityId, float age) {
+        float start = restYawFor(entityId * 31 + 7) % 180f;
+        return (start + age * tumbleSpeed.get()) % 360f;
+    }
 
     /**
      * The angle a given item rests at.
