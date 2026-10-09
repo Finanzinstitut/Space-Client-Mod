@@ -251,7 +251,7 @@ public class OverlayModule extends Module {
         int turn = m.shieldTurn.get();
         if (turn != 0) {
             float degrees = hand == InteractionHand.OFF_HAND ? turn : -turn;
-            poseStack.rotate(Axis.YP.rotationDegrees(degrees));
+            gg.spaceclient.compat.Pose.rotate(poseStack, Axis.YP.rotationDegrees(degrees));
         }
     }
 }

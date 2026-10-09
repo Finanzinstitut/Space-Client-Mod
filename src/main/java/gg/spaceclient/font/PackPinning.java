@@ -180,8 +180,8 @@ public final class PackPinning {
                 position = true;
 
             } else if (field.getType() == boolean.class
-                    && (field.getName().equals("required")
-                    || field.getName().equals("fixedPosition"))) {
+                    && (gg.spaceclient.compat.Names.isField(field.getName(), "required")
+                    || gg.spaceclient.compat.Names.isField(field.getName(), "fixedPosition"))) {
 
                 field.setAccessible(true);
                 boolean before = field.getBoolean(pack);

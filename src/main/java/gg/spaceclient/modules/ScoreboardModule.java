@@ -85,10 +85,17 @@ public class ScoreboardModule extends HudModule {
         Scoreboard board = mc.level.getScoreboard();
         Objective objective = null;
         PlayerTeam team = board.getPlayersTeam(mc.player.getScoreboardName());
+        //#if MC >= 26.2
         if (team != null && team.getColor().isPresent()) {
             DisplaySlot slot = team.getColor().get().displaySlot();
             if (slot != null) objective = board.getDisplayObjective(slot);
         }
+        //#else
+        //$$ if (team != null) {
+        //$$     DisplaySlot slot = DisplaySlot.teamColorToSlot(team.getColor());
+        //$$     if (slot != null) objective = board.getDisplayObjective(slot);
+        //$$ }
+        //#endif
         return objective != null ? objective : board.getDisplayObjective(DisplaySlot.SIDEBAR);
     }
 
@@ -115,7 +122,7 @@ public class ScoreboardModule extends HudModule {
     }
 
     private boolean editing() {
-        return mc.gui != null && mc.gui.screen() instanceof gg.spaceclient.ui.HudEditorScreen;
+        return mc.gui != null && gg.spaceclient.compat.Screens.current() instanceof gg.spaceclient.ui.HudEditorScreen;
     }
 
     @Override
@@ -165,7 +172,7 @@ public class ScoreboardModule extends HudModule {
         drawing = true;
         try {
             graphics.pose().translate(x - left, y - top);
-            ((HudAccessor) mc.gui.hud).spaceclient$sidebar(graphics, objective);
+            ((HudAccessor) gg.spaceclient.compat.HudCompat.hud()).spaceclient$sidebar(graphics, objective);
         } finally {
             drawing = false;
             graphics.pose().popMatrix();

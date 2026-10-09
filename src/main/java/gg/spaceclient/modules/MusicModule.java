@@ -197,7 +197,7 @@ public class MusicModule extends HudModule {
     @Override
     public void draw(GuiGraphicsExtractor graphics, int x, int y) {
         boolean editing = mc.gui != null
-                && mc.gui.screen() instanceof gg.spaceclient.ui.HudEditorScreen;
+                && gg.spaceclient.compat.Screens.current() instanceof gg.spaceclient.ui.HudEditorScreen;
         if (!shouldDraw() && !editing) return;
         super.draw(graphics, x, y);
     }

@@ -3,7 +3,11 @@ package gg.spaceclient.mixin;
 import gg.spaceclient.modules.OverlayModule;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+//#if MC >= 26.2
 import net.minecraft.client.gui.Hud;
+//#else
+//$$ import net.minecraft.client.gui.Gui;
+//#endif
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -23,7 +27,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * Every scale is a push at the start of the game's own method and a pop at
  * every return, so the game still lays out each heart and bubble itself.
  */
+//#if MC >= 26.2
 @Mixin(Hud.class)
+//#else
+//$$ @Mixin(Gui.class)
+//#endif
 public abstract class HudOverlayMixin {
 
     @Shadow

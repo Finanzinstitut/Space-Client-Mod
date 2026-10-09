@@ -56,7 +56,7 @@ public final class CurrentServer {
 
         // The field, for a version where the accessor is named differently
         try {
-            var field = server.getClass().getDeclaredField("ip");
+            var field = gg.spaceclient.compat.Names.declaredField(server.getClass(), "ip");
             field.setAccessible(true);
             Object value = field.get(server);
             cached = value instanceof String text && !text.isEmpty() ? text : null;

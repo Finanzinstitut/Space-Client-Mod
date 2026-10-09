@@ -381,14 +381,14 @@ public class SpaceMenuScreen extends Screen {
     private void open(String opens) {
         Minecraft mc = Minecraft.getInstance();
         switch (opens) {
-            case "friends" -> mc.gui.setScreen(new FriendsScreen(this));
-            case "hud" -> mc.gui.setScreen(new HudEditorScreen(this));
-            case "itemshower" -> mc.gui.setScreen(new ItemShowerScreen(this));
-            case "accounts" -> mc.gui.setScreen(new AccountsScreen(this));
-            case "cosmetica" -> mc.gui.setScreen(new CosmeticsScreen(this));
-            case "appearance" -> mc.gui.setScreen(new AppearanceScreen(this));
-            case "diagnostics" -> mc.gui.setScreen(new DiagnosticsScreen(this));
-            case "credits" -> mc.gui.setScreen(new CreditsScreen(this));
+            case "friends" -> gg.spaceclient.compat.Screens.set(new FriendsScreen(this));
+            case "hud" -> gg.spaceclient.compat.Screens.set(new HudEditorScreen(this));
+            case "itemshower" -> gg.spaceclient.compat.Screens.set(new ItemShowerScreen(this));
+            case "accounts" -> gg.spaceclient.compat.Screens.set(new AccountsScreen(this));
+            case "cosmetica" -> gg.spaceclient.compat.Screens.set(new CosmeticsScreen(this));
+            case "appearance" -> gg.spaceclient.compat.Screens.set(new AppearanceScreen(this));
+            case "diagnostics" -> gg.spaceclient.compat.Screens.set(new DiagnosticsScreen(this));
+            case "credits" -> gg.spaceclient.compat.Screens.set(new CreditsScreen(this));
             default -> { }
         }
     }
@@ -445,7 +445,7 @@ public class SpaceMenuScreen extends Screen {
                 panelX() + panelW() - PAD - 96, y, 96, 20, NavButton.Style.CHIP,
                 () -> StreamerMode.isOn() ? "Streamer: on" : "Streamer",
                 StreamerMode::isOn,
-                () -> Minecraft.getInstance().gui.setScreen(new StreamerScreen(this))));
+                () -> gg.spaceclient.compat.Screens.set(new StreamerScreen(this))));
     }
 
     /**
@@ -495,7 +495,7 @@ public class SpaceMenuScreen extends Screen {
                         // whatever happened to be under the pointer.
                         if (drag.swallowsClick()) return;
                         if (holder[0].overGear()) {
-                            Minecraft.getInstance().gui.setScreen(new SettingsScreen(
+                            gg.spaceclient.compat.Screens.set(new SettingsScreen(
                                     this, module.getName(), module.getDescription(),
                                     ungrouped(module), module.getGroups()));
                             return;
@@ -775,7 +775,7 @@ public class SpaceMenuScreen extends Screen {
 
     @Override
     public void onClose() {
-        Minecraft.getInstance().gui.setScreen(null);
+        gg.spaceclient.compat.Screens.set(null);
     }
 
     /**

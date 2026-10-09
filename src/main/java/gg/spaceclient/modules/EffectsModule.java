@@ -8,7 +8,6 @@ import gg.spaceclient.setting.ModeSetting;
 import gg.spaceclient.setting.SettingGroup;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.Hud;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.world.effect.MobEffectInstance;
 
@@ -124,7 +123,7 @@ public class EffectsModule extends HudModule {
     /** Nothing to show means no plate either - except in the editor, where it has to be placeable. */
     @Override
     public void draw(GuiGraphicsExtractor graphics, int x, int y) {
-        boolean editing = mc.gui != null && mc.gui.screen() instanceof gg.spaceclient.ui.HudEditorScreen;
+        boolean editing = mc.gui != null && gg.spaceclient.compat.Screens.current() instanceof gg.spaceclient.ui.HudEditorScreen;
         if (active().isEmpty() && !editing) return;
         super.draw(graphics, x, y);
     }
@@ -173,7 +172,7 @@ public class EffectsModule extends HudModule {
                 int ticks = effect.getDuration();
                 alpha = 0.35f + 0.65f * (0.5f + 0.5f * (float) Math.cos(ticks * Math.PI / 5));
             }
-            graphics.blitSprite(RenderPipelines.GUI_TEXTURED, Hud.getMobEffectSprite(effect.getEffect()),
+            graphics.blitSprite(RenderPipelines.GUI_TEXTURED, gg.spaceclient.compat.HudCompat.effectSprite(effect.getEffect()),
                     x, row, ICON, ICON, alpha);
 
             int textX = x + ICON + 4;

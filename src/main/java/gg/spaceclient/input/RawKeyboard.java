@@ -3,10 +3,6 @@ package gg.spaceclient.input;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 
-import org.lwjgl.sdl.SDLMouse;
-
-import java.nio.FloatBuffer;
-
 /**
  * Reads the physical keyboard, independent of what each key is bound to.
  *
@@ -39,7 +35,7 @@ public final class RawKeyboard {
     public static boolean isDown(int key) {
         if (!ready || key <= 0) return false;
         try {
-            return InputConstants.isKeyDown(key);
+            return gg.spaceclient.compat.Keys.isKeyDown(key);
         } catch (Throwable t) {
             return false;
         }
@@ -50,21 +46,20 @@ public final class RawKeyboard {
     }
 
     /**
-     * A mouse button by InputConstants.MOUSE_BUTTON_* number, which since 26.3
-     * are SDL's own button numbers (left 1, middle 2, right 3).
+     * A mouse button by InputConstants.MOUSE_BUTTON_* number.
      *
-     * Asked of SDL directly rather than of the game's MouseHandler: the game
+     * Asked of the input system (SDL on 26.3, GLFW before) rather than of the
+     * game's MouseHandler: the game
      * only records its pressed flags while no screen is open, so inside the HUD
      * editor it reported every button as up and elements could not be dragged.
-     * SDL's state is the real one, in a screen or not.
+     * The input system's state is the real one, in a screen or not.
      */
     public static boolean isMouseDown(int button) {
-        if (!ready || button < 1 || button > 32) return false;
+        if (!ready) return false;
         try {
-            int buttons = SDLMouse.SDL_GetMouseState((FloatBuffer) null, (FloatBuffer) null);
-            return (buttons & (1 << (button - 1))) != 0;
+            return gg.spaceclient.compat.Keys.isMouseDown(button);
         } catch (Throwable t) {
-            // SDL not reachable for some reason: the game's own view, which is
+            // The input system not reachable for some reason: the game's own view, which is
             // right in game even if it is blind inside screens
             Minecraft mc = Minecraft.getInstance();
             if (mc == null || mc.mouseHandler == null) return false;

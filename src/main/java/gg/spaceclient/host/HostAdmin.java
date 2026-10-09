@@ -151,7 +151,7 @@ public final class HostAdmin {
             if (connection == null) return false;
 
             for (Method method : connection.getClass().getMethods()) {
-                if (!method.getName().equals("disconnect")) continue;
+                if (!gg.spaceclient.compat.Names.isMethod(method.getName(), "disconnect")) continue;
                 if (method.getParameterCount() != 1) continue;
                 if (!method.getParameterTypes()[0].isAssignableFrom(Component.class)) continue;
 

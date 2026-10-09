@@ -255,7 +255,7 @@ public class ZoomModule extends Module {
 
         for (String name : new String[]{"set", "setValue"}) {
             for (Method method : option.getClass().getMethods()) {
-                if (!method.getName().equals(name)) continue;
+                if (!gg.spaceclient.compat.Names.isMethod(method.getName(), name)) continue;
                 if (method.getParameterCount() != 1) continue;
                 try {
                     method.invoke(option, argument);

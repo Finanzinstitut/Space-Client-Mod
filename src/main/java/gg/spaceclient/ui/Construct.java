@@ -42,7 +42,7 @@ public final class Construct {
      */
     public static Object of(String className, Object... pool) {
         try {
-            Class<?> type = Class.forName(className);
+            Class<?> type = gg.spaceclient.compat.Names.forName(className);
             Constructor<?>[] constructors = type.getConstructors();
 
             java.util.Arrays.sort(constructors,
@@ -74,7 +74,7 @@ public final class Construct {
      */
     public static Object strict(String className, Object... pool) {
         try {
-            Class<?> type = Class.forName(className);
+            Class<?> type = gg.spaceclient.compat.Names.forName(className);
             Constructor<?>[] constructors = type.getConstructors();
 
             java.util.Arrays.sort(constructors,
@@ -117,7 +117,7 @@ public final class Construct {
      */
     public static boolean invoked(String className, String methodName, Object... pool) {
         try {
-            Class<?> type = Class.forName(className);
+            Class<?> type = gg.spaceclient.compat.Names.forName(className);
             Method[] methods = type.getMethods();
 
             // Shortest first, for the reason given on of() above: with the
@@ -127,7 +127,7 @@ public final class Construct {
                     (a, b) -> a.getParameterCount() - b.getParameterCount());
 
             for (Method method : methods) {
-                if (!method.getName().equals(methodName)) continue;
+                if (!gg.spaceclient.compat.Names.isMethod(method.getName(), methodName)) continue;
                 if (!java.lang.reflect.Modifier.isStatic(method.getModifiers())) continue;
 
                 Object[] args = match(method.getParameterTypes(), pool);
@@ -162,7 +162,7 @@ public final class Construct {
      */
     public static String invokedBest(String className, String[] preferred, Object... pool) {
         try {
-            Class<?> type = Class.forName(className);
+            Class<?> type = gg.spaceclient.compat.Names.forName(className);
 
             for (String name : preferred) {
                 if (invoked(className, name, pool)) return name;
@@ -218,7 +218,7 @@ public final class Construct {
                     (a, b) -> b.getParameterCount() - a.getParameterCount());
 
             for (Method method : methods) {
-                if (!method.getName().equals(methodName)) continue;
+                if (!gg.spaceclient.compat.Names.isMethod(method.getName(), methodName)) continue;
                 if (java.lang.reflect.Modifier.isStatic(method.getModifiers())) continue;
 
                 Object[] args = match(method.getParameterTypes(), pool);
@@ -243,7 +243,7 @@ public final class Construct {
      */
     public static String describeStatics(String className, String methodName) {
         try {
-            Class<?> type = Class.forName(className);
+            Class<?> type = gg.spaceclient.compat.Names.forName(className);
             StringBuilder out = new StringBuilder();
             for (Method method : type.getMethods()) {
                 if (!java.lang.reflect.Modifier.isStatic(method.getModifiers())) continue;
@@ -266,14 +266,14 @@ public final class Construct {
     /** The same idea for a static factory method. */
     public static Object call(String className, String methodName, Object... pool) {
         try {
-            Class<?> type = Class.forName(className);
+            Class<?> type = gg.spaceclient.compat.Names.forName(className);
             Method[] methods = type.getMethods();
 
             java.util.Arrays.sort(methods,
                     (a, b) -> b.getParameterCount() - a.getParameterCount());
 
             for (Method method : methods) {
-                if (!method.getName().equals(methodName)) continue;
+                if (!gg.spaceclient.compat.Names.isMethod(method.getName(), methodName)) continue;
                 if (!java.lang.reflect.Modifier.isStatic(method.getModifiers())) continue;
 
                 Object[] args = match(method.getParameterTypes(), pool);

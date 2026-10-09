@@ -440,7 +440,7 @@ public class SessionManager {
 
             Field managerField = null;
             for (Field field : Minecraft.class.getDeclaredFields()) {
-                if (field.getType().getSimpleName().contains("ProfileKeyPairManager")) {
+                if (gg.spaceclient.compat.Names.isClass(field.getType(), "ProfileKeyPairManager")) {
                     managerField = field;
                     break;
                 }

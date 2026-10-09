@@ -1,54 +1,8 @@
+// The mod is built once per Minecraft version, from the one source tree in
+// src/ - see gradle/mod.gradle and versions/<version>/gradle.properties.
+// Both Loom flavours come from the same plugin: the remapping one for the
+// obfuscated 1.21.11, the plain one for 26.1 and later.
 plugins {
-    // From 26.1 onwards Minecraft ships unobfuscated, so this is the plugin that
-    // does NOT remap. The old 'fabric-loom' id only works on obfuscated versions.
-    id 'net.fabricmc.fabric-loom' version '1.17-SNAPSHOT'
-    id 'maven-publish'
-}
-
-version = project.mod_version
-group = project.maven_group
-
-base {
-    archivesName = project.archives_base_name
-}
-
-repositories {
-    maven { url = 'https://maven.terraformersmc.com/releases/' }
-}
-
-dependencies {
-    minecraft "com.mojang:minecraft:${project.minecraft_version}"
-
-    // No mappings block: 26.2 is unobfuscated, so there is nothing to map.
-    // Likewise no modImplementation - nothing gets remapped either.
-    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-}
-
-processResources {
-    inputs.property "version", project.version
-    filesMatching("fabric.mod.json") {
-        expand "version": project.version
-    }
-}
-
-tasks.withType(JavaCompile).configureEach {
-    it.options.release = 25
-}
-
-java {
-    withSourcesJar()
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
-    }
-}
-
-jar {
-    from("LICENSE") {
-        rename { "${it}_${project.base.archivesName.get()}" }
-    }
-    // WaveyCapes code is compiled into the jar, and its licence asks for the
-    // notice to travel with every copy
-    from("THIRD-PARTY-WaveyCapes-LICENSE.txt")
-    from("THIRD-PARTY.md")
+    id 'fabric-loom' version '1.17-SNAPSHOT' apply false
+    id 'net.fabricmc.fabric-loom' version '1.17-SNAPSHOT' apply false
 }

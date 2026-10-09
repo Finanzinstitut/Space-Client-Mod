@@ -197,7 +197,7 @@ public class SettingsHubScreen extends Screen {
     private void vanilla(java.util.List<Plan> plan, String title, String subtitle,
                          SettingsTile.Mark mark, String className) {
         try {
-            Class.forName(className);
+            gg.spaceclient.compat.Names.forName(className);
         } catch (Throwable ignored) {
             return;
         }

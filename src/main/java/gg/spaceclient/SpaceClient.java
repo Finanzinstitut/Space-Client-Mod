@@ -102,7 +102,7 @@ public class SpaceClient implements ClientModInitializer {
 
         menuKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.spaceclient.menu",
-                InputConstants.Type.KEYBOARD,
+                gg.spaceclient.compat.Keys.KEYBOARD,
                 InputConstants.KEY_RSHIFT,
                 category
         ));
@@ -116,7 +116,7 @@ public class SpaceClient implements ClientModInitializer {
 
         zoomKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.spaceclient.zoom",
-                InputConstants.Type.KEYBOARD,
+                gg.spaceclient.compat.Keys.KEYBOARD,
                 InputConstants.KEY_C,
                 category
         ));
@@ -126,7 +126,7 @@ public class SpaceClient implements ClientModInitializer {
         // the game's own controls screen like the three above it.
         clipKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.spaceclient.clip",
-                InputConstants.Type.KEYBOARD,
+                gg.spaceclient.compat.Keys.KEYBOARD,
                 InputConstants.KEY_F9,
                 category
         ));
@@ -150,7 +150,7 @@ public class SpaceClient implements ClientModInitializer {
             // Matched on the class name rather than an import: this screen is
             // not touched anywhere else in the mod, and a name that no longer
             // exists should quietly match nothing rather than fail the build.
-            if (screen.getClass().getName().endsWith("PackSelectionScreen")) {
+            if (screen instanceof net.minecraft.client.gui.screens.packs.PackSelectionScreen) {
                 gg.spaceclient.font.FontPacks.harden();
                 gg.spaceclient.util.Reflect.call(screen, "updateList", "populateLists");
                 return;
@@ -164,9 +164,9 @@ public class SpaceClient implements ClientModInitializer {
             // Swapping the screen from inside AFTER_INIT is safe because the
             // replacement is not a TitleScreen, so the event fires once for
             // the original and never again for ours.
-            if (screen.getClass().getName().endsWith("TitleScreen")
+            if (screen instanceof net.minecraft.client.gui.screens.TitleScreen
                     && settings.customMenu()) {
-                client.gui.setScreen(new gg.spaceclient.ui.MainMenuScreen());
+                gg.spaceclient.compat.Screens.set(new gg.spaceclient.ui.MainMenuScreen());
                 return;
             }
 
@@ -176,7 +176,7 @@ public class SpaceClient implements ClientModInitializer {
             // the login fails on that one and succeeds on the next - which is
             // why pressing this two or three times works where the first
             // attempt did not.
-            if (screen.getClass().getName().endsWith("DisconnectedScreen")
+            if (screen instanceof net.minecraft.client.gui.screens.DisconnectedScreen
                     && settings.customMenu()
                     && gg.spaceclient.ui.ServersScreen.hasLastServer()) {
                 ScreenInjector.addWidget(screen, new FlatButton(
@@ -197,7 +197,7 @@ public class SpaceClient implements ClientModInitializer {
             if (screen instanceof JoinMultiplayerScreen
                     && settings.customMenu()
                     && gg.spaceclient.ui.ServersScreen.shouldReplaceVanillaList()) {
-                client.gui.setScreen(new gg.spaceclient.ui.ServersScreen(
+                gg.spaceclient.compat.Screens.set(new gg.spaceclient.ui.ServersScreen(
                         new gg.spaceclient.ui.MainMenuScreen()));
                 return;
             }
@@ -207,7 +207,7 @@ public class SpaceClient implements ClientModInitializer {
                     10, 10, 116, 20,
                     () -> "Space Client",
                     () -> false,
-                    () -> client.gui.setScreen(new AccountsScreen(screen))
+                    () -> gg.spaceclient.compat.Screens.set(new AccountsScreen(screen))
             ).asAction());
         });
 
@@ -216,7 +216,7 @@ public class SpaceClient implements ClientModInitializer {
             gg.spaceclient.input.RawKeyboard.markReady();
 
             while (menuKey.consumeClick()) {
-                client.gui.setScreen(new SpaceMenuScreen());
+                gg.spaceclient.compat.Screens.set(new SpaceMenuScreen());
             }
 
             // Answered even when the module is off, so a press can say why
@@ -364,9 +364,9 @@ public class SpaceClient implements ClientModInitializer {
 
         net.minecraft.client.gui.screens.Screen now = gg.spaceclient.util.Screens.current();
         if (now == null) return;
-        if (!now.getClass().getName().endsWith("TitleScreen")) return;
+        if (!(now instanceof net.minecraft.client.gui.screens.TitleScreen)) return;
 
-        client.gui.setScreen(new gg.spaceclient.ui.MainMenuScreen());
+        gg.spaceclient.compat.Screens.set(new gg.spaceclient.ui.MainMenuScreen());
     }
 
 }

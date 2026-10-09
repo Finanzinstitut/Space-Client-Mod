@@ -17,7 +17,7 @@ public final class Screens {
 
     /** Puts a screen on the display. */
     public static void open(Screen screen) {
-        Minecraft.getInstance().gui.setScreen(screen);
+        gg.spaceclient.compat.Screens.set(screen);
     }
 
     /**
@@ -35,14 +35,18 @@ public final class Screens {
         // Compiled against this version, so asked directly. The search below
         // used to run every tick from the title screen watcher - two failed
         // method lookups and a field scan, twenty times a second.
-        return mc.gui != null ? mc.gui.screen() : null;
+        return mc.gui != null ? gg.spaceclient.compat.Screens.current() : null;
     }
 
     /** Writes one line into the player's own chat. Nothing is sent anywhere. */
     public static void chat(String text) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
+        //#if MC >= 26.1
         mc.player.sendSystemMessage(Component.literal(text));
+        //#else
+        //$$ mc.player.displayClientMessage(Component.literal(text), false);
+        //#endif
     }
 
     private Screens() {}
