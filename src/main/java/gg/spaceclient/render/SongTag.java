@@ -8,7 +8,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
+//#if MC >= 26.1
 import net.minecraft.client.renderer.state.level.CameraRenderState;
+//#else
+//$$ import net.minecraft.client.renderer.state.CameraRenderState;
+//#endif
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextColor;
@@ -71,9 +75,12 @@ public final class SongTag {
         // uses for the name puts the card in the same place in the frame.
         // That call centres each line itself, so the cover sits left of the
         // centred title rather than shifting it.
-        collector.submitNameTag(poseStack, position, topRowY, top, true, FULL_BRIGHT, camera);
+        // Before 26.2 the call also wants a camera distance, used only to
+        // order overlapping tags; the card sits on its own player's name, so
+        // nearest-first is right
+        gg.spaceclient.compat.NameTags.submit(collector, poseStack, position, topRowY, top, true, FULL_BRIGHT, 0.0, camera);
         if (bottom != null) {
-            collector.submitNameTag(poseStack, position, bottomRowY, bottom, true, FULL_BRIGHT, camera);
+            gg.spaceclient.compat.NameTags.submit(collector, poseStack, position, bottomRowY, bottom, true, FULL_BRIGHT, 0.0, camera);
         }
 
         if (cover == null) return;

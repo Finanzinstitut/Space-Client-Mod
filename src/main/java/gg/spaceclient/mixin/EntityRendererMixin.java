@@ -10,7 +10,11 @@ import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
+//#if MC >= 26.1
 import net.minecraft.client.renderer.state.level.CameraRenderState;
+//#else
+//$$ import net.minecraft.client.renderer.state.CameraRenderState;
+//#endif
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -64,6 +68,9 @@ public abstract class EntityRendererMixin {
                     + "Lnet/minecraft/network/chat/Component;"
                     + "Z"
                     + "I"
+                    //#if MC < 26.2
+                    //$$ + "D"
+                    //#endif
                     + "Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V";
 
     @Redirect(
@@ -81,6 +88,9 @@ public abstract class EntityRendererMixin {
                                           Component text,
                                           boolean flag,
                                           int light,
+    //#if MC < 26.2
+    //$$                                    double distanceSq,
+    //#endif
                                           CameraRenderState camera,
                                           EntityRenderState state,
                                           PoseStack outerPose,
@@ -89,8 +99,8 @@ public abstract class EntityRendererMixin {
                                           int color) {
         if (spaceclient$tagTooFar(state)) return;
 
-        collector.submitNameTag(poseStack, position, background,
-                NameBadge.decorate(state, text), flag, light, camera);
+        gg.spaceclient.compat.NameTags.submit(collector, poseStack, position, background,
+                NameBadge.decorate(state, text), flag, light, state.distanceToCameraSq, camera);
         addSong(collector, poseStack, position, text, camera, state, true);
     }
 
@@ -109,6 +119,9 @@ public abstract class EntityRendererMixin {
                                            Component text,
                                            boolean flag,
                                            int light,
+    //#if MC < 26.2
+    //$$                                     double distanceSq,
+    //#endif
                                            CameraRenderState camera,
                                            EntityRenderState state,
                                            PoseStack outerPose,
@@ -116,8 +129,8 @@ public abstract class EntityRendererMixin {
                                            CameraRenderState outerCamera) {
         if (spaceclient$tagTooFar(state)) return;
 
-        collector.submitNameTag(poseStack, position, background,
-                NameBadge.decorate(state, text), flag, light, camera);
+        gg.spaceclient.compat.NameTags.submit(collector, poseStack, position, background,
+                NameBadge.decorate(state, text), flag, light, state.distanceToCameraSq, camera);
         addSong(collector, poseStack, position, text, camera, state, false);
     }
 

@@ -17,8 +17,13 @@ import net.minecraft.client.gui.Hud;
 //#else
 //$$ import net.minecraft.client.gui.Gui;
 //#endif
+//#if MC >= 26.2
 import net.minecraft.client.gui.contextualbar.ContextualBar;
 import net.minecraft.client.gui.contextualbar.ExperienceBar;
+//#else
+//$$ import net.minecraft.client.gui.contextualbar.ContextualBarRenderer;
+//$$ import net.minecraft.client.gui.contextualbar.ExperienceBarRenderer;
+//#endif
 import net.minecraft.resources.Identifier;
 
 import org.spongepowered.asm.mixin.Mixin;
@@ -108,6 +113,7 @@ public abstract class HudGuiMixin {
     }
 
     // ---------------------------------------------------------------- XP
+    //#if MC >= 26.2
 
     @Redirect(method = "extractHotbarAndDecorations", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/gui/contextualbar/ContextualBar;extractBackground("
@@ -132,6 +138,33 @@ public abstract class HudGuiMixin {
         if (!OverlayModule.xpLevel()) return;
         ContextualBar.extractExperienceLevel(graphics, font, level);
     }
+    //#else
+    //$$
+    //$$ @Redirect(method = "extractHotbarAndDecorations", at = @At(value = "INVOKE",
+    //$$         target = "Lnet/minecraft/client/gui/contextualbar/ContextualBarRenderer;extractBackground("
+    //$$                 + "Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/DeltaTracker;)V"))
+    //$$ private void spaceclient$barBack(ContextualBarRenderer bar, GuiGraphicsExtractor graphics, DeltaTracker delta) {
+    //$$     if (bar instanceof ExperienceBarRenderer && !OverlayModule.xpBar()) return;
+    //$$     bar.extractBackground(graphics, delta);
+    //$$ }
+    //$$
+    //$$ @Redirect(method = "extractHotbarAndDecorations", at = @At(value = "INVOKE",
+    //$$         target = "Lnet/minecraft/client/gui/contextualbar/ContextualBarRenderer;extractRenderState("
+    //$$                 + "Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/DeltaTracker;)V"))
+    //$$ private void spaceclient$barFront(ContextualBarRenderer bar, GuiGraphicsExtractor graphics, DeltaTracker delta) {
+    //$$     if (bar instanceof ExperienceBarRenderer && !OverlayModule.xpBar()) return;
+    //$$     bar.extractRenderState(graphics, delta);
+    //$$ }
+    //$$
+    //$$ @Redirect(method = "extractHotbarAndDecorations", at = @At(value = "INVOKE",
+    //$$         target = "Lnet/minecraft/client/gui/contextualbar/ContextualBarRenderer;extractExperienceLevel("
+    //$$                 + "Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/gui/Font;I)V"))
+    //$$ private void spaceclient$level(GuiGraphicsExtractor graphics, Font font, int level) {
+    //$$     if (!OverlayModule.xpLevel()) return;
+    //$$     ContextualBarRenderer.extractExperienceLevel(graphics, font, level);
+    //$$ }
+    //$$
+    //#endif
 
     @Inject(method = "extractSelectedItemName", at = @At("HEAD"), cancellable = true)
     private void spaceclient$itemName(GuiGraphicsExtractor graphics, CallbackInfo ci) {

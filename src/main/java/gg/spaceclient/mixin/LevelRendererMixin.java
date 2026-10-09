@@ -23,11 +23,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(LevelRenderer.class)
 public class LevelRendererMixin {
 
+    //#if MC >= 26.2
     @Inject(method = "submitFeatures", at = @At("TAIL"), require = 0)
     private void spaceclient$submitHitboxes(LevelRenderState levelRenderState,
                                             SubmitNodeCollector collector,
                                             boolean flag,
                                             CallbackInfo ci) {
+    //#else
+    //$$ // Before 26.2 there is no single features pass; the entities' pass is
+    //$$ // the last one handed the collector, and it runs every frame
+    //$$ @Inject(method = "submitEntities", at = @At("TAIL"), require = 0)
+    //$$ private void spaceclient$submitHitboxes(com.mojang.blaze3d.vertex.PoseStack poseStack,
+    //$$                                         LevelRenderState levelRenderState,
+    //$$                                         SubmitNodeCollector collector,
+    //$$                                         CallbackInfo ci) {
+    //#endif
         try {
             HitboxRenderer.submit(collector);
             gg.spaceclient.render.BlockHighlightRenderer.submit(collector);

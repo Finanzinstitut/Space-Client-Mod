@@ -10,7 +10,11 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.ItemEntityRenderer;
 import net.minecraft.client.renderer.entity.state.ItemEntityRenderState;
+//#if MC >= 26.1
 import net.minecraft.client.renderer.state.level.CameraRenderState;
+//#else
+//$$ import net.minecraft.client.renderer.state.CameraRenderState;
+//#endif
 import net.minecraft.world.entity.item.ItemEntity;
 
 import org.spongepowered.asm.mixin.Mixin;

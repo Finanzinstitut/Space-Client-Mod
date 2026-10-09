@@ -89,7 +89,7 @@ public final class WorldHost {
             server.setWorldGameType(mode);
             boolean opened = server.publishServer(
                     MinecraftServer.MultiplayerScope.LAN, cheats, port);
-            //#elseif MC >= 26.1
+            //#elseif MC >= 26.2
             //$$ boolean opened = server.publishServer(
             //$$         MinecraftServer.MultiplayerScope.LAN, mode, cheats, port);
             //#else
@@ -158,7 +158,13 @@ public final class WorldHost {
         boolean hadMapping = mapped;
 
         try {
+            //#if MC >= 26.2
             if (server != null && server.isPublished()) server.unpublishServer();
+            //#else
+            //$$ // The game has no way to close a LAN world again before 26.2; the
+            //$$ // port stays open until the world is left
+            //$$ if (server != null && server.isPublished()) SpaceClient.LOGGER.info("LAN stays open until the world is closed on this version");
+            //#endif
         } catch (Throwable t) {
             SpaceClient.LOGGER.warn("unpublishServer failed: {}", t.getMessage());
         }
