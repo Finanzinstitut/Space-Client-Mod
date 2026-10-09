@@ -35,6 +35,7 @@ public final class ModuleCategories {
             Map.entry("zoom", VISUAL),
             Map.entry("waveycape", VISUAL),
             Map.entry("chunk", VISUAL),
+            Map.entry("lightlevel", VISUAL),
             Map.entry("backdrop", VISUAL),
             Map.entry("camera", VISUAL),
             Map.entry("fullbright", VISUAL),
