@@ -189,11 +189,35 @@ public final class Badges {
         nextRefresh = 0L;
     }
 
+    /** This account's rank, worked out once a tick from the list as it stands. */
+    private static volatile Rank ownRank = null;
+
+    /**
+     * The rank of the account playing, or null for none. Asked by every gated
+     * module every frame, so it is a field read, not a lookup.
+     *
+     * From the session rather than from the player entity, so it is known in
+     * the menus too, where modules are switched on.
+     */
+    public static Rank ownRank() {
+        return ownRank;
+    }
+
+    private static void updateOwn() {
+        try {
+            net.minecraft.client.User user = net.minecraft.client.Minecraft.getInstance().getUser();
+            ownRank = user == null ? null : rankFor(user.getProfileId(), user.getName());
+        } catch (Throwable ignored) {
+            ownRank = null;
+        }
+    }
+
     public static void tick() {
         if (!bundledLoaded) {
             bundledLoaded = true;
             loadBundled();
         }
+        updateOwn();
 
         long now = System.currentTimeMillis();
         if (now < nextRefresh) return;

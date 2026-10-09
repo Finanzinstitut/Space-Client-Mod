@@ -54,6 +54,10 @@ public class ModuleCard extends Button {
     private final BooleanSupplier active;
     private final boolean hasSettings;
 
+    /** False while the account lacks the rank; the reason replaces the description. */
+    private final BooleanSupplier unlocked;
+    private final String lockReason;
+
     private float hover = 0f;
     private float state = 0f;
 
@@ -69,6 +73,7 @@ public class ModuleCard extends Button {
     public ModuleCard(int x, int y, int width, int height,
                       Supplier<String> label, String description,
                       BooleanSupplier active, boolean hasSettings,
+                      BooleanSupplier unlocked, String lockReason,
                       Runnable onPress) {
         // Guarded in the handler rather than by clearing the widget's enabled
         // flag: that flag's name on this version has not been proven by a
@@ -80,6 +85,8 @@ public class ModuleCard extends Button {
         this.description = description == null ? "" : description;
         this.active = active;
         this.hasSettings = hasSettings;
+        this.unlocked = unlocked;
+        this.lockReason = lockReason == null ? "" : lockReason;
         this.state = active.getAsBoolean() ? 1f : 0f;
     }
 
@@ -175,12 +182,21 @@ public class ModuleCard extends Button {
 
         int pillLeft = x2 - 12 - PILL_W;
 
-        String name = ToggleRow.fit(font, label.get(), pillLeft - (x1 + 12) - 6);
-        text(graphics, font, name, x1 + 12, y1 + 11,
-                fade(Ease.color(Theme.TEXT_DIM, Theme.TEXT, Math.max(hover, state)), eased));
+        boolean locked = !unlocked.getAsBoolean();
 
-        String detail = ToggleRow.fit(font, description, width - 24 - (hasSettings ? 22 : 0));
-        text(graphics, font, detail, x1 + 12, y1 + 25, fade(Theme.TEXT_DIM, eased * 0.85f));
+        String name = ToggleRow.fit(font, label.get(), pillLeft - (x1 + 12) - 6);
+        text(graphics, font, name, x1 + 12, y1 + 11, locked
+                ? fade(Theme.LOCKED, eased)
+                : fade(Ease.color(Theme.TEXT_DIM, Theme.TEXT, Math.max(hover, state)), eased));
+        // Struck through in red: there, but not for this account
+        if (locked && y1 + 15 >= clipTop && y1 + 16 <= clipBottom) {
+            graphics.fill(x1 + 11, y1 + 15, x1 + 13 + font.width(name), y1 + 16, fade(Theme.LOCKED, eased));
+        }
+
+        String detail = ToggleRow.fit(font, locked ? lockReason : description,
+                width - 24 - (hasSettings ? 22 : 0));
+        text(graphics, font, detail, x1 + 12, y1 + 25,
+                locked ? fade(Theme.LOCKED, eased * 0.85f) : fade(Theme.TEXT_DIM, eased * 0.85f));
 
         // The switch: a track that fills and a knob that slides across it.
         int pillTop = y1 + 10;

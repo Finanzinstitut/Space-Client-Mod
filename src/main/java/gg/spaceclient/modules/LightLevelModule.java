@@ -65,6 +65,7 @@ public class LightLevelModule extends HudModule {
     public LightLevelModule() {
         super("lightlevel", "Light Level", "Light where you stand, and red or green crosses where monsters can spawn",
                 0.02f, 0.45f, false);
+        requires(gg.spaceclient.module.Access.STAFF);
         addGroups(
                 SettingGroup.of("Crosses", "Marks on the ground around you",
                         crosses, showSafe, range, height, nightColour),

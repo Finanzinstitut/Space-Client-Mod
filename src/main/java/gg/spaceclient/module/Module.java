@@ -19,11 +19,47 @@ public abstract class Module {
     private final List<SettingGroup> groups = new ArrayList<>();
     private boolean enabled;
 
+    /**
+     * Whether onEnable has run without a matching onDisable.
+     *
+     * Kept apart from {@link #enabled}, which is what the player chose: a
+     * module switched on by somebody who loses the rank for it stays chosen,
+     * and comes back by itself if the rank does.
+     */
+    private boolean active;
+
+    private Access access = Access.EVERYONE;
+
     protected Module(String id, String name, String description, boolean enabledByDefault) {
         this.id = id;
         this.name = name;
         this.description = description;
         this.enabled = enabledByDefault;
+        this.active = enabledByDefault;
+    }
+
+    /** Restricts this module to a rank. Called from the module's constructor. */
+    protected void requires(Access access) {
+        this.access = access;
+    }
+
+    public Access getAccess() { return access; }
+
+    /** Whether this account's rank lets it use the module. */
+    public boolean hasAccess() {
+        return access.allows(gg.spaceclient.net.Badges.ownRank());
+    }
+
+    /**
+     * Brings onEnable and onDisable in line with choice and rank together.
+     * Called whenever either may have moved - from the tick for the rank,
+     * which can change while playing when the list is edited.
+     */
+    public void syncAccess() {
+        boolean want = enabled && hasAccess();
+        if (want == active) return;
+        active = want;
+        if (want) onEnable(); else onDisable();
     }
 
     public String getId() { return id; }
@@ -38,11 +74,14 @@ public abstract class Module {
     public boolean hasSettings() {
         return !settings.isEmpty() || !groups.isEmpty();
     }
-    public boolean isEnabled() { return enabled; }
+    /** On, and allowed to be. What every feature asks before doing its work. */
+    public boolean isEnabled() { return enabled && hasAccess(); }
+
     public void setEnabled(boolean enabled) {
-        if (this.enabled == enabled) return;
+        // Switching on without the rank does nothing; switching off always works
+        if (enabled && !hasAccess()) return;
         this.enabled = enabled;
-        if (enabled) onEnable(); else onDisable();
+        syncAccess();
     }
 
     public void toggle() {
@@ -79,13 +118,11 @@ public abstract class Module {
 
     public void load(JsonObject json) {
         if (json.has("enabled")) {
-            boolean value = json.get("enabled").getAsBoolean();
             // Set the field first so a hook that reads isEnabled() sees the
-            // final state, then fire the hook itself.
-            if (value != enabled) {
-                enabled = value;
-                if (value) onEnable(); else onDisable();
-            }
+            // final state, then fire the hook itself. Kept even without the
+            // rank: the choice is the player's, the rank only pauses it.
+            enabled = json.get("enabled").getAsBoolean();
+            syncAccess();
         }
         if (json.has("settings")) {
             JsonObject settingsJson = json.getAsJsonObject("settings");

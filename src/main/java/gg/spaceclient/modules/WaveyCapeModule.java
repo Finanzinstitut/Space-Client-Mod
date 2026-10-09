@@ -44,6 +44,7 @@ public class WaveyCapeModule extends Module {
     public WaveyCapeModule() {
         super("waveycape", "Wavey Cape",
                 "Capes that move like cloth - WaveyCapes by tr7zw", false);
+        requires(gg.spaceclient.module.Access.VIP);
         addSettings(movement, style, wind, gravity, height);
     }
 
