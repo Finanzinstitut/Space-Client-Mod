@@ -32,36 +32,35 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
 
+      # One jar per supported Minecraft version (versions/<mc>), all from
+      # the one source tree through the preprocessor in buildSrc
       - name: Build
         run: gradle build --no-daemon --stacktrace
 
-      # From gradle.properties rather than from the tag. The file name Loom
-      # writes comes from this value, so reading it here is the only way the
-      # attached asset and the jar on disk cannot drift apart.
       - name: Read mod version
         id: version
-        run: |
-          echo "value=$(grep '^mod_version=' gradle.properties | cut -d= -f2)" >> "$GITHUB_OUTPUT"
-          echo "mc=$(grep '^minecraft_version=' gradle.properties | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+        run: echo "value=$(grep '^mod_version=' gradle.properties | cut -d= -f2)" >> "$GITHUB_OUTPUT"
 
-      - name: Upload jar
+      # Collected into one folder. Each jar already carries its Minecraft
+      # version in its name (spaceclient-<version>-mc<minecraft>.jar), which
+      # is what the launcher matches an instance against without opening it.
+      - name: Collect jars
+        run: |
+          mkdir -p dist
+          cp versions/*/build/libs/spaceclient-${{ steps.version.outputs.value }}-mc*.jar dist/
+          ls -la dist
+          test "$(ls dist/*.jar | wc -l)" -eq "$(ls -d versions/*/ | wc -l)"
+
+      - name: Upload jars
         uses: actions/upload-artifact@v4
         with:
           name: spaceclient-mod
-          path: build/libs/*.jar
-          if-no-files-found: warn
+          path: dist/*.jar
+          if-no-files-found: error
 
-      # Named exactly, not globbed: build/libs also holds the sources jar, and
-      # the launcher picks the first .jar it finds in a release.
       # Two ways in, because a tag cannot always be pushed from outside: a
       # token scoped to one branch is refused on refs/tags. The release API
       # creates the tag itself, and the token inside a run is allowed to.
-      # The release asset carries the Minecraft version in its name, so the
-      # launcher can pick the newest build for each instance's version without
-      # downloading every jar to look inside.
-      - name: Name the jar after its Minecraft version
-        run: cp "build/libs/spaceclient-${{ steps.version.outputs.value }}.jar" "build/libs/spaceclient-${{ steps.version.outputs.value }}-mc${{ steps.version.outputs.mc }}.jar"
-
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/') || inputs.release
         uses: softprops/action-gh-release@v2
@@ -69,9 +68,9 @@ jobs:
           tag_name: v.${{ steps.version.outputs.value }}
           # The commit this run built, not the repository's default branch.
           # Without it the new tag is created wherever main happens to be, so
-          # checking out the tag gives source that never produced this jar -
+          # checking out the tag gives source that never produced these jars -
           # which is the one thing a tag is for.
           target_commitish: ${{ github.sha }}
           name: Release v${{ steps.version.outputs.value }}
-          files: build/libs/spaceclient-${{ steps.version.outputs.value }}-mc${{ steps.version.outputs.mc }}.jar
+          files: dist/*.jar
           fail_on_unmatched_files: true
