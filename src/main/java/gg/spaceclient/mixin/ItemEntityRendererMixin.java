@@ -49,7 +49,7 @@ public class ItemEntityRendererMixin {
             // Without an id the item simply draws at its normal size
         }
 
-        spaceclient$settle(entity, state);
+        spaceclient$settle(entity, state, partialTicks);
         spaceclient$judge(entity, state);
     }
 
@@ -93,7 +93,7 @@ public class ItemEntityRendererMixin {
      * can only be cancelled by emptying what it is computed from - which the
      * drawing step has already read by the time it runs.
      */
-    private void spaceclient$settle(ItemEntity entity, ItemEntityRenderState state) {
+    private void spaceclient$settle(ItemEntity entity, ItemEntityRenderState state, float partialTicks) {
         try {
             var manager = gg.spaceclient.SpaceClient.getModuleManager();
             if (manager == null) return;
@@ -104,16 +104,25 @@ public class ItemEntityRendererMixin {
 
             var holder = (ItemPhysicsHolder) (Object) state;
 
-            // Settled means resting on something. An item still falling keeps
-            // vanilla's behaviour, because a thing that lies flat in mid air
-            // looks more wrong than one that spins.
-            Object grounded = gg.spaceclient.util.Reflect.call(entity, "onGround", "isOnGround");
-            boolean settled = !(grounded instanceof Boolean flag) || flag;
+            // Settled means resting on something - the ground, or floating on
+            // water, where an item tumbling forever would look broken. Anything
+            // else is in the air and turns over as it falls.
+            boolean settled = entity.onGround() || entity.isInWater() || entity.isInLava();
 
             holder.spaceclient$setSettled(settled);
             holder.spaceclient$setRestYaw(physics.restYawFor(entity.getId()));
 
-            if (settled && (physics.stopsSpin() || physics.stopsBob())) {
+            boolean tumbling = !settled && physics.tumblesInAir();
+            if (tumbling) {
+                float age = entity.tickCount + partialTicks;
+                holder.spaceclient$setTumble(physics.tumbleFor(entity.getId(), age));
+            }
+
+            // A tumbling or flat item carries its own pose, and the drawing
+            // step undoes the game's lift on the assumption that the bob is
+            // gone - so for those both are always stilled.
+            boolean posed = tumbling || (settled && physics.laysFlat());
+            if (posed || (settled && (physics.stopsSpin() || physics.stopsBob()))) {
                 gg.spaceclient.render.ItemStateFields.still(state);
             }
 
@@ -155,9 +164,9 @@ public class ItemEntityRendererMixin {
         float scale = spaceclient$scaleFor(state);
         if (scale != 1f) poseStack.scale(scale, scale, scale);
 
-        // After the scale on purpose: the sink is a distance in world blocks,
-        // and applying it inside a scaled pose would bury a large item deeper
-        // than a small one.
+        // After the scale on purpose: the pose is worked out from the model's
+        // own box, which the scale enlarges along with everything else, so a
+        // large item still rests on its face instead of sinking or floating.
         spaceclient$lay(state, poseStack);
     }
 
@@ -172,7 +181,18 @@ public class ItemEntityRendererMixin {
         poseStack.popPose();
     }
 
-    /** Turns a settled item onto its face and lowers it onto the ground. */
+    /**
+     * Turns a settled item onto its face on the ground, or a falling one over
+     * about its own middle.
+     *
+     * The game draws the item after this, with one more lift of its own -
+     * 0.1625 blocks plus however far the model reaches below its origin - and
+     * that lift happens inside whatever rotation is set up here. Undone first,
+     * then, or a flat item would be shoved sideways by it and a falling one
+     * would swing round a point below itself instead of tumbling. Both cases
+     * work from the model's own bounding box, so a sword, a block and a totem
+     * all rest on their faces rather than at one height that fits none of them.
+     */
     private static void spaceclient$lay(ItemEntityRenderState state, PoseStack poseStack) {
         try {
             var manager = gg.spaceclient.SpaceClient.getModuleManager();
@@ -183,21 +203,36 @@ public class ItemEntityRendererMixin {
             if (!physics.laysFlat()) return;
 
             var holder = (ItemPhysicsHolder) (Object) state;
-            float yaw = holder.spaceclient$restYaw();
+            boolean settled = holder.spaceclient$isSettled();
+            if (!settled && !physics.tumblesInAir()) return;
 
-            if (!holder.spaceclient$isSettled()) {
-                // Still in the air: a lean rather than a lie, so it reads as
-                // tumbling towards the ground instead of sitting on nothing
-                float tilt = physics.airTilt();
-                if (tilt > 0f) gg.spaceclient.render.PoseOps.rotate(poseStack, yaw, tilt);
-                return;
+            net.minecraft.world.phys.AABB box = state.item.getModelBoundingBox();
+            // The game's own lift, with the bob already zeroed during extraction
+            float lift = 0.1f + 0.0625f - (float) box.minY;
+            float cx = (float) ((box.minX + box.maxX) / 2);
+            float cy = (float) ((box.minY + box.maxY) / 2);
+            float cz = (float) ((box.minZ + box.maxZ) / 2);
+
+            float yaw = holder.spaceclient$restYaw();
+            float pitch;
+            float height;
+            if (settled) {
+                // Face down: the model's depth becomes its height, and the
+                // middle sits half of that above the floor, less the sink. The
+                // sink is capped at half of that half: a flat item is only a
+                // thirty-second of a block thick, and a sink chosen with a
+                // block in mind would bury it out of sight.
+                pitch = 90f;
+                float half = (float) (box.maxZ - box.minZ) / 2f;
+                height = half - Math.min(physics.sinkDepth(), half * 0.5f);
+            } else {
+                pitch = holder.spaceclient$tumble();
+                height = lift + cy;
             }
 
-            // Down first, then over. Rotating about the item's own centre and
-            // then dropping it keeps the contact point on the floor whichever
-            // way it happens to be facing.
-            poseStack.translate(0f, -0.18f - physics.sinkDepth(), 0f);
-            gg.spaceclient.render.PoseOps.rotate(poseStack, yaw, 90f);
+            poseStack.translate(0f, height, 0f);
+            gg.spaceclient.render.PoseOps.rotate(poseStack, yaw, pitch);
+            poseStack.translate(-cx, -(lift + cy), -cz);
 
         } catch (Throwable ignored) {
             // The item draws upright, as it always did

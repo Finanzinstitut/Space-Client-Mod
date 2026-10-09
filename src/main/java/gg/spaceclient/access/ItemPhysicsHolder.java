@@ -36,4 +36,9 @@ public interface ItemPhysicsHolder {
     boolean spaceclient$isSettled();
 
     void spaceclient$setSettled(boolean settled);
+
+    /** How far a falling item has turned over, in degrees, for this frame. */
+    float spaceclient$tumble();
+
+    void spaceclient$setTumble(float degrees);
 }

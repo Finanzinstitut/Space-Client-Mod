@@ -55,4 +55,13 @@ public class ItemEntityRenderStateMixin implements ItemIdHolder, ItemPhysicsHold
 
     @Override
     public void spaceclient$setSettled(boolean settled) { this.spaceclient$settled = settled; }
+
+    @Unique
+    private float spaceclient$tumble = 0f;
+
+    @Override
+    public float spaceclient$tumble() { return spaceclient$tumble; }
+
+    @Override
+    public void spaceclient$setTumble(float degrees) { this.spaceclient$tumble = degrees; }
 }

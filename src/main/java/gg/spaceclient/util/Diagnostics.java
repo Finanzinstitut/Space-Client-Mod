@@ -110,9 +110,7 @@ public final class Diagnostics {
         // silenced. Either one missing leaves items looking half done.
         checks.add(new Check("Item physics rotation",
                 gg.spaceclient.render.PoseOps.canRotate(),
-                gg.spaceclient.render.PoseOps.canRotate()
-                        ? "mulPose resolved"
-                        : "no mulPose(Quaternionf) - items cannot be laid down"));
+                "PoseStack.rotate"));
 
         checks.add(new Check("Item physics stillness",
                 !gg.spaceclient.render.ItemStateFields.status().startsWith("no age"),
