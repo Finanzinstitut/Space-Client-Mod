@@ -63,6 +63,7 @@ public abstract class GameRendererPostMixin {
             // The first entry is always the end-of-frame pass; anything after
             // it is an effect the game itself wants on screen
             int vanilla = Math.max(0, requestedPostEffects.size() - 1);
+            gg.spaceclient.modules.MotionBlurModule.contribute(requestedPostEffects);
             SaturationModule.contribute(requestedPostEffects, vanilla);
         } catch (Throwable ignored) {
             // Colours as the game draws them

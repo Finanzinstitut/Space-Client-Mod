@@ -3,95 +3,129 @@ package gg.spaceclient.modules;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
+
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.server.IntegratedServer;
 
 /**
  * How fast the server is actually running, in ticks per second.
  *
- * The client has no direct reading of this - no packet carries it. What it does
- * have is the world clock, which the server corrects roughly once a second. The
- * client advances that clock locally at a flat twenty in between, so a short
- * sample says twenty no matter what; over several seconds the corrections
- * dominate and the average settles on the server's real rate.
+ * <h2>Where the number comes from</h2>
  *
- * That makes this an estimate rather than a measurement, and it is worth being
- * clear about the difference. It is accurate for the thing people use it for -
- * spotting a struggling server - but it will not resolve 19.8 from 20.0, and it
- * leans on the server sending time updates, which a few rewrite or suppress.
+ * On a server, from the time packets it sends: each one carries the server's
+ * own game time, stamped when it was sent. The ticks between two of them,
+ * divided by the real time between their arrivals, is the server's rate. Over
+ * a ten-second window the network's jitter averages out.
+ *
+ * This replaced a reading of the client's own world clock. The client advances
+ * that clock itself, twenty times a second, whatever the server does, and the
+ * server's corrections only nudged it - so a lagging server still read close to
+ * 20, which is exactly the case the readout exists for.
+ *
+ * In singleplayer the server is in the same process, so its clock is read
+ * directly every tick instead of waiting for packets.
+ *
+ * The ceiling is the server's target rate, not a fixed 20 - a server running
+ * /tick rate 40 really does run forty a second.
  */
 public class TpsModule extends HudModule {
+    private static TpsModule instance;
 
-    /** Long enough for the clock corrections to outweigh local ticking. */
-    private static final long WINDOW_MS = 4_000L;
+    /** How much history the estimate covers. */
+    private static final long WINDOW_NANOS = 10_000_000_000L;
+    /** No time packet for this long: the server stalled or does not send them. */
+    private static final long STALE_NANOS = 5_000_000_000L;
 
     private final BooleanSetting colorCoded = new BooleanSetting(
             "color_coded", "Colour by health",
             "Green when healthy, amber when slipping, red when struggling", true);
-
+    private final BooleanSetting showMspt = new BooleanSetting(
+            "show_mspt", "Show MSPT", "Milliseconds per tick, in singleplayer where it can be measured", false);
     private final ColorSetting textColor = new ColorSetting(
             "text_color", "Text colour", "Used when colour by health is off", 0xFFFFFFFF);
 
-    private long windowStartMs = 0L;
-    private long windowStartTicks = 0L;
+    // Arrivals of time packets: real time and the server's game time
+    private static final int SAMPLES = 64;
+    private static final long[] arrivedAt = new long[SAMPLES];
+    private static final long[] gameTimes = new long[SAMPLES];
+    private static int head = 0, count = 0;
+
     private double tps = -1;
+    private double mspt = -1;
+    private boolean stale = false;
 
     public TpsModule() {
-        super("tps", "TPS", "Estimates how fast the server is ticking", 0.02f, 0.26f, false);
-        addSettings(colorCoded, textColor);
+        super("tps", "TPS", "How fast the server is ticking", 0.02f, 0.26f, false);
+        addSettings(colorCoded, showMspt, textColor);
+        instance = this;
+    }
+
+    /** From the network thread whenever the server sends its time. */
+    public static void onServerTime(long gameTime) {
+        long now = System.nanoTime();
+        synchronized (arrivedAt) {
+            // The packet is handled twice - once on the network thread, then
+            // again on the game thread - and only the first arrival counts
+            if (count > 0 && gameTimes[(head - 1 + SAMPLES) % SAMPLES] == gameTime) return;
+            // The clock went back: the server set it. Start over.
+            if (count > 0 && gameTime < gameTimes[(head - 1 + SAMPLES) % SAMPLES]) count = 0;
+            arrivedAt[head] = now;
+            gameTimes[head] = gameTime;
+            head = (head + 1) % SAMPLES;
+            if (count < SAMPLES) count++;
+        }
+    }
+
+    private static void reset() {
+        synchronized (arrivedAt) {
+            count = 0;
+        }
     }
 
     @Override
-    public int getWidth() { return mc.font.width(text()); }
-
-    @Override
-    public int getHeight() { return mc.font.lineHeight; }
-
-    /**
-     * Called every client tick to keep the sampling window rolling.
-     *
-     * Sampling in render() instead would tie the reading to frame rate, and a
-     * player whose frames are struggling is exactly the one who wants to know
-     * whether the server is too.
-     */
-    @Override
     public void onTick() {
         if (mc.level == null) {
-            // Between worlds the old window means nothing
-            windowStartMs = 0L;
             tps = -1;
+            mspt = -1;
+            reset();
             return;
         }
+        float target = mc.level.tickRateManager().tickrate();
 
-        long now = System.currentTimeMillis();
-        long ticks = mc.level.getGameTime();
-
-        if (windowStartMs == 0L) {
-            windowStartMs = now;
-            windowStartTicks = ticks;
-            return;
+        IntegratedServer server = mc.getSingleplayerServer();
+        if (server != null) {
+            // The server's own clock, read directly - the same measurement as
+            // on a server, minus the network. Its average tick time is shown
+            // as MSPT but not used for the rate: it does not cover everything
+            // a tick can spend time on, and read 20 while the world crawled.
+            mspt = server.getAverageTickTimeNanos() / 1_000_000.0;
+            var overworld = server.overworld();
+            if (overworld != null) onServerTime(overworld.getGameTime());
+        } else {
+            mspt = -1;
         }
 
-        long elapsed = now - windowStartMs;
-        if (elapsed < WINDOW_MS) return;
-
-        long ticked = ticks - windowStartTicks;
-
-        // A backwards clock means the server moved time itself, not that it ran
-        // in reverse; the sample is spoiled rather than meaningful.
-        if (ticked < 0) {
-            windowStartMs = now;
-            windowStartTicks = ticks;
-            return;
+        long now = System.nanoTime();
+        synchronized (arrivedAt) {
+            if (count < 2) {
+                stale = count == 1 && now - arrivedAt[(head - 1 + SAMPLES) % SAMPLES] > STALE_NANOS;
+                return;
+            }
+            int newest = (head - 1 + SAMPLES) % SAMPLES;
+            stale = now - arrivedAt[newest] > STALE_NANOS;
+            // Oldest sample still inside the window
+            int oldest = newest;
+            for (int i = 1; i < count; i++) {
+                int index = (newest - i + SAMPLES) % SAMPLES;
+                if (arrivedAt[newest] - arrivedAt[index] > WINDOW_NANOS) break;
+                oldest = index;
+            }
+            if (oldest == newest) return;
+            double seconds = (arrivedAt[newest] - arrivedAt[oldest]) / 1e9;
+            long ticks = gameTimes[newest] - gameTimes[oldest];
+            if (seconds < 0.5) return;
+            tps = Math.min(target, ticks / seconds);
         }
-
-        double sampled = ticked * 1000.0 / elapsed;
-
-        // Smoothed, because a readout that flickers between 19 and 21 every
-        // few seconds is harder to read than one that drifts
-        tps = tps < 0 ? sampled : tps * 0.6 + sampled * 0.4;
-
-        windowStartMs = now;
-        windowStartTicks = ticks;
     }
 
     /** Cached; see HudModule.cachedText for why. */
@@ -99,16 +133,28 @@ public class TpsModule extends HudModule {
 
     private String buildText() {
         if (mc.level == null) return "-- tps";
+        if (mc.level.tickRateManager().isFrozen()) return "frozen";
         if (tps < 0) return "... tps";
-        return String.format("%.1f tps", Math.min(tps, 20.0));
+        String value = String.format("%.1f tps", tps);
+        if (stale) value += " ?";
+        if (showMspt.get() && mspt >= 0) value += String.format("  %.1f ms", mspt);
+        return value;
     }
 
     private int color() {
-        if (!colorCoded.get() || tps < 0) return textColor.get();
-        if (tps >= 19.0) return 0xFF55FF55;
-        if (tps >= 15.0) return 0xFFFFAA00;
+        if (!colorCoded.get() || tps < 0 || mc.level == null) return textColor.get();
+        double share = tps / Math.max(1f, mc.level.tickRateManager().tickrate());
+        if (stale) return 0xFFFFAA00;
+        if (share >= 0.95) return 0xFF55FF55;
+        if (share >= 0.75) return 0xFFFFAA00;
         return 0xFFFF5555;
     }
+
+    @Override
+    public int getWidth() { return mc.font.width(text()); }
+
+    @Override
+    public int getHeight() { return mc.font.lineHeight; }
 
     @Override
     public void render(GuiGraphicsExtractor graphics, int x, int y) {

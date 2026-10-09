@@ -64,6 +64,7 @@ public class ModuleManager {
         register(new EffectsModule());
         register(new TotemPopModule());
         register(new LightLevelModule());
+        register(new MotionBlurModule());
     }
 
     private void register(Module module) {
