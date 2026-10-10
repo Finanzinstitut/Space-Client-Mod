@@ -28,8 +28,8 @@
  */
 
 import {
-  MAX_NAME, accept, canMessage, cleanMessage, looksLikeName, pairKey, request,
-  stateFor,
+  MAX_GROUP, MAX_NAME, accept, canMessage, cleanGroupName, cleanMessage, invitable,
+  looksLikeName, pairKey, request, stateFor,
 } from "./logic.js";
 
 /** How long a poll waits before giving up and answering "nothing yet". */
@@ -72,6 +72,10 @@ export default {
         case "/friends/remove": return await removeFriend(request_, env, who);
         case "/messages": return await sendMessage(request_, env, who);
         case "/poll": return await poll(request_, env, who, url);
+        case "/groups/create": return await createGroup(request_, env, who);
+        case "/groups/invite": return await inviteToGroup(request_, env, who);
+        case "/groups/leave": return await leaveGroup(request_, env, who);
+        case "/groups/message": return await sendGroupMessage(request_, env, who);
         default: return fail("no such thing here", 404);
       }
     } catch (error) {
@@ -177,7 +181,14 @@ async function listFriends(env, who) {
     else incoming.push(entry(other, "incoming"));
   }
 
-  return json({ ok: true, me: who, friends, incoming, outgoing });
+  const groups = await groupsOf(env, who.uuid);
+  // Where this person's feed stands, so the client's first poll can wait on
+  // it. Without it the first poll knew no version, could not tell that
+  // anything changed, and a request accepted in its first twenty five seconds
+  // only showed up after them.
+  const feed = await env.DB.prepare("SELECT version FROM feeds WHERE uuid = ?").bind(who.uuid).first();
+  const version = feed ? feed.version : 0;
+  return json({ ok: true, me: who, friends, incoming, outgoing, groups, version });
 }
 
 async function namesOf(env, uuids) {
@@ -270,12 +281,11 @@ async function lookupByName(env, name) {
     .first();
   if (known) return known;
 
-  const answer = await fetch(
-    "https://api.mojang.com/users/profiles/minecraft/" + encodeURIComponent(name));
-  if (answer.status !== 200) return null;
-
-  const body = await answer.json();
-  if (!body || !body.id) return null;
+  // Two of Mojang's addresses for the same answer. The first is the classic
+  // one and rate limits Cloudflare's shared addresses hard; a refusal there
+  // came back as "no player by that name" for names that very much exist.
+  const body = await profileByName(name);
+  if (!body) return null;
 
   const found = { uuid: dashed(body.id), name: body.name };
   await env.DB
@@ -284,6 +294,28 @@ async function lookupByName(env, name) {
     .bind(found.uuid, found.name)
     .run();
   return found;
+}
+
+async function profileByName(name) {
+  const addresses = [
+    "https://api.mojang.com/users/profiles/minecraft/",
+    "https://api.minecraftservices.com/minecraft/profile/lookup/name/",
+  ];
+  for (const base of addresses) {
+    try {
+      const answer = await fetch(base + encodeURIComponent(name));
+      if (answer.status === 200) {
+        const body = await answer.json();
+        if (body && body.id) return body;
+      }
+      // 404 and 204 mean nobody has the name; asking the other address would
+      // only say the same. Anything else - 429, 403, 5xx - is worth a second try.
+      if (answer.status === 404 || answer.status === 204) return null;
+    } catch {
+      // Next address
+    }
+  }
+  return null;
 }
 
 /** Marks somebody's feed as changed, so their poll wakes up. */
@@ -331,6 +363,7 @@ async function sendMessage(request_, env, who) {
  */
 async function poll(request_, env, who, url) {
   const since = Number(url.searchParams.get("since") || 0) || 0;
+  const gsince = Number(url.searchParams.get("gsince") || 0) || 0;
   const knownVersion = Number(url.searchParams.get("version") || -1);
   const until = Date.now() + POLL_HOLD_MS;
 
@@ -347,12 +380,25 @@ async function poll(request_, env, who, url) {
       .first();
     const version = feed ? feed.version : 0;
 
+    // Only from groups this person is in, and only what was said since they
+    // joined: being added to a group is not a key to its past
+    const grouped = await env.DB
+      .prepare("SELECT m.id, m.group_id, m.sender, m.body, m.sent FROM group_messages m " +
+               "JOIN group_members g ON g.group_id = m.group_id AND g.uuid = ? " +
+               "WHERE m.id > ? AND m.sent >= g.joined ORDER BY m.id LIMIT 50")
+      .bind(who.uuid, gsince)
+      .all();
+    const groupLines = grouped.results || [];
+
     const messages = results || [];
     const changed = knownVersion >= 0 && version !== knownVersion;
 
-    if (messages.length > 0 || changed || Date.now() >= until) {
+    if (messages.length > 0 || groupLines.length > 0 || changed || Date.now() >= until) {
       const names = await namesOf(env, [
-        ...new Set(messages.flatMap((m) => [m.sender, m.recipient])),
+        ...new Set([
+          ...messages.flatMap((m) => [m.sender, m.recipient]),
+          ...groupLines.map((m) => m.sender),
+        ]),
       ]);
 
       return json({
@@ -368,11 +414,158 @@ async function poll(request_, env, who, url) {
           sent: m.sent,
           mine: m.sender === who.uuid,
         })),
+        gcursor: groupLines.length ? groupLines[groupLines.length - 1].id : gsince,
+        groupMessages: groupLines.map((m) => ({
+          id: m.id,
+          group: m.group_id,
+          from: m.sender,
+          fromName: names.get(m.sender) || "?",
+          text: m.body,
+          sent: m.sent,
+          mine: m.sender === who.uuid,
+        })),
       });
     }
 
     await sleep(POLL_STEP_MS);
   }
+}
+
+// ---------------------------------------------------------------- groups
+
+/** Every group this person is in, with its members by name. */
+async function groupsOf(env, uuid) {
+  const { results } = await env.DB
+    .prepare("SELECT g.id, g.name, g.owner FROM chat_groups g " +
+             "JOIN group_members m ON m.group_id = g.id WHERE m.uuid = ? ORDER BY g.id")
+    .bind(uuid)
+    .all();
+  const groups = results || [];
+  if (groups.length === 0) return [];
+
+  const marks = groups.map(() => "?").join(",");
+  const members = await env.DB
+    .prepare(`SELECT m.group_id, m.uuid, p.name FROM group_members m ` +
+             `LEFT JOIN players p ON p.uuid = m.uuid WHERE m.group_id IN (${marks}) ` +
+             `ORDER BY m.joined`)
+    .bind(...groups.map((g) => g.id))
+    .all();
+
+  return groups.map((g) => ({
+    id: g.id,
+    name: g.name,
+    owner: g.owner,
+    members: (members.results || [])
+      .filter((m) => m.group_id === g.id)
+      .map((m) => ({ uuid: m.uuid, name: m.name || "?" })),
+  }));
+}
+
+async function linksOf(env, uuid) {
+  const { results } = await env.DB
+    .prepare("SELECT lo, hi, state, requester FROM links WHERE lo = ? OR hi = ?")
+    .bind(uuid, uuid)
+    .all();
+  return results || [];
+}
+
+async function membersOf(env, groupId) {
+  const { results } = await env.DB
+    .prepare("SELECT uuid FROM group_members WHERE group_id = ?")
+    .bind(groupId)
+    .all();
+  return (results || []).map((r) => r.uuid);
+}
+
+async function createGroup(request_, env, who) {
+  const body = await readJson(request_);
+  const name = cleanGroupName(body.name);
+  if (!name) return fail("the group needs a name");
+
+  const links = await linksOf(env, who.uuid);
+  const people = invitable(links, who.uuid, body.members);
+  if (people.length === 0) return fail("pick at least one friend for the group");
+  if (people.length + 1 > MAX_GROUP) return fail(`a group holds at most ${MAX_GROUP} people`);
+
+  const now = Date.now();
+  const created = await env.DB
+    .prepare("INSERT INTO chat_groups (name, owner, created) VALUES (?, ?, ?) RETURNING id")
+    .bind(name, who.uuid, now)
+    .first();
+  const id = created.id;
+
+  await env.DB.batch([
+    ...[who.uuid, ...people].map((uuid) =>
+      env.DB.prepare("INSERT INTO group_members (group_id, uuid, joined) VALUES (?, ?, ?)")
+        .bind(id, uuid, now)),
+    ...[who.uuid, ...people].map((uuid) => bump(env, uuid)),
+  ]);
+
+  return json({ ok: true, note: "group created", group: { id, name } });
+}
+
+async function inviteToGroup(request_, env, who) {
+  const body = await readJson(request_);
+  const groupId = Number(body.group) || 0;
+  const members = await membersOf(env, groupId);
+  if (!members.includes(who.uuid)) return fail("you are not in that group", 403);
+
+  const links = await linksOf(env, who.uuid);
+  const people = invitable(links, who.uuid, body.members, members);
+  if (people.length === 0) return fail("nobody to add - only your friends who are not in it yet");
+  if (members.length + people.length > MAX_GROUP) {
+    return fail(`a group holds at most ${MAX_GROUP} people`);
+  }
+
+  const now = Date.now();
+  await env.DB.batch([
+    ...people.map((uuid) =>
+      env.DB.prepare("INSERT OR IGNORE INTO group_members (group_id, uuid, joined) VALUES (?, ?, ?)")
+        .bind(groupId, uuid, now)),
+    ...[...members, ...people].map((uuid) => bump(env, uuid)),
+  ]);
+
+  return json({ ok: true, note: people.length === 1 ? "added 1 person" : `added ${people.length} people` });
+}
+
+async function leaveGroup(request_, env, who) {
+  const body = await readJson(request_);
+  const groupId = Number(body.group) || 0;
+  const members = await membersOf(env, groupId);
+  if (!members.includes(who.uuid)) return fail("you are not in that group", 403);
+
+  const rest = members.filter((m) => m !== who.uuid);
+  const statements = [
+    env.DB.prepare("DELETE FROM group_members WHERE group_id = ? AND uuid = ?").bind(groupId, who.uuid),
+    ...members.map((uuid) => bump(env, uuid)),
+  ];
+  // The last one out takes the group and what was said in it along
+  if (rest.length === 0) {
+    statements.push(
+      env.DB.prepare("DELETE FROM group_messages WHERE group_id = ?").bind(groupId),
+      env.DB.prepare("DELETE FROM chat_groups WHERE id = ?").bind(groupId));
+  }
+  await env.DB.batch(statements);
+  return json({ ok: true, note: "left the group" });
+}
+
+async function sendGroupMessage(request_, env, who) {
+  const body = await readJson(request_);
+  const groupId = Number(body.group) || 0;
+  const text = cleanMessage(body.text);
+  if (!text) return fail("nothing to send");
+
+  const members = await membersOf(env, groupId);
+  if (!members.includes(who.uuid)) return fail("you are not in that group", 403);
+
+  const now = Date.now();
+  await env.DB.batch([
+    env.DB.prepare("INSERT INTO group_messages (group_id, sender, body, sent) VALUES (?, ?, ?, ?)")
+      .bind(groupId, who.uuid, text, now),
+    env.DB.prepare("DELETE FROM group_messages WHERE sent < ?").bind(now - KEEP_DAYS * 86_400_000),
+    ...members.map((uuid) => bump(env, uuid)),
+  ]);
+  return json({ ok: true, sent: now });
 }
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));

@@ -137,3 +137,34 @@ export function cleanMessage(text) {
 export function looksLikeName(name) {
   return typeof name === "string" && /^[A-Za-z0-9_]{3,16}$/.test(name);
 }
+
+/** The most people one group holds, its creator included. */
+export const MAX_GROUP = 20;
+export const MAX_GROUP_NAME = 32;
+
+/** A group's name: printable, trimmed, never empty. */
+export function cleanGroupName(name) {
+  if (typeof name !== "string") return "";
+  return name.replace(/[\u0000-\u001f\u007f§]/g, "").trim().slice(0, MAX_GROUP_NAME);
+}
+
+/**
+ * Who of the people asked for may join, as seen by the one bringing them in.
+ *
+ * Only their own friends: a group must not become a way to reach somebody who
+ * never agreed to hear from you. Duplicates, the inviter and people already in
+ * the group are dropped rather than refused, so "add these three" works even
+ * when one of them is already there.
+ */
+export function invitable(links, me, wanted, alreadyIn = []) {
+  const seen = new Set(alreadyIn);
+  const out = [];
+  for (const uuid of Array.isArray(wanted) ? wanted : []) {
+    const id = String(uuid || "");
+    if (!id || id === me || seen.has(id)) continue;
+    if (stateFor(links, me, id) !== "friends") continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}

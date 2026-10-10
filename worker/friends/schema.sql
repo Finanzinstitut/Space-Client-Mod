@@ -39,3 +39,31 @@ CREATE TABLE IF NOT EXISTS feeds (
   uuid    TEXT PRIMARY KEY,
   version INTEGER NOT NULL DEFAULT 0
 );
+
+-- Group chats. A group is a name and a set of members; anybody in it can
+-- write to it and bring in their own friends. Kept apart from the one to one
+-- tables, so nothing about how two people talk changed when groups arrived.
+-- ("chat_groups" rather than "groups", which is a keyword in newer SQLite.)
+CREATE TABLE IF NOT EXISTS chat_groups (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  name    TEXT NOT NULL,
+  owner   TEXT NOT NULL,
+  created INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS group_members (
+  group_id INTEGER NOT NULL,
+  uuid     TEXT NOT NULL,
+  joined   INTEGER NOT NULL,
+  PRIMARY KEY (group_id, uuid)
+);
+CREATE INDEX IF NOT EXISTS group_members_by_uuid ON group_members (uuid);
+
+CREATE TABLE IF NOT EXISTS group_messages (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  group_id INTEGER NOT NULL,
+  sender   TEXT NOT NULL,
+  body     TEXT NOT NULL,
+  sent     INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS group_messages_by_group ON group_messages (group_id, id);

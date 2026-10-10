@@ -13,6 +13,8 @@ import { makeDb } from "./d1.mjs";
 const PLAYERS = [
   { name: "Alice_MC", id: "11111111111111111111111111111111" },
   { name: "Bob_MC", id: "22222222222222222222222222222222" },
+  { name: "Carl_MC", id: "33333333333333333333333333333333" },
+  { name: "Dev", id: "44444444444444444444444444444444" },
 ];
 
 // Mojang says yes to any handshake from a name on the list
@@ -27,7 +29,7 @@ globalThis.fetch = async (url) => {
       ? new Response(JSON.stringify({ id: found.id, name: found.name }), { status: 200 })
       : new Response(null, { status: 204 });
   }
-  if (text.includes("users/profiles/minecraft/")) {
+  if (text.includes("users/profiles/minecraft/") || text.includes("profile/lookup/name/")) {
     const found = named(decodeURIComponent(text.split("/").pop()));
     return found
       ? new Response(JSON.stringify({ id: found.id, name: found.name }), { status: 200 })
