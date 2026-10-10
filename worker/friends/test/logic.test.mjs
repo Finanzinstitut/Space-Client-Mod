@@ -113,3 +113,21 @@ test("a name is checked before Mojang is asked", () => {
   assert.equal(looksLikeName("semi;colon"), false);
   assert.equal(looksLikeName(undefined), false);
 });
+
+import { cleanGroupName, invitable } from "../src/logic.js";
+
+test("group names lose formatting and length", () => {
+  assert.equal(cleanGroupName("  §aPvP\n Crew  "), "aPvP Crew");
+  assert.equal(cleanGroupName("x".repeat(80)).length, 32);
+  assert.equal(cleanGroupName(42), "");
+});
+
+test("only your own friends can be brought into a group", () => {
+  const links = [
+    { lo: "a", hi: "b", state: "accepted", requester: "a" },
+    { lo: "a", hi: "c", state: "pending", requester: "a" },
+  ];
+  assert.deepEqual(invitable(links, "a", ["b", "c", "d", "a", "b"]), ["b"]);
+  assert.deepEqual(invitable(links, "a", ["b"], ["b"]), []);
+  assert.deepEqual(invitable(links, "a", "b"), []);
+});

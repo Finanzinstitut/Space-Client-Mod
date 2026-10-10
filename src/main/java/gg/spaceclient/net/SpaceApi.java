@@ -5,13 +5,9 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import gg.spaceclient.SpaceClient;
-import gg.spaceclient.util.Reflect;
 
 import net.minecraft.client.Minecraft;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -188,175 +184,39 @@ public final class SpaceApi {
     /**
      * Tells Mojang this account is joining a server with the given id.
      *
-     * Done through reflection rather than a direct call: the session service
-     * lives in authlib, whose joinServer has taken a GameProfile on some
-     * versions and a bare UUID on others. Matching by parameter type means the
-     * mod does not have to be right about which one this version ships.
+     * A direct call now. It used to hunt for the session service by reflection,
+     * because one jar had to fit whatever authlib the game shipped; the mod is
+     * built once per Minecraft version since, and every one of them has
+     * Minecraft.services().sessionService().joinServer(uuid, token, serverId).
+     * A compile error is a better way to learn that this moved than a friends
+     * screen that never signs in.
      */
     private static boolean joinServer(String serverId) {
         try {
             Minecraft mc = Minecraft.getInstance();
+            net.minecraft.client.User user = mc.getUser();
+            String token = user.getAccessToken();
 
-            Object service = findSessionService(mc);
-            if (service == null) {
-                status = "no session service found on Minecraft";
+            // An offline profile carries a placeholder token Mojang will never
+            // accept. Said plainly, because "handshake failed" sends people
+            // looking for a network problem that is not there.
+            if (token == null || token.length() < 20) {
+                status = "offline profiles cannot use friends - sign in with Microsoft in the launcher";
                 return false;
             }
 
-            Object user = Reflect.call(mc, "getUser");
-            if (user == null) {
-                status = "no account object";
-                return false;
-            }
+            mc.services().sessionService().joinServer(user.getProfileId(), token, serverId);
+            return true;
 
-            Object accessToken = Reflect.call(user,
-                    "getAccessToken", "accessToken", "getSessionId");
-            if (!(accessToken instanceof String secret) || secret.isEmpty()) {
-                status = "no access token reachable on the account object";
-                return false;
-            }
-
-            Object profile = Reflect.call(user, "getGameProfile", "gameProfile");
-            if (profile == null) profile = Reflect.call(mc, "getGameProfile");
-            UUID uuid = profileUuid(user, mc);
-
-            for (Method method : service.getClass().getMethods()) {
-                if (!method.getName().equals("joinServer")) continue;
-
-                Class<?>[] parameters = method.getParameterTypes();
-                Object[] arguments = new Object[parameters.length];
-
-                // Strings are filled in the order authlib has always used them:
-                // the token first, then the server id.
-                List<String> strings = List.of(secret, serverId);
-                int stringIndex = 0;
-                boolean complete = true;
-
-                for (int i = 0; i < parameters.length; i++) {
-                    Class<?> parameter = parameters[i];
-
-                    if (parameter == String.class) {
-                        if (stringIndex >= strings.size()) { complete = false; break; }
-                        arguments[i] = strings.get(stringIndex++);
-                    } else if (parameter == UUID.class) {
-                        if (uuid == null) { complete = false; break; }
-                        arguments[i] = uuid;
-                    } else if (profile != null && parameter.isInstance(profile)) {
-                        arguments[i] = profile;
-                    } else {
-                        complete = false;
-                        break;
-                    }
-                }
-                if (!complete) continue;
-
-                method.setAccessible(true);
-                method.invoke(service, arguments);
-                return true;
-            }
-
-            status = "no joinServer this version accepts";
+        } catch (com.mojang.authlib.exceptions.InvalidCredentialsException e) {
+            status = "Mojang no longer accepts this login - sign in again in the launcher";
             return false;
-
         } catch (Throwable t) {
-            // An invalid session throws here, which is worth saying plainly
             String message = t.getCause() != null ? t.getCause().toString() : t.toString();
             status = "handshake failed: " + shorten(message);
             SpaceClient.LOGGER.warn("Mojang handshake failed", t);
             return false;
         }
-    }
-
-    /**
-     * Finds the object that can talk to Mojang's session server.
-     *
-     * Looked up by what it can do, not by what it is called. Guessing accessor
-     * names failed first; then searching Minecraft's own fields failed too, and
-     * the dump said why: the service is not held directly. Minecraft has a
-     * `services` record, and the session service is a component of it. So the
-     * search goes two levels deep - every field Minecraft holds, and every
-     * field those hold - asking each whether it has a joinServer method.
-     *
-     * Only fields are read, and only methods whose return type already looks
-     * session shaped are called. Invoking arbitrary no-argument methods on
-     * Minecraft to see what comes back would be a fine way to hit stop() or
-     * clearLevel().
-     */
-    private static Object findSessionService(Minecraft mc) {
-        // Two passes rather than one recursive walk, so the direct hit wins
-        // even if some nested field would also match
-        for (Field field : Minecraft.class.getDeclaredFields()) {
-            Object value = readField(field, mc);
-            if (canJoinServer(value)) return value;
-        }
-
-        for (Field field : Minecraft.class.getDeclaredFields()) {
-            Object holder = readField(field, mc);
-            if (holder == null) continue;
-
-            Class<?> type = holder.getClass();
-            if (type.getName().startsWith("java.")) continue;
-
-            for (Field nested : type.getDeclaredFields()) {
-                Object value = readField(nested, holder);
-                if (canJoinServer(value)) return value;
-            }
-        }
-
-        // Then getters, but only ones already declared to return something
-        // session shaped - the return type is checked before anything is called
-        for (Method method : Minecraft.class.getMethods()) {
-            if (method.getParameterCount() != 0) continue;
-            if (method.getReturnType() == void.class) continue;
-            if (!method.getReturnType().getName().contains("Session")) continue;
-            try {
-                method.setAccessible(true);
-                if (canJoinServer(method.invoke(mc))) return method.invoke(mc);
-            } catch (Throwable ignored) {
-                // Next method
-            }
-        }
-
-        return null;
-    }
-
-    /** Reads one instance field, or null if it cannot be read. */
-    private static Object readField(Field field, Object owner) {
-        if (Modifier.isStatic(field.getModifiers())) return null;
-        try {
-            field.setAccessible(true);
-            return field.get(owner);
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
-
-    private static boolean canJoinServer(Object candidate) {
-        if (candidate == null) return false;
-        for (Method method : candidate.getClass().getMethods()) {
-            if (method.getName().equals("joinServer")) return true;
-        }
-        return false;
-    }
-
-    private static UUID profileUuid(Object user, Minecraft mc) {
-        Object value = Reflect.call(user, "getProfileId", "getUuid", "getProfileUuid");
-        if (value instanceof UUID id) return id;
-        if (value instanceof String text) {
-            try {
-                return UUID.fromString(text.length() == 32 ? dashed(text) : text);
-            } catch (Throwable ignored) {
-                // Fall through to the player
-            }
-        }
-        // Minecraft.getGameProfile() is confirmed present on this version, so
-        // the id is reachable even before a world is joined
-        Object profile = Reflect.call(mc, "getGameProfile");
-        Object id = Reflect.call(profile, "getId", "id");
-        if (id instanceof UUID fromProfile) return fromProfile;
-
-        // In world the player carries the same id
-        return mc.player != null ? mc.player.getUUID() : null;
     }
 
     private static String dashed(String raw) {

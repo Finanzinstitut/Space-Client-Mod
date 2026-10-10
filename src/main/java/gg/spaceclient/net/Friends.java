@@ -66,9 +66,41 @@ public final class Friends {
     public record Message(long id, String from, String fromName, String text,
                           long sent, boolean mine) {}
 
+    /** A group chat and who is in it. */
+    public record Group(long id, String name, String owner, List<Person> members) {
+        /** The key its conversation is filed under, beside the friends' uuids. */
+        public String key() { return groupKey(id); }
+    }
+
+    /** Conversations are filed by uuid for a friend and by this for a group. */
+    public static String groupKey(long id) { return "group:" + id; }
+
     private static final List<Person> friends = new ArrayList<>();
     private static final List<Person> incoming = new ArrayList<>();
     private static final List<Person> outgoing = new ArrayList<>();
+    private static final List<Group> groups = new ArrayList<>();
+
+    /**
+     * Raised whenever anything a screen shows has changed.
+     *
+     * The screens used to rebuild once, right after a button was pressed -
+     * before the server had answered - and never again. A request that went
+     * through, a friend who accepted, a new message: none of it appeared until
+     * the screen was closed and opened. That is what "you cannot add anybody"
+     * looked like from the outside. A screen now compares this number on every
+     * tick and rebuilds when it moves.
+     */
+    private static volatile long revision = 0;
+
+    /** Why the last send to a conversation failed, by conversation key. */
+    private static final Map<String, String> sendErrors = new ConcurrentHashMap<>();
+
+    /**
+     * When this session started listening. History that was already there is
+     * loaded on the first poll, and counting it as unread lit up every
+     * conversation as new each time the game started.
+     */
+    private static volatile long listeningSince = 0;
 
     /** Conversations by the other person's uuid, oldest line first. */
     private static final Map<String, List<Message>> threads = new ConcurrentHashMap<>();
@@ -84,6 +116,7 @@ public final class Friends {
     private static volatile String status = "not started";
     private static volatile boolean busy = false;
     private static volatile long cursor = 0;
+    private static volatile long groupCursor = 0;
     private static volatile long version = -1;
 
     private static volatile boolean pollRunning = false;
@@ -114,9 +147,24 @@ public final class Friends {
     public static synchronized List<Person> friends() { return List.copyOf(friends); }
     public static synchronized List<Person> incoming() { return List.copyOf(incoming); }
     public static synchronized List<Person> outgoing() { return List.copyOf(outgoing); }
+    public static synchronized List<Group> groups() { return List.copyOf(groups); }
 
-    public static List<Message> thread(String uuid) {
-        return List.copyOf(threads.getOrDefault(uuid, List.of()));
+    public static synchronized Group group(long id) {
+        for (Group group : groups) if (group.id() == id) return group;
+        return null;
+    }
+
+    public static long revision() { return revision; }
+
+    private static void changed() { revision++; }
+
+    /** The last failed send in a conversation, or empty. */
+    public static String sendError(String key) { return sendErrors.getOrDefault(key, ""); }
+
+    public static List<Message> thread(String key) {
+        List<Message> thread = threads.get(key);
+        if (thread == null) return List.of();
+        synchronized (thread) { return List.copyOf(thread); }
     }
 
     public static int unreadFor(String uuid) { return unread.getOrDefault(uuid, 0); }
@@ -134,7 +182,9 @@ public final class Friends {
         }
     }
 
-    public static void markRead(String uuid) { unread.remove(uuid); }
+    public static void markRead(String uuid) {
+        if (unread.remove(uuid) != null) changed();
+    }
 
     // ---------------------------------------------------------------- threads
 
@@ -145,6 +195,8 @@ public final class Friends {
             } catch (Throwable t) {
                 status = what + " failed: " + t.getMessage();
                 SpaceClient.LOGGER.warn("Friends: {} failed", what, t);
+            } finally {
+                changed();
             }
         }, "space-client-friends-" + what);
         worker.setDaemon(true);
@@ -264,9 +316,32 @@ public final class Friends {
             fill(friends, body, "friends");
             fill(incoming, body, "incoming");
             fill(outgoing, body, "outgoing");
+            groups.clear();
+            if (body.has("groups") && body.get("groups").isJsonArray()) {
+                for (JsonElement element : body.getAsJsonArray("groups")) {
+                    JsonObject entry = element.getAsJsonObject();
+                    List<Person> members = new ArrayList<>();
+                    fill(members, entry, "members");
+                    groups.add(new Group(entry.get("id").getAsLong(), text(entry, "name"),
+                            text(entry, "owner"), List.copyOf(members)));
+                }
+            }
         }
+        if (body.has("version")) version = body.get("version").getAsLong();
         lastRefresh = System.currentTimeMillis();
-        status = friends.size() + " friend(s)";
+        // The count only when nothing more useful was said a moment ago: a
+        // "group created" or "no player by that name" must stay readable
+        // rather than be replaced by the reload that follows it
+        if (System.currentTimeMillis() - noteAt > 8000) status = friends.size() + " friend(s)";
+        changed();
+    }
+
+    /** When an action last left a note for the player in status. */
+    private static volatile long noteAt = 0;
+
+    private static void note(String text) {
+        status = text;
+        noteAt = System.currentTimeMillis();
     }
 
     private static void fill(List<Person> into, JsonObject body, String key) {
@@ -286,8 +361,11 @@ public final class Friends {
                 if (!ensureToken()) return;
                 JsonObject body = post("/friends/request",
                         "{\"name\":" + quote(name) + "}", null, true);
-                if (body != null) status = text(body, "note");
+                // What the server said is what the player wants to read - "asked",
+                // or why not - so it is kept over the list's own count
+                String said = body != null ? text(body, "note") : status;
                 loadList();
+                note(body != null ? name + ": " + said : said);
             } finally {
                 busy = false;
             }
@@ -331,17 +409,95 @@ public final class Friends {
      * the message does not appear to vanish for a second after Enter.
      */
     public static void send(String uuid, String text) {
+        deliver(uuid, text, "/messages", "{\"to\":" + quote(uuid) + ",\"text\":");
+    }
+
+    /** A line to a group, shown at once and confirmed by the poll like any other. */
+    public static void sendToGroup(long groupId, String text) {
+        deliver(groupKey(groupId), text, "/groups/message", "{\"group\":" + groupId + ",\"text\":");
+    }
+
+    private static void deliver(String key, String text, String path, String bodyStart) {
         String clean = text.trim();
         if (clean.isEmpty()) return;
 
-        threads.computeIfAbsent(uuid, key -> new ArrayList<>())
-                .add(new Message(-1, myUuid, myName, clean, System.currentTimeMillis(), true));
+        Message pending = new Message(-1, myUuid, myName, clean, System.currentTimeMillis(), true);
+        List<Message> thread = threads.computeIfAbsent(key, k -> new ArrayList<>());
+        synchronized (thread) { thread.add(pending); }
+        sendErrors.remove(key);
+        changed();
 
         background("send", () -> {
-            if (!ensureToken()) return;
-            post("/messages",
-                    "{\"to\":" + quote(uuid) + ",\"text\":" + quote(clean) + "}", null, true);
+            JsonObject answer = ensureToken()
+                    ? post(path, bodyStart + quote(clean) + "}", null, true)
+                    : null;
+            if (answer == null) {
+                // Taken back out, with the reason beside the box, rather than
+                // left sitting there looking sent
+                synchronized (thread) { thread.remove(pending); }
+                sendErrors.put(key, "Not sent: " + status);
+            }
         });
+    }
+
+    // ---------------------------------------------------------------- groups
+
+    public static void createGroup(String name, List<String> members) {
+        busy = true;
+        background("group", () -> {
+            try {
+                if (!ensureToken()) return;
+                JsonObject body = post("/groups/create",
+                        "{\"name\":" + quote(name) + ",\"members\":" + quoteAll(members) + "}",
+                        null, true);
+                String said = body != null ? text(body, "note") : status;
+                loadList();
+                note(said);
+            } finally {
+                busy = false;
+            }
+        });
+    }
+
+    public static void invite(long groupId, List<String> members) {
+        busy = true;
+        background("invite", () -> {
+            try {
+                if (!ensureToken()) return;
+                JsonObject body = post("/groups/invite",
+                        "{\"group\":" + groupId + ",\"members\":" + quoteAll(members) + "}",
+                        null, true);
+                String said = body != null ? text(body, "note") : status;
+                loadList();
+                note(said);
+            } finally {
+                busy = false;
+            }
+        });
+    }
+
+    public static void leave(long groupId) {
+        busy = true;
+        background("leave", () -> {
+            try {
+                if (!ensureToken()) return;
+                post("/groups/leave", "{\"group\":" + groupId + "}", null, true);
+                threads.remove(groupKey(groupId));
+                unread.remove(groupKey(groupId));
+                loadList();
+            } finally {
+                busy = false;
+            }
+        });
+    }
+
+    private static String quoteAll(List<String> values) {
+        StringBuilder out = new StringBuilder("[");
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) out.append(',');
+            out.append(quote(values.get(i)));
+        }
+        return out.append(']').toString();
     }
 
     // ---------------------------------------------------------------- the poll
@@ -352,8 +508,10 @@ public final class Friends {
 
         background("poll", () -> {
             try {
+                if (listeningSince == 0) listeningSince = System.currentTimeMillis();
                 while (signedIn()) {
-                    JsonObject body = get("/poll?since=" + cursor + "&version=" + version);
+                    JsonObject body = get("/poll?since=" + cursor + "&gsince=" + groupCursor
+                            + "&version=" + version);
                     if (body == null) {
                         // A failed poll must not become a tight loop against a
                         // worker that is down
@@ -362,11 +520,13 @@ public final class Friends {
                     }
 
                     long newVersion = body.has("version") ? body.get("version").getAsLong() : version;
-                    if (version >= 0 && newVersion != version) loadList();
+                    if (newVersion != version) loadList();
                     version = newVersion;
 
                     if (body.has("cursor")) cursor = body.get("cursor").getAsLong();
+                    if (body.has("gcursor")) groupCursor = body.get("gcursor").getAsLong();
                     take(body);
+                    takeGroups(body);
                 }
             } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();
@@ -379,33 +539,44 @@ public final class Friends {
     private static void take(JsonObject body) {
         if (!body.has("messages") || !body.get("messages").isJsonArray()) return;
 
-        JsonArray lines = body.getAsJsonArray("messages");
-        for (JsonElement element : lines) {
+        for (JsonElement element : body.getAsJsonArray("messages")) {
             JsonObject line = element.getAsJsonObject();
-
             boolean mine = line.has("mine") && line.get("mine").getAsBoolean();
-            String from = text(line, "from");
-            String to = text(line, "to");
-            String other = mine ? to : from;
-
-            Message message = new Message(
-                    line.get("id").getAsLong(), from, text(line, "fromName"),
-                    text(line, "text"),
-                    line.has("sent") ? line.get("sent").getAsLong() : 0L,
-                    mine);
-
-            List<Message> thread = threads.computeIfAbsent(other, key -> new ArrayList<>());
-            synchronized (thread) {
-                // The optimistic copy, replaced by the real one now it is back
-                if (mine) thread.removeIf(existing -> existing.id() < 0
-                        && existing.text().equals(message.text()));
-                if (thread.stream().noneMatch(existing -> existing.id() == message.id())) {
-                    thread.add(message);
-                }
-            }
-
-            if (!mine) unread.merge(other, 1, Integer::sum);
+            String other = mine ? text(line, "to") : text(line, "from");
+            file(other, line, mine);
         }
+    }
+
+    private static void takeGroups(JsonObject body) {
+        if (!body.has("groupMessages") || !body.get("groupMessages").isJsonArray()) return;
+
+        for (JsonElement element : body.getAsJsonArray("groupMessages")) {
+            JsonObject line = element.getAsJsonObject();
+            boolean mine = line.has("mine") && line.get("mine").getAsBoolean();
+            file(groupKey(line.get("group").getAsLong()), line, mine);
+        }
+    }
+
+    /** Puts one line into its conversation, replacing the optimistic copy of it. */
+    private static void file(String key, JsonObject line, boolean mine) {
+        Message message = new Message(
+                line.get("id").getAsLong(), text(line, "from"), text(line, "fromName"),
+                text(line, "text"),
+                line.has("sent") ? line.get("sent").getAsLong() : 0L,
+                mine);
+
+        List<Message> thread = threads.computeIfAbsent(key, k -> new ArrayList<>());
+        boolean added;
+        synchronized (thread) {
+            if (mine) thread.removeIf(existing -> existing.id() < 0
+                    && existing.text().equals(message.text()));
+            added = thread.stream().noneMatch(existing -> existing.id() == message.id());
+            if (added) thread.add(message);
+        }
+
+        // Only what arrived while listening is news
+        if (added && !mine && message.sent() >= listeningSince) unread.merge(key, 1, Integer::sum);
+        changed();
     }
 
     // ---------------------------------------------------------------- plumbing
