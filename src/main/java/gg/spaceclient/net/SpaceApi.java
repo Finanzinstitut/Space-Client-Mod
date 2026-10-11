@@ -68,8 +68,22 @@ public final class SpaceApi {
      */
     private static volatile String badgeStatus = "not started";
 
+    /**
+     * Why the last Mojang handshake failed, and nothing else.
+     *
+     * Friends used to read status() after a failed handshake, but the now
+     * playing calls overwrite that field every few seconds - the friends screen
+     * could show "handshake failed: ok" or somebody else's report error. The
+     * handshake keeps its own line.
+     */
+    private static volatile String handshakeStatus = "";
+
+    /** When the session was last renewed because a handshake was refused. */
+    private static volatile long lastRecovery = 0;
+
     public static String status() { return status; }
     public static String badgeStatus() { return badgeStatus; }
+    public static String handshakeStatus() { return handshakeStatus; }
     public static boolean hasToken() { return !token.isEmpty(); }
 
     private static HttpClient http() {
@@ -104,7 +118,7 @@ public final class SpaceApi {
         }
 
         String serverId = randomServerId();
-        if (!joinServer(serverId)) {
+        if (!joinWithRecovery(serverId)) {
             // joinServer already set the status
             return "";
         }
@@ -155,12 +169,46 @@ public final class SpaceApi {
      * mean two places to fix when it moves again.
      *
      * Returns the server id on success and an empty string on failure, with
-     * the reason left in status().
+     * the reason left in handshakeStatus().
      */
     public static String handshake() {
         String serverId = randomServerId();
-        return joinServer(serverId) ? serverId : "";
+        return joinWithRecovery(serverId) ? serverId : "";
     }
+
+    /**
+     * joinServer, and once more after renewing the session if Mojang refused.
+     *
+     * A refusal is most often a token that went stale while the game ran - the
+     * launcher hands over one that lasts about a day. The session can be
+     * renewed from the launcher's account without a restart (the same thing the
+     * Accounts screen does), so one renewal and one more try costs nothing and
+     * saves the person from quitting the game. Not for rate limits, which a new
+     * token would not fix, and not more than once a minute.
+     *
+     * Background threads only: the renewal is waited for.
+     */
+    private static boolean joinWithRecovery(String serverId) {
+        if (joinServer(serverId)) return true;
+        if (!recoverable) return false;
+
+        long now = System.currentTimeMillis();
+        if (now - lastRecovery < 60_000) return false;
+        lastRecovery = now;
+
+        try {
+            SpaceClient.LOGGER.info("Mojang refused the handshake - renewing the session once");
+            boolean renewed = gg.spaceclient.session.SessionManager.refreshCurrent()
+                    .get(25, java.util.concurrent.TimeUnit.SECONDS);
+            if (!renewed) return false;
+        } catch (Throwable t) {
+            return false;
+        }
+        return joinServer(serverId);
+    }
+
+    /** Whether the last joinServer failure is one a fresh session could fix. */
+    private static volatile boolean recoverable = false;
 
     /** The name Mojang will be asked about. */
     public static String accountName() {
@@ -192,6 +240,7 @@ public final class SpaceApi {
      * screen that never signs in.
      */
     private static boolean joinServer(String serverId) {
+        recoverable = false;
         try {
             Minecraft mc = Minecraft.getInstance();
             net.minecraft.client.User user = mc.getUser();
@@ -201,22 +250,63 @@ public final class SpaceApi {
             // accept. Said plainly, because "handshake failed" sends people
             // looking for a network problem that is not there.
             if (token == null || token.length() < 20) {
-                status = "offline profiles cannot use friends - sign in with Microsoft in the launcher";
-                return false;
+                return failed("offline profiles cannot use friends - sign in with Microsoft in the launcher", false);
             }
 
-            mc.services().sessionService().joinServer(user.getProfileId(), token, serverId);
+            // One handshake at a time: the now playing session, the badge and
+            // the friends list each need one, and Mojang counts them together
+            synchronized (SpaceApi.class) {
+                mc.services().sessionService().joinServer(user.getProfileId(), token, serverId);
+            }
+            handshakeStatus = "";
             return true;
 
         } catch (com.mojang.authlib.exceptions.InvalidCredentialsException e) {
-            status = "Mojang no longer accepts this login - sign in again in the launcher";
-            return false;
+            SpaceClient.LOGGER.warn("Mojang handshake refused the login", e);
+            return failed("Mojang no longer accepts this login - sign in again in the launcher", true);
         } catch (Throwable t) {
-            String message = t.getCause() != null ? t.getCause().toString() : t.toString();
-            status = "handshake failed: " + shorten(message);
             SpaceClient.LOGGER.warn("Mojang handshake failed", t);
-            return false;
+            String reason = describe(t);
+            String lower = reason.toLowerCase();
+
+            // A rate limit is not fixed by a new token; anything that reads
+            // like a refusal of the login itself might be
+            boolean limited = lower.contains("ratelimit") || lower.contains("429")
+                    || lower.contains("too many");
+            boolean refused = lower.contains("invalid") || lower.contains("forbidden")
+                    || lower.contains("403") || lower.contains("401")
+                    || lower.contains("unauthorized") || lower.contains("expired");
+            return failed("handshake failed: " + reason, refused && !limited);
         }
+    }
+
+    /** Records why a handshake failed, in both places that report it. */
+    private static boolean failed(String reason, boolean fixableByNewSession) {
+        status = reason;
+        handshakeStatus = reason;
+        recoverable = fixableByNewSession;
+        return false;
+    }
+
+    /**
+     * What went wrong, as the whole chain of causes with class names.
+     *
+     * Only the innermost message used to be kept, and for authlib that is often
+     * an empty or generic line - the screen said "handshake failed" and nothing
+     * a person could act on or report.
+     */
+    private static String describe(Throwable t) {
+        StringBuilder out = new StringBuilder();
+        Throwable current = t;
+        for (int depth = 0; current != null && depth < 4; depth++) {
+            if (depth > 0) out.append(" <- ");
+            out.append(current.getClass().getSimpleName());
+            String message = current.getMessage();
+            if (message != null && !message.isBlank()) out.append(": ").append(message);
+            current = current.getCause() == current ? null : current.getCause();
+        }
+        String clean = out.toString().replaceAll("\\s+", " ").trim();
+        return clean.length() > 220 ? clean.substring(0, 220) : clean;
     }
 
     private static String dashed(String raw) {

@@ -71,7 +71,11 @@ async function signIn(player) {
 }
 
 before(() => {
-  env = { DB: makeDb(new URL("../schema.sql", import.meta.url).pathname) };
+  env = {
+    DB: makeDb(new URL("../schema.sql", import.meta.url).pathname),
+    // No real waiting between Mojang attempts in tests
+    HANDSHAKE_RETRY_MS: "1,1,1",
+  };
   fakeMojang([ALICE, BOB, CARL, DANA, ERIN]);
 });
 
@@ -88,6 +92,51 @@ test("signing in needs Mojang to confirm the handshake", async () => {
     env
   );
   assert.equal(bad.status, 403);
+});
+
+test("a slow Mojang is asked again before the handshake counts as failed", async () => {
+  let asked = 0;
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("hasJoined")) {
+      asked++;
+      // The first two answers are "nobody has joined yet", as right after joinServer
+      return asked <= 2
+        ? new Response(null, { status: 204 })
+        : new Response(JSON.stringify({ id: ALICE.id, name: ALICE.name }), { status: 200 });
+    }
+    return original(url);
+  };
+  try {
+    const answer = await signIn(ALICE);
+    assert.equal(answer.name, ALICE.name);
+    assert.equal(asked, 3);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("a refusal says what Mojang answered, so a block can be told from a delay", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("hasJoined")) return new Response("{}", { status: 403 });
+    return original(url);
+  };
+  try {
+    const response = await worker.fetch(
+      new Request("https://friends.test/session", {
+        method: "POST",
+        headers: { "X-Space-Name": ALICE.name, "X-Space-Server": "abc123" },
+      }),
+      env
+    );
+    assert.equal(response.status, 403);
+    const answer = await response.json();
+    assert.match(answer.note, /did not confirm that handshake/);
+    assert.match(answer.note, /403/);
+  } finally {
+    globalThis.fetch = original;
+  }
 });
 
 test("nothing works without a token", async () => {

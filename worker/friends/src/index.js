@@ -41,6 +41,17 @@ const POLL_STEP_MS = 900;
 /** How long a session token is good for. */
 const TOKEN_SECONDS = 3600;
 
+/**
+ * Pauses between asking Mojang again whether a handshake happened.
+ *
+ * joinServer and hasJoined are served by different machines on Mojang's side.
+ * Asking straight after the client's joinServer often returns 204 - "nobody
+ * has joined" - for a moment, and a single ask treated that as a refusal. The
+ * pauses are overridable through env.HANDSHAKE_RETRY_MS ("300,700,1500") so
+ * the tests do not have to wait.
+ */
+const HANDSHAKE_WAITS_MS = [300, 700, 1500, 2500];
+
 /** Messages older than this are swept away. */
 const KEEP_DAYS = 14;
 
@@ -102,8 +113,12 @@ async function session(request_, env) {
   if (!looksLikeName(name)) return fail("that is not a name");
   if (!/^[0-9a-f]{1,64}$/i.test(serverId)) return fail("that is not a handshake");
 
-  const verified = await hasJoined(name, serverId);
-  if (!verified) return fail("Mojang did not confirm that handshake", 403);
+  const verified = await hasJoined(name, serverId, env);
+  if (!verified.uuid) {
+    // With Mojang's own answer in it, so the client can show something that
+    // tells a slow Mojang from a blocked one
+    return fail(`Mojang did not confirm that handshake (${verified.why})`, 403);
+  }
 
   const token = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
   const expires = Date.now() + TOKEN_SECONDS * 1000;
@@ -122,16 +137,43 @@ async function session(request_, env) {
                 expiresIn: TOKEN_SECONDS });
 }
 
-async function hasJoined(name, serverId) {
+async function hasJoined(name, serverId, env) {
   const url = "https://sessionserver.mojang.com/session/minecraft/hasJoined"
     + `?username=${encodeURIComponent(name)}&serverId=${encodeURIComponent(serverId)}`;
 
-  const answer = await fetch(url);
-  if (answer.status !== 200) return null;
+  const waits = handshakeWaits(env);
+  let why = "no answer";
 
-  const body = await answer.json();
-  if (!body || !body.id || !body.name) return null;
-  return { uuid: dashed(body.id), name: body.name };
+  for (let attempt = 0; attempt <= waits.length; attempt++) {
+    let retry = true;
+    try {
+      const answer = await fetch(url);
+      if (answer.status === 200) {
+        const body = await answer.json();
+        if (body && body.id && body.name) return { uuid: dashed(body.id), name: body.name };
+        why = "Mojang answered without a profile";
+      } else {
+        why = `Mojang answered ${answer.status}`;
+        // 204 is "not joined (yet)", 429 and 5xx are Mojang being busy. A
+        // clear refusal will not change by asking again.
+        retry = answer.status === 204 || answer.status === 429 || answer.status >= 500;
+      }
+    } catch {
+      why = "Mojang could not be reached";
+    }
+
+    if (!retry || attempt === waits.length) break;
+    await new Promise((resolve) => setTimeout(resolve, waits[attempt]));
+  }
+  return { uuid: "", name: "", why };
+}
+
+function handshakeWaits(env) {
+  const raw = env && env.HANDSHAKE_RETRY_MS;
+  if (typeof raw !== "string" || raw.trim() === "") return HANDSHAKE_WAITS_MS;
+  const parsed = raw.split(",").map((part) => Number(part.trim()))
+    .filter((n) => Number.isFinite(n) && n >= 0);
+  return parsed.length ? parsed : HANDSHAKE_WAITS_MS;
 }
 
 /** Mojang answers without dashes; everything else in the game uses them. */

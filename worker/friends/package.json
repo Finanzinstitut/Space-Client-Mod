@@ -1,9 +1,0 @@
-{
-  "name": "spaceclient-friends",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "test": "node --test test/logic.test.mjs test/worker.test.mjs",
-    "serve": "node test/serve.mjs 8799"
-  }
-}

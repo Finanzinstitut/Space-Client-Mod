@@ -68,22 +68,17 @@ public final class SongTag {
         int bottomRowY = -12;
         int topRowY = hasLyric ? -23 : -12;
 
-        // Each line goes through the game's own name tag call. 26.3 sorts name
-        // tag text into a see-through phase of its own; text submitted any other
-        // way lands in a different phase, and the plates and letters came out
-        // in the wrong order - the card looked broken. The same call vanilla
-        // uses for the name puts the card in the same place in the frame.
-        // That call centres each line itself, so the cover sits left of the
-        // centred title rather than shifting it.
-        // Before 26.2 the call also wants a camera distance, used only to
-        // order overlapping tags; the card sits on its own player's name, so
-        // nearest-first is right
-        gg.spaceclient.compat.NameTags.submit(collector, poseStack, position, topRowY, top, true, FULL_BRIGHT, 0.0, camera);
-        if (bottom != null) {
-            gg.spaceclient.compat.NameTags.submit(collector, poseStack, position, bottomRowY, bottom, true, FULL_BRIGHT, 0.0, camera);
-        }
-
-        if (cover == null) return;
+        // The text is submitted directly, in the same camera-facing frame the
+        // cover uses, and not through the game's name tag call. Mods that hook
+        // name tags (Essential, Cosmetica) treat every call as a player name
+        // and may decorate, move or drop it. The symptom was a cover without
+        // any text, or a title only while sneaking: the cover never went
+        // through that call, the lines did.
+        //
+        // One normal pass with a shadow and no plate. The older version drew a
+        // see-through pass with a plate plus a normal pass, and 26.3 sorted
+        // those into different phases, so plates covered letters. A single
+        // submit has nothing to be sorted against.
         poseStack.pushPose();
         try {
             // The frame vanilla puts a name tag in: half a block above the
@@ -91,6 +86,13 @@ public final class SongTag {
             poseStack.translate(position.x, position.y + 0.5, position.z);
             gg.spaceclient.compat.Pose.rotate(poseStack, camera.orientation);
             poseStack.scale(0.025f, -0.025f, 0.025f);
+
+            drawLine(collector, poseStack, top, -topW / 2f, topRowY);
+            if (bottom != null) {
+                drawLine(collector, poseStack, bottom, -font.width(bottom) / 2f, bottomRowY);
+            }
+
+            if (cover == null) return;
 
             int x1 = -topW / 2 - 3;
             int x0 = x1 - coverSize;
@@ -105,6 +107,13 @@ public final class SongTag {
         } finally {
             poseStack.popPose();
         }
+    }
+
+    /** One line of text in the card's frame, centred on x by the caller. */
+    private static void drawLine(SubmitNodeCollector collector, PoseStack poseStack,
+                                 Component text, float x, float y) {
+        collector.submitText(poseStack, x, y, text.getVisualOrderText(), true,
+                Font.DisplayMode.NORMAL, FULL_BRIGHT, 0xFFFFFFFF, 0, 0);
     }
 
     /** Spotify green, Amazon Music light blue, white when the player is unknown. */

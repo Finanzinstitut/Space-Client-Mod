@@ -231,7 +231,21 @@ public final class Friends {
         wake();
     }
 
-    private static synchronized boolean ensureToken() {
+    /**
+     * Its own lock, not the class's. The lists the screens read are guarded by
+     * the class, and a sign-in can now take many seconds (the worker asks
+     * Mojang several times, and a stale session is renewed once) - holding the
+     * class for that long froze the menu on the render thread.
+     */
+    private static final Object signInLock = new Object();
+
+    private static boolean ensureToken() {
+        synchronized (signInLock) {
+            return ensureTokenLocked();
+        }
+    }
+
+    private static boolean ensureTokenLocked() {
         long now = System.currentTimeMillis();
         if (!token.isEmpty() && now < tokenExpires - 60_000) return true;
 
@@ -249,8 +263,12 @@ public final class Friends {
 
         String serverId = SpaceApi.handshake();
         if (serverId.isEmpty()) {
-            String why = SpaceApi.status();
-            backOff(why.contains("RateLimiter")
+            // The handshake's own line, not SpaceApi.status(): the now playing
+            // calls overwrite that one every few seconds
+            String why = SpaceApi.handshakeStatus();
+            if (why.isEmpty()) why = "no answer from the game's session service";
+            String lower = why.toLowerCase();
+            backOff(lower.contains("ratelimit") || lower.contains("429") || lower.contains("too many")
                     // Said in words rather than as a stack trace, because the
                     // only useful thing to know is that waiting fixes it
                     ? "Mojang is refusing sign-ins for a moment"
