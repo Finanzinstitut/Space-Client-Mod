@@ -4,8 +4,6 @@ import gg.spaceclient.music.Artwork;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 //#if MC >= 26.1
@@ -13,24 +11,24 @@ import net.minecraft.client.renderer.state.level.CameraRenderState;
 //#else
 //$$ import net.minecraft.client.renderer.state.CameraRenderState;
 //#endif
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.Style;
-import net.minecraft.network.chat.TextColor;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
+
+import java.util.List;
 
 /**
  * The song card over a player's name: cover, title and artist, lyric line.
  *
- * Drawn on its own rather than as extra name tags. It used to go through
- * submitNameTag a second and third time, and other mods that hook name tags -
- * Essential puts its icon on every line it sees - then treated the song as a
- * name of their own: the icon landed on the lyric and the song line vanished
- * altogether. Text submitted directly, in the same camera-facing frame vanilla
- * uses for the name, passes through none of that.
+ * Every part is a textured quad - the cover, and each line of text as a
+ * picture (see TextPlate) - in the camera-facing frame vanilla uses for the
+ * name. Nothing goes through the game's text or name tag rendering:
  *
- * Laid out in that frame's pixels, where up the screen is simply up: nothing
- * has to be corrected for the viewing angle the way NameLines had to.
+ * - as name tags, other mods that hook them (Essential, Cosmetica) treat the
+ *   song as a name of their own and decorate, move or drop it;
+ * - as directly submitted text, the game sorts it into phases that differ
+ *   between versions, and on 26.3 it did not show at all while the cover did.
+ *
+ * Laid out in that frame's pixels, where up the screen is simply up.
  */
 public final class SongTag {
 
@@ -46,39 +44,28 @@ public final class SongTag {
                               CameraRenderState camera, Card card) {
         if (card == null || card.title().isEmpty()) return;
 
-        Minecraft mc = Minecraft.getInstance();
-        Font font = mc.font;
-
         int accent = accentFor(card.source());
-        Component top = Component.literal("♪ " + card.title())
-                .withStyle(Style.EMPTY.withColor(TextColor.fromRgb(accent & 0xFFFFFF)));
-        if (!card.artist().isEmpty()) {
-            top = top.copy().append(Component.literal("  " + card.artist())
-                    .withStyle(Style.EMPTY.withColor(TextColor.fromRgb(0xC8C8C8))));
-        }
+        List<TextPlate.Run> topRuns = card.artist().isEmpty()
+                ? List.of(new TextPlate.Run("\u266A " + card.title(), accent & 0xFFFFFF))
+                : List.of(new TextPlate.Run("\u266A " + card.title(), accent & 0xFFFFFF),
+                          new TextPlate.Run("  " + card.artist(), 0xC8C8C8));
         boolean hasLyric = !card.lyric().isEmpty();
-        Component bottom = hasLyric ? Component.literal(card.lyric()) : null;
+
+        // Pictures are drawn off the render thread; until they are ready the
+        // card waits, rather than showing a cover next to a gap
+        TextPlate.Plate top = TextPlate.get(topRuns);
+        TextPlate.Plate bottom = hasLyric
+                ? TextPlate.get(List.of(new TextPlate.Run(card.lyric(), 0xFFFFFF)))
+                : null;
+        if (top == null) return;
 
         Identifier cover = Artwork.texture(card.artist(), card.title());
-        int coverSize = cover == null ? 0 : (hasLyric ? 20 : 10);
-
-        int topW = font.width(top);
 
         // Rows above the name, which vanilla draws from y = 0 downwards
-        int bottomRowY = -12;
-        int topRowY = hasLyric ? -23 : -12;
+        int rowHeight = TextPlate.HEIGHT;
+        int bottomRowY = -rowHeight - 1;
+        int topRowY = hasLyric ? bottomRowY - rowHeight : bottomRowY;
 
-        // The text is submitted directly, in the same camera-facing frame the
-        // cover uses, and not through the game's name tag call. Mods that hook
-        // name tags (Essential, Cosmetica) treat every call as a player name
-        // and may decorate, move or drop it. The symptom was a cover without
-        // any text, or a title only while sneaking: the cover never went
-        // through that call, the lines did.
-        //
-        // One normal pass with a shadow and no plate. The older version drew a
-        // see-through pass with a plate plus a normal pass, and 26.3 sorted
-        // those into different phases, so plates covered letters. A single
-        // submit has nothing to be sorted against.
         poseStack.pushPose();
         try {
             // The frame vanilla puts a name tag in: half a block above the
@@ -87,33 +74,34 @@ public final class SongTag {
             gg.spaceclient.compat.Pose.rotate(poseStack, camera.orientation);
             poseStack.scale(0.025f, -0.025f, 0.025f);
 
-            drawLine(collector, poseStack, top, -topW / 2f, topRowY);
+            quad(collector, poseStack, top.texture(),
+                    -top.width() / 2f, topRowY, top.width() / 2f, topRowY + top.height());
+
             if (bottom != null) {
-                drawLine(collector, poseStack, bottom, -font.width(bottom) / 2f, bottomRowY);
+                quad(collector, poseStack, bottom.texture(),
+                        -bottom.width() / 2f, bottomRowY, bottom.width() / 2f, bottomRowY + bottom.height());
             }
 
-            if (cover == null) return;
-
-            int x1 = -topW / 2 - 3;
-            int x0 = x1 - coverSize;
-            int y0 = topRowY - 1;
-            int y1 = y0 + coverSize;
-            collector.submitCustomGeometry(poseStack, RenderTypes.text(cover), (pose, buffer) -> {
-                buffer.addVertex(pose, x0, y0, 0f).setColor(-1).setUv(0f, 0f).setLight(FULL_BRIGHT);
-                buffer.addVertex(pose, x0, y1, 0f).setColor(-1).setUv(0f, 1f).setLight(FULL_BRIGHT);
-                buffer.addVertex(pose, x1, y1, 0f).setColor(-1).setUv(1f, 1f).setLight(FULL_BRIGHT);
-                buffer.addVertex(pose, x1, y0, 0f).setColor(-1).setUv(1f, 0f).setLight(FULL_BRIGHT);
-            });
+            if (cover != null) {
+                // Square, as tall as the rows it sits beside, left of the title
+                float size = hasLyric ? 2 * rowHeight + 1 : rowHeight;
+                float x1 = -top.width() / 2f - 1;
+                quad(collector, poseStack, cover, x1 - size, topRowY, x1, topRowY + size);
+            }
         } finally {
             poseStack.popPose();
         }
     }
 
-    /** One line of text in the card's frame, centred on x by the caller. */
-    private static void drawLine(SubmitNodeCollector collector, PoseStack poseStack,
-                                 Component text, float x, float y) {
-        collector.submitText(poseStack, x, y, text.getVisualOrderText(), true,
-                Font.DisplayMode.NORMAL, FULL_BRIGHT, 0xFFFFFFFF, 0, 0);
+    /** One textured rectangle in the card's frame. */
+    private static void quad(SubmitNodeCollector collector, PoseStack poseStack, Identifier texture,
+                             float x0, float y0, float x1, float y1) {
+        collector.submitCustomGeometry(poseStack, RenderTypes.text(texture), (pose, buffer) -> {
+            buffer.addVertex(pose, x0, y0, 0f).setColor(-1).setUv(0f, 0f).setLight(FULL_BRIGHT);
+            buffer.addVertex(pose, x0, y1, 0f).setColor(-1).setUv(0f, 1f).setLight(FULL_BRIGHT);
+            buffer.addVertex(pose, x1, y1, 0f).setColor(-1).setUv(1f, 1f).setLight(FULL_BRIGHT);
+            buffer.addVertex(pose, x1, y0, 0f).setColor(-1).setUv(1f, 0f).setLight(FULL_BRIGHT);
+        });
     }
 
     /** Spotify green, Amazon Music light blue, white when the player is unknown. */

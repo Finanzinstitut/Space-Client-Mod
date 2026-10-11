@@ -241,42 +241,97 @@ public final class SpaceApi {
      */
     private static boolean joinServer(String serverId) {
         recoverable = false;
+
+        Minecraft mc = Minecraft.getInstance();
+        net.minecraft.client.User user;
+        String token;
+        UUID profile;
         try {
-            Minecraft mc = Minecraft.getInstance();
-            net.minecraft.client.User user = mc.getUser();
-            String token = user.getAccessToken();
+            user = mc.getUser();
+            token = user.getAccessToken();
+            profile = user.getProfileId();
+        } catch (Throwable t) {
+            SpaceClient.LOGGER.warn("Could not read the game session", t);
+            return failed("handshake failed: " + describe(t), false);
+        }
 
-            // An offline profile carries a placeholder token Mojang will never
-            // accept. Said plainly, because "handshake failed" sends people
-            // looking for a network problem that is not there.
-            if (token == null || token.length() < 20) {
-                return failed("offline profiles cannot use friends - sign in with Microsoft in the launcher", false);
-            }
+        // An offline profile carries a placeholder token Mojang will never
+        // accept. Said plainly, because "handshake failed" sends people
+        // looking for a network problem that is not there.
+        if (token == null || token.length() < 20) {
+            return failed("offline profiles cannot use friends - sign in with Microsoft in the launcher", false);
+        }
 
+        String viaGame;
+        boolean refusedByMojang = false;
+        try {
             // One handshake at a time: the now playing session, the badge and
             // the friends list each need one, and Mojang counts them together
             synchronized (SpaceApi.class) {
-                mc.services().sessionService().joinServer(user.getProfileId(), token, serverId);
+                mc.services().sessionService().joinServer(profile, token, serverId);
             }
             handshakeStatus = "";
             return true;
 
         } catch (com.mojang.authlib.exceptions.InvalidCredentialsException e) {
             SpaceClient.LOGGER.warn("Mojang handshake refused the login", e);
-            return failed("Mojang no longer accepts this login - sign in again in the launcher", true);
+            viaGame = "Mojang no longer accepts this login - sign in again in the launcher";
+            refusedByMojang = true;
         } catch (Throwable t) {
-            SpaceClient.LOGGER.warn("Mojang handshake failed", t);
-            String reason = describe(t);
-            String lower = reason.toLowerCase();
+            SpaceClient.LOGGER.warn("Mojang handshake failed through the game's session service", t);
+            viaGame = describe(t);
+        }
 
-            // A rate limit is not fixed by a new token; anything that reads
-            // like a refusal of the login itself might be
-            boolean limited = lower.contains("ratelimit") || lower.contains("429")
-                    || lower.contains("too many");
-            boolean refused = lower.contains("invalid") || lower.contains("forbidden")
-                    || lower.contains("403") || lower.contains("401")
-                    || lower.contains("unauthorized") || lower.contains("expired");
-            return failed("handshake failed: " + reason, refused && !limited);
+        String lower = viaGame.toLowerCase();
+        boolean limited = lower.contains("ratelimit") || lower.contains("429") || lower.contains("too many");
+        if (limited) return failed("handshake failed: " + viaGame, false);
+
+        // The game's session service is a layer between this mod and Mojang
+        // that changes with the game version, and it can fail for reasons that
+        // are its own - a service object built without the session server, a
+        // renamed call. The handshake itself is one small request, so the same
+        // request is made directly. If that works the friends list works, and
+        // if it does not, Mojang's own answer is the reason worth showing.
+        String direct = directJoin(token, profile, serverId);
+        if (direct.isEmpty()) {
+            SpaceClient.LOGGER.info("Handshake went through directly after the game's session service failed: {}", viaGame);
+            handshakeStatus = "";
+            return true;
+        }
+
+        boolean refused = refusedByMojang || lower.contains("invalid") || lower.contains("forbidden")
+                || lower.contains("403") || lower.contains("401")
+                || lower.contains("unauthorized") || lower.contains("expired")
+                || direct.contains("HTTP 401") || direct.contains("HTTP 403");
+        return failed("handshake failed: " + viaGame + " | direct: " + direct, refused);
+    }
+
+    /**
+     * The handshake as Mojang documents it, without the game's classes: the
+     * account's token, its profile id without dashes and the server id, posted
+     * to the session server, which answers 204 when it accepted them.
+     *
+     * @return an empty string on success, otherwise what went wrong
+     */
+    private static String directJoin(String token, UUID profile, String serverId) {
+        try {
+            JsonObject body = new JsonObject();
+            body.addProperty("accessToken", token);
+            body.addProperty("selectedProfile", profile.toString().replace("-", ""));
+            body.addProperty("serverId", serverId);
+
+            HttpRequest request = HttpRequest.newBuilder(
+                            URI.create("https://sessionserver.mojang.com/session/minecraft/join"))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
+                    .build();
+            HttpResponse<String> response = http().send(request, HttpResponse.BodyHandlers.ofString());
+            int code = response.statusCode();
+            if (code == 204 || code == 200) return "";
+            return "HTTP " + code + " " + shorten(response.body());
+        } catch (Throwable t) {
+            return describe(t);
         }
     }
 
