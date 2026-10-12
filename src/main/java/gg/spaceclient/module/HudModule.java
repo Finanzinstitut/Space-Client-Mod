@@ -168,7 +168,7 @@ public abstract class HudModule extends Module {
                 int plateW = getWidth() + padding * 2;
                 int plateH = getHeight() + padding * 2;
 
-                gg.spaceclient.ui.Glass.pill(graphics,
+                gg.spaceclient.ui.Glass.plate(graphics,
                         drawX - padding, drawY - padding, plateW, plateH,
                         plateColour(), plateRadius(plateH));
             }

@@ -141,6 +141,46 @@ public final class Glass {
         roundedRows(graphics, x, y, width, height, radius, row -> body, clipTop, clipBottom);
     }
 
+    /**
+     * The plate behind a HUD element: the pill without most of its shadow.
+     *
+     * pill() draws its soft edge as three more rounded shapes around the body,
+     * and every shape is a column of fills the GUI has to sort against the
+     * others - they all overlap, which is the expensive case. A HUD has
+     * twenty of these on screen at once, every frame. The outer rings were the
+     * faintest of the three (an alpha of about 13 on a near black plate) and
+     * are gone; one ring of the middle strength stays, so the plate still
+     * reads as lying on the world, for half the shapes.
+     */
+    public static void plate(GuiGraphicsExtractor graphics,
+                             int x, int y, int width, int height,
+                             int tint, int radius) {
+        if (width <= 0 || height <= 0) return;
+
+        int alpha = (tint >>> 24) & 0xFF;
+        if (alpha == 0) return;
+
+        int shadow = Math.round(alpha * 0.11f);
+        if (shadow > 2) {
+            roundedRows(graphics, x - 2, y - 2, width + 4, height + 4, radius + 2,
+                    row -> shadow << 24, NO_CLIP_TOP, NO_CLIP_BOTTOM);
+        }
+
+        int body = tint;
+        roundedRows(graphics, x, y, width, height, radius, row -> body,
+                NO_CLIP_TOP, NO_CLIP_BOTTOM);
+
+        int[] insets = circleInsets(radius, height);
+        int top = insets.length > 0 ? insets[0] : 0;
+        int edge = Math.min(46, Math.round(alpha * 0.20f));
+        if (edge > 2) {
+            band(graphics, x + top + 2, y, x + width - top - 2, y + 1,
+                    edge << 24, NO_CLIP_TOP, NO_CLIP_BOTTOM);
+            band(graphics, x + top + 2, y + height - 1,
+                    x + width - top - 2, y + height, edge << 24, NO_CLIP_TOP, NO_CLIP_BOTTOM);
+        }
+    }
+
     /** Nothing is clipped away unless a caller asks for it. */
     public static final int NO_CLIP_TOP = Integer.MIN_VALUE / 4;
     public static final int NO_CLIP_BOTTOM = Integer.MAX_VALUE / 4;

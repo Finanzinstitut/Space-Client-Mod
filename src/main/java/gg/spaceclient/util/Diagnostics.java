@@ -144,6 +144,11 @@ public final class Diagnostics {
                 gg.spaceclient.util.Timings.clean(),
                 gg.spaceclient.util.Timings.report()));
 
+        // Per HUD element, microseconds per frame, worst first
+        checks.add(new Check("HUD cost",
+                gg.spaceclient.util.HudCost.cheap(),
+                gg.spaceclient.util.HudCost.report()));
+
         checks.add(new Check("Menu icons",
                 !gg.spaceclient.ui.TextureLoader.status().startsWith("no ")
                         || gg.spaceclient.ui.TextureLoader.working(),

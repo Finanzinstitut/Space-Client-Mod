@@ -75,12 +75,29 @@ public class ModuleManager {
 
     public List<Module> getAll() { return new ArrayList<>(modules.values()); }
 
+    private List<HudModule> hudCache = null;
+    private int hudCacheFor = -1;
+
+    /**
+     * The HUD elements, in registration order.
+     *
+     * Asked for every frame by the HUD loop, which used to build a new list
+     * each time - a fresh array and a type check per module, four hundred
+     * times a second, for a set that only changes when a module is registered.
+     * Rebuilt when the number of modules differs from the last build.
+     * The returned list is read-only.
+     */
     public List<HudModule> getHudModules() {
+        List<HudModule> cached = hudCache;
+        if (cached != null && hudCacheFor == modules.size()) return cached;
+
         List<HudModule> out = new ArrayList<>();
         for (Module m : modules.values()) {
             if (m instanceof HudModule hud) out.add(hud);
         }
-        return out;
+        hudCache = java.util.Collections.unmodifiableList(out);
+        hudCacheFor = modules.size();
+        return hudCache;
     }
 
     public void onTick() {

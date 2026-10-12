@@ -336,7 +336,12 @@ public class SpaceClient implements ClientModInitializer {
 
         for (HudModule module : moduleManager.getHudModules()) {
             if (!module.isEnabled()) continue;
+
+            // Timed per element, so the diagnostics page can say which one
+            // costs the frames instead of the HUD as a whole being blamed
+            long start = System.nanoTime();
             module.draw(graphics, module.getX(width), module.getY(height));
+            gg.spaceclient.util.HudCost.record(module.getId(), System.nanoTime() - start);
         }
     }
 
