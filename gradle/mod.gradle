@@ -39,6 +39,15 @@ dependencies {
     }
 }
 
+// Compiled against the Mixin that Quilt still ships. From 0.17.4 (Fabric
+// Loader 0.19.5) @Redirect's "at" is an array, and a class compiled against
+// it carries a list there - which Quilt's MixinExtras reads as a single @At
+// and crashes on, at startup. The single value is what both versions read;
+// at runtime Fabric still brings its own, newer Mixin.
+configurations.matching { it.name == 'compileClasspath' }.configureEach {
+    resolutionStrategy.force 'net.fabricmc:sponge-mixin:0.17.3+mixin.0.8.7'
+}
+
 apply from: rootProject.file('gradle/preprocess.gradle')
 
 loom {
