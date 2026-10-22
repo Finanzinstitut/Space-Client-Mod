@@ -60,9 +60,11 @@
 //$$
 //$$     private static void layers(AddGuiOverlayLayersEvent event) {
 //$$         ForgeLayeredDraw root = event.getLayeredDraw();
-//$$         root.addBelow(Identifier.fromNamespaceAndPath(SpaceClient.MOD_ID, "hud"),
+//$$         // The chat is in the stack drawn after the sleep overlay
+//$$         Identifier late = ForgeLayeredDraw.POST_SLEEP_STACK;
+//$$         root.addBelow(late, Identifier.fromNamespaceAndPath(SpaceClient.MOD_ID, "hud"),
 //$$                 ForgeLayeredDraw.CHAT_OVERLAY, Hooks::fireBeforeChat);
-//$$         root.addAbove(Identifier.fromNamespaceAndPath(SpaceClient.MOD_ID, "totem"),
+//$$         root.addAbove(late, Identifier.fromNamespaceAndPath(SpaceClient.MOD_ID, "totem"),
 //$$                 ForgeLayeredDraw.CHAT_OVERLAY, Hooks::fireAfterChat);
 //$$
 //$$         // The hotbar block is a stack of its own here; the Overlay module

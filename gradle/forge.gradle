@@ -21,6 +21,9 @@ minecraft {
     runs {
         configureEach {
             workingDir = project.layout.projectDirectory.dir('run')
+            // Mixin finds the config through the jar's manifest; a dev run
+            // has no jar, so it is named here
+            args '--mixin.config', 'spaceclient.mixins.json'
         }
         register('client')
     }
@@ -39,6 +42,11 @@ dependencies {
 }
 
 apply from: rootProject.file('gradle/preprocess.gradle')
+
+// A dev run puts the classes and the resources on the classpath as two
+// folders, and Forge takes the one with mods.toml for the whole mod. With
+// the resources built into the classes folder it is one, as in the jar.
+sourceSets.main.output.resourcesDir = sourceSets.main.java.classesDirectory
 
 // Forge finds mixin configs through the jar's manifest as well as mods.toml;
 // both are given, so either reading works

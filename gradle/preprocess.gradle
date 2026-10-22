@@ -15,8 +15,8 @@ def common = rootProject.file('src/main')
 
 /** Metadata that belongs to one loader and would only confuse another. */
 def foreignMetadata = [
-        'fabric'  : ['META-INF/neoforge.mods.toml', 'META-INF/mods.toml'],
-        'neoforge': ['fabric.mod.json', 'META-INF/mods.toml'],
+        'fabric'  : ['META-INF/neoforge.mods.toml', 'META-INF/mods.toml', 'pack.mcmeta'],
+        'neoforge': ['fabric.mod.json', 'META-INF/mods.toml', 'pack.mcmeta'],
         'forge'   : ['fabric.mod.json', 'META-INF/neoforge.mods.toml'],
 ][loaderName]
 
@@ -75,11 +75,14 @@ def metadata = [
         'java_dep'    : project.java_release,
         'mc_range'    : project.findProperty('mc_range') ?: '',
         'loader_range': project.findProperty('loader_range') ?: '',
+        // Forge wants the mod's own resource pack described, in the data
+        // format of the Minecraft version (data_major in its version.json)
+        'pack_format' : project.findProperty('pack_format') ?: '',
 ]
 
 processResources {
     metadata.each { k, v -> inputs.property k, v }
-    filesMatching(['fabric.mod.json', 'META-INF/neoforge.mods.toml', 'META-INF/mods.toml']) {
+    filesMatching(['fabric.mod.json', 'META-INF/neoforge.mods.toml', 'META-INF/mods.toml', 'pack.mcmeta']) {
         expand metadata
     }
 }
