@@ -53,22 +53,17 @@ public abstract class HudGuiMixin {
     //$$ private static final String PIPELINE = "Lcom/mojang/blaze3d/pipeline/RenderPipeline;";
     //#endif
 
+    //#if FABRIC
     @Inject(method = "extractHotbarAndDecorations", at = @At("HEAD"))
     private void spaceclient$hotbarIn(GuiGraphicsExtractor graphics, DeltaTracker delta, CallbackInfo ci) {
-        float scale = OverlayModule.hotbarScale();
-        int raise = OverlayModule.hotbarRaise();
-        float cx = graphics.guiWidth() / 2f;
-        float bottom = graphics.guiHeight();
-        graphics.pose().pushMatrix();
-        graphics.pose().translate(cx, bottom - raise);
-        graphics.pose().scale(scale, scale);
-        graphics.pose().translate(-cx, -bottom);
+        OverlayModule.hotbarBegin(graphics, delta);
     }
 
     @Inject(method = "extractHotbarAndDecorations", at = @At("RETURN"))
     private void spaceclient$hotbarOut(GuiGraphicsExtractor graphics, DeltaTracker delta, CallbackInfo ci) {
-        graphics.pose().popMatrix();
+        OverlayModule.hotbarEnd(graphics, delta);
     }
+    //#endif
 
     /** The hotbar frame, the selected-slot frame and the off-hand frame. */
     @Redirect(method = "extractItemHotbar", at = @At(value = "INVOKE",
@@ -113,9 +108,29 @@ public abstract class HudGuiMixin {
     }
 
     // ---------------------------------------------------------------- XP
+    // Fabric draws the bar and the level inside the one hotbar method.
+    // NeoForge gives each its own layer method. Forge does the same for the
+    // bar, under names of its own, and draws the level in a layer of its own
+    // that ForgeEntry hides instead; BAR_LEVEL there is the vanilla method,
+    // which Forge keeps but no longer calls. Forge's own name is split so
+    // 1.21.11's renames, which turn extract into render, pass it by.
+    //#if FABRIC
+    private static final String BAR_BACK = "extractHotbarAndDecorations";
+    private static final String BAR_FRONT = "extractHotbarAndDecorations";
+    private static final String BAR_LEVEL = "extractHotbarAndDecorations";
+    //#elseif NEOFORGE
+    //$$ private static final String BAR_BACK = "extractContextualInfoBarBackground";
+    //$$ private static final String BAR_FRONT = "extractContextualInfoBar";
+    //$$ private static final String BAR_LEVEL = "extractExperienceLevel";
+    //#else
+    //$$ private static final String BAR_BACK = "updateContextualInfo";
+    //$$ private static final String BAR_FRONT = "extract" + "ContextualInfoState";
+    //$$ private static final String BAR_LEVEL = "extractHotbarAndDecorations";
+    //#endif
+
     //#if MC >= 26.2
 
-    @Redirect(method = "extractHotbarAndDecorations", at = @At(value = "INVOKE",
+    @Redirect(method = BAR_BACK, at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/gui/contextualbar/ContextualBar;extractBackground("
                     + "Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/DeltaTracker;)V"))
     private void spaceclient$barBack(ContextualBar bar, GuiGraphicsExtractor graphics, DeltaTracker delta) {
@@ -123,7 +138,7 @@ public abstract class HudGuiMixin {
         bar.extractBackground(graphics, delta);
     }
 
-    @Redirect(method = "extractHotbarAndDecorations", at = @At(value = "INVOKE",
+    @Redirect(method = BAR_FRONT, at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/gui/contextualbar/ContextualBar;extractRenderState("
                     + "Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/DeltaTracker;)V"))
     private void spaceclient$barFront(ContextualBar bar, GuiGraphicsExtractor graphics, DeltaTracker delta) {
@@ -131,7 +146,7 @@ public abstract class HudGuiMixin {
         bar.extractRenderState(graphics, delta);
     }
 
-    @Redirect(method = "extractHotbarAndDecorations", at = @At(value = "INVOKE",
+    @Redirect(method = BAR_LEVEL, at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/gui/contextualbar/ContextualBar;extractExperienceLevel("
                     + "Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/gui/Font;I)V"))
     private void spaceclient$level(GuiGraphicsExtractor graphics, Font font, int level) {
@@ -140,7 +155,7 @@ public abstract class HudGuiMixin {
     }
     //#else
     //$$
-    //$$ @Redirect(method = "extractHotbarAndDecorations", at = @At(value = "INVOKE",
+    //$$ @Redirect(method = BAR_BACK, at = @At(value = "INVOKE",
     //$$         target = "Lnet/minecraft/client/gui/contextualbar/ContextualBarRenderer;extractBackground("
     //$$                 + "Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/DeltaTracker;)V"))
     //$$ private void spaceclient$barBack(ContextualBarRenderer bar, GuiGraphicsExtractor graphics, DeltaTracker delta) {
@@ -148,7 +163,7 @@ public abstract class HudGuiMixin {
     //$$     bar.extractBackground(graphics, delta);
     //$$ }
     //$$
-    //$$ @Redirect(method = "extractHotbarAndDecorations", at = @At(value = "INVOKE",
+    //$$ @Redirect(method = BAR_FRONT, at = @At(value = "INVOKE",
     //$$         target = "Lnet/minecraft/client/gui/contextualbar/ContextualBarRenderer;extractRenderState("
     //$$                 + "Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/DeltaTracker;)V"))
     //$$ private void spaceclient$barFront(ContextualBarRenderer bar, GuiGraphicsExtractor graphics, DeltaTracker delta) {
@@ -156,7 +171,7 @@ public abstract class HudGuiMixin {
     //$$     bar.extractRenderState(graphics, delta);
     //$$ }
     //$$
-    //$$ @Redirect(method = "extractHotbarAndDecorations", at = @At(value = "INVOKE",
+    //$$ @Redirect(method = BAR_LEVEL, at = @At(value = "INVOKE",
     //$$         target = "Lnet/minecraft/client/gui/contextualbar/ContextualBarRenderer;extractExperienceLevel("
     //$$                 + "Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/gui/Font;I)V"))
     //$$ private void spaceclient$level(GuiGraphicsExtractor graphics, Font font, int level) {
@@ -166,8 +181,19 @@ public abstract class HudGuiMixin {
     //$$
     //#endif
 
-    @Inject(method = "extractSelectedItemName", at = @At("HEAD"), cancellable = true)
+    // NeoForge draws the name through an overload that also takes the height
+    // of the bars above the hotbar
+    //#if NEOFORGE
+    //$$ @Inject(method = "extractSelectedItemName(Lnet/minecraft/client/gui/GuiGraphicsExtractor;I)V",
+    //$$         at = @At("HEAD"), cancellable = true)
+    //$$ private void spaceclient$itemName(GuiGraphicsExtractor graphics, int shift, CallbackInfo ci) {
+    //$$     if (!OverlayModule.itemName()) ci.cancel();
+    //$$ }
+    //#else
+    @Inject(method = "extractSelectedItemName(Lnet/minecraft/client/gui/GuiGraphicsExtractor;)V",
+            at = @At("HEAD"), cancellable = true)
     private void spaceclient$itemName(GuiGraphicsExtractor graphics, CallbackInfo ci) {
         if (!OverlayModule.itemName()) ci.cancel();
     }
+    //#endif
 }

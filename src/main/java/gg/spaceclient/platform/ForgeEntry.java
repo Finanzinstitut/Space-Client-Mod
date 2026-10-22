@@ -2,6 +2,7 @@
 //$$ package gg.spaceclient.platform;
 //$$
 //$$ import gg.spaceclient.SpaceClient;
+//$$ import gg.spaceclient.modules.OverlayModule;
 //$$
 //$$ import net.minecraft.client.KeyMapping;
 //$$ import net.minecraft.client.Minecraft;
@@ -63,6 +64,16 @@
 //$$                 ForgeLayeredDraw.CHAT_OVERLAY, Hooks::fireBeforeChat);
 //$$         root.addAbove(Identifier.fromNamespaceAndPath(SpaceClient.MOD_ID, "totem"),
 //$$                 ForgeLayeredDraw.CHAT_OVERLAY, Hooks::fireAfterChat);
+//$$
+//$$         // The hotbar block is a stack of its own here; the Overlay module
+//$$         // scales it as one and can hide the XP level, which this stack
+//$$         // draws itself
+//$$         Identifier block = ForgeLayeredDraw.HOTBAR_AND_DECOS;
+//$$         root.addBelow(block, Identifier.fromNamespaceAndPath(SpaceClient.MOD_ID, "hotbar_begin"),
+//$$                 ForgeLayeredDraw.SPECTATOR_HOTBAR, OverlayModule::hotbarBegin);
+//$$         root.addAbove(block, Identifier.fromNamespaceAndPath(SpaceClient.MOD_ID, "hotbar_end"),
+//$$                 ForgeLayeredDraw.SPECTATOR_ACTION, OverlayModule::hotbarEnd);
+//$$         root.addConditionTo(block, ForgeLayeredDraw.EXPERIENCE_LEVEL, OverlayModule::xpLevel);
 //$$     }
 //$$ }
 //#endif

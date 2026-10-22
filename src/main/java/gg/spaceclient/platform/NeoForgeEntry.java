@@ -2,6 +2,7 @@
 //$$ package gg.spaceclient.platform;
 //$$
 //$$ import gg.spaceclient.SpaceClient;
+//$$ import gg.spaceclient.modules.OverlayModule;
 //$$
 //$$ import net.minecraft.client.KeyMapping;
 //$$ import net.minecraft.client.Minecraft;
@@ -42,6 +43,12 @@
 //$$                     Identifier.fromNamespaceAndPath(SpaceClient.MOD_ID, "hud"), Hooks::fireBeforeChat);
 //$$             event.registerAbove(VanillaGuiLayers.CHAT,
 //$$                     Identifier.fromNamespaceAndPath(SpaceClient.MOD_ID, "totem"), Hooks::fireAfterChat);
+//$$             // The hotbar block, from the hotbar to the held item's name, is a
+//$$             // run of layers here; the Overlay module scales it as one
+//$$             event.registerBelow(VanillaGuiLayers.HOTBAR,
+//$$                     Identifier.fromNamespaceAndPath(SpaceClient.MOD_ID, "hotbar_begin"), OverlayModule::hotbarBegin);
+//$$             event.registerAbove(VanillaGuiLayers.SPECTATOR_TOOLTIP,
+//$$                     Identifier.fromNamespaceAndPath(SpaceClient.MOD_ID, "hotbar_end"), OverlayModule::hotbarEnd);
 //$$         });
 //$$
 //$$         modBus.addListener((FMLClientSetupEvent event) -> event.enqueueWork(SpaceClient::init));
