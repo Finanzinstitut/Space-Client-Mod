@@ -83,6 +83,13 @@ public class SpaceClient {
     }
 
     private static boolean keysRegistered = false;
+    private static KeyMapping.Category keyCategory;
+
+    /** The heading the keys sit under in the controls screen. */
+    public static KeyMapping.Category keyCategory() {
+        registerKeys();
+        return keyCategory;
+    }
 
     /**
      * The key mappings, on their own because loaders take them at different
@@ -97,6 +104,7 @@ public class SpaceClient {
         // translation key string.
         KeyMapping.Category category = KeyMapping.Category.register(
                 Identifier.fromNamespaceAndPath(MOD_ID, "main"));
+        keyCategory = category;
 
         menuKey = Hooks.key(new KeyMapping(
                 "key.spaceclient.menu",
