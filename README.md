@@ -1,6 +1,31 @@
 # Space Client — In-Game Mod 🚀
 
-Fabric mod for Minecraft **26.2** that adds HUD modules to the Space Client launcher.
+Mod for Minecraft **1.21.11, 26.1, 26.2 and 26.3** that adds HUD modules to the
+Space Client launcher, built for **Fabric** (which Quilt loads too), **NeoForge**
+and **Forge**.
+
+## Loaders
+
+One source tree, twelve jars: `versions/<mc>` is the Fabric build,
+`versions/<mc>-neoforge` and `versions/<mc>-forge` the others, named
+`spaceclient-<version>-mc<mc>[-neoforge|-forge].jar` so the launcher can pick
+the right one by name. The preprocessor in `buildSrc` knows the loader as well
+as the Minecraft version (`//#if FABRIC`, `//#if NEOFORGE`, `//#if FORGE`).
+
+Everything loader-specific is in `gg.spaceclient.platform`: one entry class
+per loader hands that loader's events (ticks, screens, HUD layers, key
+mappings, joining a server) to `Hooks`, and `Platform` answers the few
+questions the rest of the mod asks of a loader (config folder, installed mods,
+own version). The mixins are shared: NeoForge and Forge run Minecraft under
+Mojang's names on all four versions, so the same targets apply. Where they
+draw the hotbar, XP bar and HUD as separate layers instead of one method, the
+entry classes add layers around them instead.
+
+Not on NeoForge and Forge: the server handshake (`net/Handshake`), which uses
+Fabric's networking API.
+
+A daily workflow (`new-minecraft.yml`) watches for a new Minecraft release
+series and tries the build on it, reporting in an issue.
 
 ## Status: minimal core
 
