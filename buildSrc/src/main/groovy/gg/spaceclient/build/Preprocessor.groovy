@@ -24,6 +24,10 @@ package gg.spaceclient.build
  *
  * Conditions compare MC with a version using == != < <= > >=, joined by
  * && or ||. Versions compare part by part as numbers, so 1.21.11 < 26.1.
+ *
+ * A condition can also name the mod loader the build is for - FABRIC,
+ * NEOFORGE or FORGE, or !FABRIC and so on - for the few places that talk to
+ * a loader's own API rather than to the game.
  */
 class Preprocessor {
 
@@ -49,10 +53,21 @@ class Preprocessor {
         return 0
     }
 
+    static final List<String> LOADERS = ['FABRIC', 'NEOFORGE', 'FORGE']
+
     static boolean test(String condition, List<Integer> mc, String where) {
+        return test(condition, mc, 'fabric', where)
+    }
+
+    static boolean test(String condition, List<Integer> mc, String loader, String where) {
         String text = condition.trim()
-        if (text.contains('||')) return text.split('\\|\\|').any { test(it, mc, where) }
-        if (text.contains('&&')) return text.split('&&').every { test(it, mc, where) }
+        if (text.contains('||')) return text.split('\\|\\|').any { test(it, mc, loader, where) }
+        if (text.contains('&&')) return text.split('&&').every { test(it, mc, loader, where) }
+        def named = text =~ /^(!?)\s*([A-Z]+)$/
+        if (named.matches() && LOADERS.contains(named.group(2))) {
+            boolean is = named.group(2).equalsIgnoreCase(loader)
+            return named.group(1) == '!' ? !is : is
+        }
         def m = text =~ /^MC\s*(==|!=|<=|>=|<|>)\s*([0-9.]+)$/
         if (!m.matches()) throw new IllegalArgumentException("Cannot read condition '${condition}' at ${where}")
         int c = compare(mc, parse(m.group(2)))
@@ -93,6 +108,10 @@ class Preprocessor {
     }
 
     static String process(String text, String version, String where, List<List> renames) {
+        return process(text, version, 'fabric', where, renames)
+    }
+
+    static String process(String text, String version, String loader, String where, List<List> renames) {
         List<Integer> mc = parse(version)
         // One frame per open #if: whether its chosen branch is on, whether a
         // branch was already taken, and whether the whole block is reachable
@@ -111,14 +130,14 @@ class Preprocessor {
             }
             if (trimmed.startsWith('//#if ')) {
                 boolean outer = active
-                boolean hit = outer && test(trimmed.substring(6), mc, place)
+                boolean hit = outer && test(trimmed.substring(6), mc, loader, place)
                 stack.push([outer: outer, taken: hit])
                 active = hit
                 out.append(newline)
             } else if (trimmed.startsWith('//#elseif ')) {
                 if (stack.isEmpty()) throw new IllegalArgumentException("#elseif without #if at ${place}")
                 def frame = stack.peek()
-                boolean hit = frame.outer && !frame.taken && test(trimmed.substring(10), mc, place)
+                boolean hit = frame.outer && !frame.taken && test(trimmed.substring(10), mc, loader, place)
                 if (hit) frame.taken = true
                 active = hit
                 out.append(newline)

@@ -1,0 +1,33 @@
+// The NeoForge build for one Minecraft version, under versions/<mc>-neoforge.
+// NeoForge runs the game under Mojang's own names on every version this mod
+// supports - 1.21.11 included - so the source compiles and runs as written,
+// with no name table.
+
+apply plugin: 'java'
+apply plugin: 'net.neoforged.moddev'
+
+ext.loaderName = 'neoforge'
+
+version = "${rootProject.mod_version}-mc${project.mc_label}-neoforge"
+group = rootProject.maven_group
+
+base {
+    archivesName = rootProject.archives_base_name
+}
+
+neoForge {
+    version = project.neoforge_version
+    runs {
+        client {
+            client()
+            gameDirectory = project.file('run')
+        }
+    }
+    mods {
+        spaceclient {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+apply from: rootProject.file('gradle/preprocess.gradle')

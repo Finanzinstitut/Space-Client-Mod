@@ -1,0 +1,28 @@
+# 1.21.11 names for what 26.1 renamed across the whole GUI: the drawing
+# object was GuiGraphics, and everything that "extracts" render state for
+# the GUI was still "render". Applied to the generated 1.21.11 source only.
+\bGuiGraphicsExtractor\b => GuiGraphics
+\bextractRenderStateWithTooltipAndSubtitles\b => renderWithTooltipAndSubtitles
+\bextractWidgetRenderState\b => renderWidget
+# Entities kept the name: their extractRenderState is not a GUI method
+\bextractRenderState\b(?!\(Lnet/minecraft/world/entity) => render
+\bextract(?!RenderState\(Lnet/minecraft/world/entity)([A-Z]\w*) => render$1
+\bgraphics\.text\( => graphics.drawString(
+# Render states that 26.1 moved into state.level
+\bnet\.minecraft\.client\.renderer\.state\.level\.(LevelRenderState|CameraRenderState)\b => net.minecraft.client.renderer.state.$1
+net/minecraft/client/renderer/state/level/(LevelRenderState|CameraRenderState); => net/minecraft/client/renderer/state/$1;
+# Fabric API names on 1.21.11
+\bfabric\.api\.client\.keymapping\.v1\b => fabric.api.client.keybinding.v1
+\bKeyMappingHelper\.registerKeyMapping\( => KeyBindingHelper.registerKeyBinding(
+\bKeyMappingHelper\b => KeyBindingHelper
+\bScreenEvents\.afterExtract\( => ScreenEvents.afterRender(
+\bScreenEvents\.beforeExtract\( => ScreenEvents.beforeRender(
+\bPayloadTypeRegistry\.serverboundPlay\(\) => PayloadTypeRegistry.playC2S()
+\bPayloadTypeRegistry\.clientboundPlay\(\) => PayloadTypeRegistry.playS2C()
+# IntProvider
+\.maxInclusive\(\) => .getMaxValue()
+\.minInclusive\(\) => .getMinValue()
+# GuiGraphics' item drawing, named in mixin strings
+"item\(Lnet/minecraft/world/entity/LivingEntity; => "renderItem(Lnet/minecraft/world/entity/LivingEntity;
+@Invoker\("item"\) => @Invoker("renderItem")
+@Invoker\("itemBar"\) => @Invoker("renderItemBar")

@@ -1,0 +1,41 @@
+// The Forge build for one Minecraft version, under versions/<mc>-forge.
+// Forge, like NeoForge, runs the game under Mojang's own names on every
+// version this mod supports, so the source compiles and runs as written.
+
+apply plugin: 'java'
+apply plugin: 'net.minecraftforge.gradle'
+
+ext.loaderName = 'forge'
+
+version = "${rootProject.mod_version}-mc${project.mc_label}-forge"
+group = rootProject.maven_group
+
+base {
+    archivesName = rootProject.archives_base_name
+}
+
+minecraft {
+    if (project.hasProperty('forge_mappings')) {
+        mappings channel: 'official', version: project.forge_mappings
+    }
+    runs {
+        configureEach {
+            workingDir = project.layout.projectDirectory.dir('run')
+        }
+        register('client')
+    }
+}
+
+repositories {
+    minecraft.mavenizer(it)
+    maven fg.forgeMaven
+    maven fg.minecraftLibsMaven
+    mavenCentral()
+}
+
+dependencies {
+    implementation minecraft.dependency("net.minecraftforge:forge:${project.forge_version}")
+    annotationProcessor 'net.minecraftforge:eventbus-validator:7.0.6'
+}
+
+apply from: rootProject.file('gradle/preprocess.gradle')
