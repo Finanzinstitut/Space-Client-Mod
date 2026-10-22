@@ -9,6 +9,8 @@ import gg.spaceclient.setting.SettingGroup;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 
+import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.InteractionHand;
 
@@ -222,6 +224,28 @@ public class OverlayModule extends Module {
 
     public static float hotbarScale() { var m = on(); return m == null ? 1f : percent(m.hotbarSize); }
     public static int hotbarRaise() { var m = on(); return m == null ? 0 : m.hotbarRaise.get(); }
+    /**
+     * Opens the hotbar block: hotbar, hearts, armour, food, air, XP and the
+     * held item's name, scaled about the bottom middle of the screen and
+     * raised. Fabric draws that block in one method; NeoForge and Forge draw
+     * it as a run of HUD layers, with this as a layer just before the run and
+     * hotbarEnd just after it.
+     */
+    public static void hotbarBegin(GuiGraphicsExtractor graphics, DeltaTracker delta) {
+        float scale = hotbarScale();
+        int raise = hotbarRaise();
+        float cx = graphics.guiWidth() / 2f;
+        float bottom = graphics.guiHeight();
+        graphics.pose().pushMatrix();
+        graphics.pose().translate(cx, bottom - raise);
+        graphics.pose().scale(scale, scale);
+        graphics.pose().translate(-cx, -bottom);
+    }
+
+    public static void hotbarEnd(GuiGraphicsExtractor graphics, DeltaTracker delta) {
+        graphics.pose().popMatrix();
+    }
+
     public static float hotbarOpacity() { var m = on(); return m == null ? 1f : percent(m.hotbarOpacity); }
     /** ARGB tint for the selected-slot frame; white leaves it as the game draws it. */
     public static int selectionColour() { var m = on(); return m == null ? 0xFFFFFFFF : m.selectionColour.get(); }

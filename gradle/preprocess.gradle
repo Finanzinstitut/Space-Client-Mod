@@ -1,0 +1,105 @@
+// The part every build shares, whatever the loader: run the one source tree in
+// src/ through the preprocessor for this project's Minecraft version and mod
+// loader, and compile what comes out.
+//
+// Applied by mod.gradle (Fabric), neoforge.gradle and forge.gradle, each of
+// which sets ext.loaderName first, and ext.namesFromLoom when the runtime names
+// differ from the source's (only Fabric on 1.21.11).
+
+import gg.spaceclient.build.Preprocessor
+
+def mc = project.minecraft_version
+def loaderName = project.ext.loaderName
+def generated = layout.buildDirectory.dir('preprocessed')
+def common = rootProject.file('src/main')
+
+/** Metadata that belongs to one loader and would only confuse another. */
+def foreignMetadata = [
+        'fabric'  : ['META-INF/neoforge.mods.toml', 'META-INF/mods.toml', 'pack.mcmeta'],
+        'neoforge': ['fabric.mod.json', 'META-INF/mods.toml', 'pack.mcmeta'],
+        'forge'   : ['fabric.mod.json', 'META-INF/neoforge.mods.toml'],
+][loaderName]
+
+// The version's source, generated from the common tree. Line numbers match
+// the originals, so compiler errors can be looked up in src/ directly.
+def preprocess = tasks.register('preprocess') {
+    inputs.dir(common)
+    inputs.property('mc', mc)
+    inputs.property('loader', loaderName)
+    outputs.dir(generated)
+    def renameFile = project.file('renames.txt')
+    if (renameFile.exists()) inputs.file(renameFile)
+    doLast {
+        def renames = Preprocessor.readRenames(renameFile)
+        def out = generated.get().asFile
+        project.delete(out)
+        if (project.ext.has('namesFromLoom') && project.ext.namesFromLoom) {
+            // The runtime names for whatever the source names in strings; see NameTable
+            def tiny = project.extensions.getByName('loom').mappingConfiguration.tinyMappings.toFile()
+            def javaFiles = []
+            new File(common, 'java').eachFileRecurse { if (it.name.endsWith('.java')) javaFiles << it }
+            def table = new File(out, 'resources/assets/spaceclient/names.tsv')
+            table.parentFile.mkdirs()
+            table.setText(gg.spaceclient.build.NameTable.build(tiny, javaFiles), 'UTF-8')
+        }
+        common.eachFileRecurse { file ->
+            if (file.isDirectory()) return
+            def relative = common.toPath().relativize(file.toPath()).toString().replace('\\', '/')
+            if (foreignMetadata.any { relative == 'resources/' + it }) return
+            def target = new File(out, relative)
+            target.parentFile.mkdirs()
+            if (['.java', '.json', '.fsh', '.vsh', '.glsl'].any { file.name.endsWith(it) }) {
+                target.setText(Preprocessor.process(file.getText('UTF-8'), mc, loaderName, relative,
+                        file.name.endsWith('.java') ? renames : []), 'UTF-8')
+            } else {
+                target.bytes = file.bytes
+            }
+        }
+    }
+}
+
+sourceSets {
+    main {
+        java.srcDirs = [generated.map { new File(it.asFile, 'java') }]
+        resources.srcDirs = [generated.map { new File(it.asFile, 'resources') }]
+    }
+}
+
+tasks.named('compileJava') { dependsOn preprocess }
+tasks.named('processResources') { dependsOn preprocess }
+tasks.matching { it.name == 'sourcesJar' }.configureEach { dependsOn preprocess }
+
+def metadata = [
+        'version'     : rootProject.mod_version,
+        'mc_dep'      : project.mc_dep,
+        'java_dep'    : project.java_release,
+        'mc_range'    : project.findProperty('mc_range') ?: '',
+        'loader_range': project.findProperty('loader_range') ?: '',
+        // Forge wants the mod's own resource pack described, in the data
+        // format of the Minecraft version (data_major in its version.json)
+        'pack_format' : project.findProperty('pack_format') ?: '',
+]
+
+processResources {
+    metadata.each { k, v -> inputs.property k, v }
+    filesMatching(['fabric.mod.json', 'META-INF/neoforge.mods.toml', 'META-INF/mods.toml', 'pack.mcmeta']) {
+        expand metadata
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = project.java_release as int
+    it.options.encoding = 'UTF-8'
+    it.options.compilerArgs += ['-Xmaxerrs', '100000']
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+tasks.named('jar') {
+    from(rootProject.file('THIRD-PARTY-WaveyCapes-LICENSE.txt'))
+    from(rootProject.file('THIRD-PARTY.md'))
+}

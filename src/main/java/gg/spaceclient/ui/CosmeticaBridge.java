@@ -62,7 +62,7 @@ public final class CosmeticaBridge {
     /** Whether the loader knows the mod at all. */
     public static boolean modLoaded() {
         try {
-            return net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("cosmetica");
+            return gg.spaceclient.platform.Platform.isModLoaded("cosmetica");
         } catch (Throwable ignored) {
             return false;
         }

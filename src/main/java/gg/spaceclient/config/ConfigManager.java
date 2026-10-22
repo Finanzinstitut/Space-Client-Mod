@@ -4,7 +4,6 @@ import com.google.gson.*;
 import gg.spaceclient.SpaceClient;
 import gg.spaceclient.module.Module;
 import gg.spaceclient.modules.KeystrokesModule;
-import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -18,7 +17,7 @@ public class ConfigManager {
     private final Path file;
 
     public ConfigManager() {
-        this.file = FabricLoader.getInstance().getConfigDir().resolve("spaceclient.json");
+        this.file = gg.spaceclient.platform.Platform.configDir().resolve("spaceclient.json");
     }
 
     public void save() {

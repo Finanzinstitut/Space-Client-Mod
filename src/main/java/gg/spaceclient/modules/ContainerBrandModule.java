@@ -5,7 +5,6 @@ import gg.spaceclient.setting.IntSetting;
 import gg.spaceclient.setting.ModeSetting;
 import gg.spaceclient.ui.JupiterIcon;
 
-import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -34,9 +33,9 @@ public class ContainerBrandModule extends Module {
                 "Space Client logo in the corner of chests and inventories", true);
         addSettings(size, opacity);
 
-        ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
+        gg.spaceclient.platform.Hooks.onScreenInit((client, screen, width, height) -> {
             if (!(screen instanceof AbstractContainerScreen<?>)) return;
-            ScreenEvents.afterExtract(screen).register((s, graphics, mouseX, mouseY, delta) -> {
+            gg.spaceclient.platform.Hooks.onScreenDrawn(screen, (s, graphics, mouseX, mouseY, delta) -> {
                 if (!isEnabled()) return;
                 try {
                     draw(graphics, s.width, s.height);

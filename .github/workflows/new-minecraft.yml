@@ -1,0 +1,97 @@
+# Watches for a Minecraft release the mod has no build for yet.
+#
+# Once a day it reads Mojang's version list. When a new release series
+# appears (26.4, say), it sets up build projects for it from the newest one
+# there is, for every loader that already has a build for the new version,
+# and tries to build them. The result goes into one issue per series, so
+# there is a note as soon as a new version is out - with what already
+# compiles and the errors for what does not. Nothing is pushed: the projects
+# exist only in this run, because a new version is added by hand once the
+# source works on it.
+name: New Minecraft version
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Look for a new release
+        id: check
+        run: python3 .github/scripts/new_minecraft.py
+
+      - name: Set up JDK 25
+        if: steps.check.outputs.new == 'true' && steps.check.outputs.tasks != ''
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - name: Set up Gradle
+        if: steps.check.outputs.new == 'true' && steps.check.outputs.tasks != ''
+        uses: gradle/actions/setup-gradle@v5
+
+      # Each loader on its own, so one that fails does not hide how the
+      # others did
+      - name: Try the build
+        id: build
+        if: steps.check.outputs.new == 'true' && steps.check.outputs.tasks != ''
+        run: |
+          : > report.md
+          for task in ${{ steps.check.outputs.tasks }}; do
+            if gradle "$task" --no-daemon > build.log 2>&1; then
+              echo "- \`$task\`: builds" >> report.md
+            else
+              echo "- \`$task\`: **fails**" >> report.md
+              echo '' >> report.md
+              echo '<details><summary>Errors</summary>' >> report.md
+              echo '' >> report.md
+              echo '```' >> report.md
+              grep -E "error:|What went wrong|> " build.log | head -40 >> report.md
+              echo '```' >> report.md
+              echo '</details>' >> report.md
+            fi
+          done
+
+      - name: Report
+        if: steps.check.outputs.new == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SERIES: ${{ steps.check.outputs.series }}
+          RELEASE: ${{ steps.check.outputs.release }}
+        run: |
+          title="Minecraft $SERIES is out"
+          {
+            echo "Minecraft **$RELEASE** is out. The mod has builds for: ${{ steps.check.outputs.supported }}."
+            echo ""
+            echo "Builds for the new version, if one were added from the newest project:"
+            echo ""
+            echo "- Fabric API: ${{ steps.check.outputs.fabric }}"
+            echo "- NeoForge: ${{ steps.check.outputs.neoforge }}"
+            echo "- Forge: ${{ steps.check.outputs.forge }}"
+            echo ""
+            [ -f report.md ] && cat report.md
+            echo ""
+            echo "Checked by the daily version workflow. Adding the version is done by hand:"
+            echo "a \`versions/$SERIES\` project per loader and an entry in settings.gradle."
+          } > body.md
+          # One issue per series, brought up to date each day rather than
+          # commented on, and left alone once someone has closed it
+          found=$(gh issue list --state all --search "\"$title\" in:title" --json number,state --jq '.[0] // empty | "\(.number) \(.state)"')
+          number=${found%% *}
+          if [ "${found#* }" = "CLOSED" ]; then
+            echo "issue #$number was closed, leaving it"
+          elif [ -n "$found" ]; then
+            gh issue edit "$number" --body-file body.md
+          else
+            gh issue create --title "$title" --body-file body.md
+          fi
