@@ -39,3 +39,11 @@ dependencies {
 }
 
 apply from: rootProject.file('gradle/preprocess.gradle')
+
+// Forge finds mixin configs through the jar's manifest as well as mods.toml;
+// both are given, so either reading works
+tasks.named('jar') {
+    manifest {
+        attributes 'MixinConfigs': 'spaceclient.mixins.json'
+    }
+}

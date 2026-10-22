@@ -1,0 +1,29 @@
+# NeoForge's description of the mod. Only the NeoForge builds carry this file;
+# the values in ${} are filled in per Minecraft version by gradle/preprocess.gradle.
+modLoader="javafml"
+loaderVersion="[1,)"
+license="All Rights Reserved"
+
+[[mods]]
+modId="spaceclient"
+version="${version}"
+displayName="Space Client"
+authors="Finanzinstitut"
+description='''In-game HUD modules for Space Client.'''
+
+[[mixins]]
+config="spaceclient.mixins.json"
+
+[[dependencies.spaceclient]]
+modId="neoforge"
+type="required"
+versionRange="${loader_range}"
+ordering="NONE"
+side="CLIENT"
+
+[[dependencies.spaceclient]]
+modId="minecraft"
+type="required"
+versionRange="${mc_range}"
+ordering="NONE"
+side="CLIENT"

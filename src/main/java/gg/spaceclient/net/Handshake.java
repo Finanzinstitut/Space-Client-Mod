@@ -1,8 +1,10 @@
 package gg.spaceclient.net;
 
+//#if FABRIC
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+//#endif
 
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -43,6 +45,7 @@ public final class Handshake {
 
     /** Called once from the client initialiser. */
     public static void register() {
+        //#if FABRIC
         PayloadTypeRegistry.serverboundPlay().register(Hello.TYPE, Hello.CODEC);
 
         ClientPlayConnectionEvents.JOIN.register((listener, sender, client) -> {
@@ -58,6 +61,10 @@ public final class Handshake {
                 // not want it. Never worth interrupting a join for.
             }
         });
+        //#else
+        //$$ // NeoForge and Forge want a payload registered on both ends before a
+        //$$ // client may send it; servers that look for this one are Fabric servers
+        //#endif
     }
 
     private Handshake() {}

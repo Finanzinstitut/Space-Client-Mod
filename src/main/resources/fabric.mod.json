@@ -11,7 +11,7 @@
   "environment": "client",
   "entrypoints": {
     "client": [
-      "gg.spaceclient.SpaceClient"
+      "gg.spaceclient.platform.FabricEntry"
     ]
   },
   "depends": {

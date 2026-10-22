@@ -9,7 +9,6 @@ import gg.spaceclient.SpaceClient;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.module.Module;
 
-import net.fabricmc.loader.api.FabricLoader;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,7 +38,7 @@ public final class Profiles {
     private static String active = "default";
 
     private static Path folder() {
-        return FabricLoader.getInstance().getConfigDir().resolve("spaceclient-profiles");
+        return gg.spaceclient.platform.Platform.configDir().resolve("spaceclient-profiles");
     }
 
     private static Path fileFor(String name) {

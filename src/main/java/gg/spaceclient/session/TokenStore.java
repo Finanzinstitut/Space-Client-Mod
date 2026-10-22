@@ -3,7 +3,6 @@ package gg.spaceclient.session;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import gg.spaceclient.SpaceClient;
-import net.fabricmc.loader.api.FabricLoader;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,7 +26,7 @@ public class TokenStore {
     private static boolean loaded = false;
 
     private static Path file() {
-        return FabricLoader.getInstance().getConfigDir().resolve("spaceclient-tokens.json");
+        return gg.spaceclient.platform.Platform.configDir().resolve("spaceclient-tokens.json");
     }
 
     private static synchronized void load() {

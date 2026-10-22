@@ -5,12 +5,8 @@ import gg.spaceclient.config.ConfigManager;
 import gg.spaceclient.module.HudModule;
 import gg.spaceclient.module.ModuleManager;
 
-import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
-import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
-import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
-import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
+import gg.spaceclient.platform.Hooks;
+import gg.spaceclient.platform.Platform;
 
 import com.mojang.blaze3d.platform.InputConstants;
 
@@ -33,7 +29,13 @@ import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SpaceClient implements ClientModInitializer {
+/**
+ * The mod itself, the same for every loader. Each loader's entry class in
+ * gg.spaceclient.platform calls registerKeys() as early as that loader takes
+ * key mappings and init() once the game is far enough along, and turns its own
+ * events into calls on Hooks.
+ */
+public class SpaceClient {
     public static final String MOD_ID = "spaceclient";
     /**
      * Read from the jar's own metadata rather than typed in here.
@@ -47,10 +49,7 @@ public class SpaceClient implements ClientModInitializer {
 
     private static String resolveVersion() {
         try {
-            return net.fabricmc.loader.api.FabricLoader.getInstance()
-                    .getModContainer(MOD_ID)
-                    .map(container -> container.getMetadata().getVersion().getFriendlyString())
-                    .orElse("dev");
+            return Platform.modVersion();
         } catch (Throwable ignored) {
             // A wrong version string is never worth failing to start over
             return "dev";
@@ -83,8 +82,59 @@ public class SpaceClient implements ClientModInitializer {
         return middleClickKey != null && middleClickKey.isDown();
     }
 
-    @Override
-    public void onInitializeClient() {
+    private static boolean keysRegistered = false;
+
+    /**
+     * The key mappings, on their own because loaders take them at different
+     * moments: Fabric while the mod starts, NeoForge and Forge from an event
+     * that comes before the rest of the game is ready. Safe to call twice.
+     */
+    public static synchronized void registerKeys() {
+        if (keysRegistered) return;
+        keysRegistered = true;
+
+        // Key mappings now take a registered Category object rather than a
+        // translation key string.
+        KeyMapping.Category category = KeyMapping.Category.register(
+                Identifier.fromNamespaceAndPath(MOD_ID, "main"));
+
+        menuKey = Hooks.key(new KeyMapping(
+                "key.spaceclient.menu",
+                gg.spaceclient.compat.Keys.KEYBOARD,
+                InputConstants.KEY_RSHIFT,
+                category
+        ));
+
+        middleClickKey = Hooks.key(new KeyMapping(
+                "key.spaceclient.middleclick",
+                InputConstants.Type.MOUSE,
+                InputConstants.MOUSE_BUTTON_MIDDLE,
+                category
+        ));
+
+        zoomKey = Hooks.key(new KeyMapping(
+                "key.spaceclient.zoom",
+                gg.spaceclient.compat.Keys.KEYBOARD,
+                InputConstants.KEY_C,
+                category
+        ));
+
+        // F9 because it is one of the few keys the game itself leaves alone,
+        // and because it is where every other client puts this. Rebindable in
+        // the game's own controls screen like the three above it.
+        clipKey = Hooks.key(new KeyMapping(
+                "key.spaceclient.clip",
+                gg.spaceclient.compat.Keys.KEYBOARD,
+                InputConstants.KEY_F9,
+                category
+        ));
+
+    }
+
+    /** Everything else, once the game is far enough along to read config and draw. */
+    public static void init() {
+        registerKeys();
+
         moduleManager = new ModuleManager();
         settings = new ClientSettings();
         configManager = new ConfigManager();
@@ -95,45 +145,9 @@ public class SpaceClient implements ClientModInitializer {
         // is attached.
         gg.spaceclient.net.Handshake.register();
 
-        // Key mappings now take a registered Category object rather than a
-        // translation key string.
-        KeyMapping.Category category = KeyMapping.Category.register(
-                Identifier.fromNamespaceAndPath(MOD_ID, "main"));
-
-        menuKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-                "key.spaceclient.menu",
-                gg.spaceclient.compat.Keys.KEYBOARD,
-                InputConstants.KEY_RSHIFT,
-                category
-        ));
-
-        middleClickKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-                "key.spaceclient.middleclick",
-                InputConstants.Type.MOUSE,
-                InputConstants.MOUSE_BUTTON_MIDDLE,
-                category
-        ));
-
-        zoomKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-                "key.spaceclient.zoom",
-                gg.spaceclient.compat.Keys.KEYBOARD,
-                InputConstants.KEY_C,
-                category
-        ));
-
-        // F9 because it is one of the few keys the game itself leaves alone,
-        // and because it is where every other client puts this. Rebindable in
-        // the game's own controls screen like the three above it.
-        clipKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
-                "key.spaceclient.clip",
-                gg.spaceclient.compat.Keys.KEYBOARD,
-                InputConstants.KEY_F9,
-                category
-        ));
-
         // A button on the server list, where switching accounts is actually
         // needed - the in-game menu is out of reach from the main menu.
-        ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
+        Hooks.onScreenInit((client, screen, width, height) -> {
             // Playback controls belong on the chat screen, where the cursor is
             // free and the HUD element is still visible behind it.
             if (screen instanceof ChatScreen) {
@@ -211,7 +225,7 @@ public class SpaceClient implements ClientModInitializer {
             ).asAction());
         });
 
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+        Hooks.onTick(client -> {
             // From here on the window exists, so the input system is safe to ask
             gg.spaceclient.input.RawKeyboard.markReady();
 
@@ -283,23 +297,15 @@ public class SpaceClient implements ClientModInitializer {
         });
 
         // Our elements draw just before the chat, so the HUD API handles layering.
-        HudElementRegistry.attachElementBefore(
-                VanillaHudElements.CHAT,
-                Identifier.fromNamespaceAndPath(MOD_ID, "hud"),
-                SpaceClient::renderHud
-        );
+        Hooks.hudBeforeChat(SpaceClient::renderHud);
 
         // The totem pop goes after, not before. It marks the moment you did not
         // die, and a line of chat arriving at the same time should not be drawn
         // over the top of it - which is exactly what happens to anything sitting
         // in the layer above.
-        HudElementRegistry.attachElementAfter(
-                VanillaHudElements.CHAT,
-                Identifier.fromNamespaceAndPath(MOD_ID, "totem"),
-                SpaceClient::renderTotem
-        );
+        Hooks.hudAfterChat(SpaceClient::renderTotem);
 
-        LOGGER.info("Space Client {} ready", VERSION);
+        LOGGER.info("Space Client {} ready on {}", VERSION, Platform.loader());
     }
 
     /**

@@ -23,7 +23,7 @@ public final class WaveyCapes {
      * not applied (see SpaceMixinPlugin) and the module never switches on.
      */
     public static final boolean EXTERNAL =
-            net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("waveycapes");
+            gg.spaceclient.platform.Platform.isModLoaded("waveycapes");
 
     /** Whether the module is on; the layer and the simulation both stand down otherwise. */
     public static volatile boolean enabled = false;

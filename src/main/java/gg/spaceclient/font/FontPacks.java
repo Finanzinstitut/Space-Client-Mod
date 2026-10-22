@@ -3,7 +3,6 @@ package gg.spaceclient.font;
 import gg.spaceclient.SpaceClient;
 import gg.spaceclient.util.Reflect;
 
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 
 import java.io.InputStream;
@@ -82,7 +81,7 @@ public final class FontPacks {
     /** Where resource packs live. Public because the settings hub offers it
      *  to the game's own pack screen, which wants the path handed in. */
     public static Path packFolder() {
-        return FabricLoader.getInstance().getGameDir().resolve("resourcepacks");
+        return gg.spaceclient.platform.Platform.gameDir().resolve("resourcepacks");
     }
 
     /**

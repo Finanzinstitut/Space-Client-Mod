@@ -7,7 +7,6 @@ import com.google.gson.JsonParser;
 
 import gg.spaceclient.SpaceClient;
 
-import net.fabricmc.loader.api.FabricLoader;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -49,7 +48,7 @@ public final class HudServerProfiles {
     private HudServerProfiles() {}
 
     private static Path file() {
-        return FabricLoader.getInstance().getConfigDir().resolve("spaceclient-server-layouts.json");
+        return gg.spaceclient.platform.Platform.configDir().resolve("spaceclient-server-layouts.json");
     }
 
     private static void ensureLoaded() {
