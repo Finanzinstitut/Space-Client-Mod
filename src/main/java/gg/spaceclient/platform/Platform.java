@@ -52,6 +52,8 @@ public final class Platform {
             //#elseif NEOFORGE
             //$$ net.neoforged.fml.ModList list = net.neoforged.fml.ModList.get();
             //$$ return list != null ? list.isLoaded(id) : isModPresentEarly(id);
+            //#elseif MC >= 26.1
+            //$$ return net.minecraftforge.fml.ModList.isLoaded(id);
             //#else
             //$$ net.minecraftforge.fml.ModList list = net.minecraftforge.fml.ModList.get();
             //$$ return list != null ? list.isLoaded(id) : isModPresentEarly(id);
@@ -71,6 +73,8 @@ public final class Platform {
             return net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded(id);
             //#elseif NEOFORGE
             //$$ return net.neoforged.fml.loading.LoadingModList.get().getModFileById(id) != null;
+            //#elseif MC >= 26.1
+            //$$ return net.minecraftforge.fml.loading.LoadingModList.getModFileById(id) != null;
             //#else
             //$$ return net.minecraftforge.fml.loading.FMLLoader.getLoadingModList().getModFileById(id) != null;
             //#endif
@@ -87,6 +91,9 @@ public final class Platform {
                 .orElse("dev");
         //#elseif NEOFORGE
         //$$ var file = net.neoforged.fml.loading.LoadingModList.get().getModFileById(MOD_ID);
+        //$$ return file == null ? "dev" : file.getMods().get(0).getVersion().toString();
+        //#elseif MC >= 26.1
+        //$$ var file = net.minecraftforge.fml.loading.LoadingModList.getModFileById(MOD_ID);
         //$$ return file == null ? "dev" : file.getMods().get(0).getVersion().toString();
         //#else
         //$$ var file = net.minecraftforge.fml.loading.FMLLoader.getLoadingModList().getModFileById(MOD_ID);
