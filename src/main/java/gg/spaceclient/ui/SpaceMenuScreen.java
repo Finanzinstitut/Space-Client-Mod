@@ -355,6 +355,7 @@ public class SpaceMenuScreen extends Screen {
                 {"Move HUD", "hud"},
                 {"Item Shower", "itemshower"},
                 {"Accounts", "accounts"},
+                {"Skins", "skins"},
                 {"Cosmetics", "cosmetica"},
                 {"Appearance", "appearance"},
                 {"Diagnostics", "diagnostics"},
@@ -385,6 +386,7 @@ public class SpaceMenuScreen extends Screen {
             case "hud" -> gg.spaceclient.compat.Screens.set(new HudEditorScreen(this));
             case "itemshower" -> gg.spaceclient.compat.Screens.set(new ItemShowerScreen(this));
             case "accounts" -> gg.spaceclient.compat.Screens.set(new AccountsScreen(this));
+            case "skins" -> gg.spaceclient.compat.Screens.set(new SkinsScreen(this));
             case "cosmetica" -> gg.spaceclient.compat.Screens.set(new CosmeticsScreen(this));
             case "appearance" -> gg.spaceclient.compat.Screens.set(new AppearanceScreen(this));
             case "diagnostics" -> gg.spaceclient.compat.Screens.set(new DiagnosticsScreen(this));
