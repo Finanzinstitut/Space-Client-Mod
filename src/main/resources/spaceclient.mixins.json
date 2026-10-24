@@ -5,6 +5,7 @@
   "plugin": "gg.spaceclient.mixin.SpaceMixinPlugin",
   "client": [
     "CameraMixin",
+    "AbstractClientPlayerSkinMixin",
     "LevelRendererMixin",
     "AvatarRendererMixin",
     "GuiItemInvoker",

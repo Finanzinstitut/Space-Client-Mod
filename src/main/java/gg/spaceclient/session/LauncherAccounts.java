@@ -20,7 +20,7 @@ import java.util.List;
 public class LauncherAccounts {
 
     /** Mirrors where the launcher's Rust side puts its config. */
-    private static Path configDir() {
+    public static Path configDir() {
         String os = System.getProperty("os.name", "").toLowerCase();
         String home = System.getProperty("user.home", ".");
 
