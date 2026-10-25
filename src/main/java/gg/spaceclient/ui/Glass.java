@@ -156,7 +156,20 @@ public final class Glass {
                              int x, int y, int width, int height,
                              int tint, int radius) {
         if (width <= 0 || height <= 0) return;
+        if (((tint >>> 24) & 0xFF) == 0) return;
+        if (PlateTexture.draw(graphics, x, y, width, height, tint, radius)) return;
+        plateInto(graphics::fill, x, y, width, height, tint, radius);
+    }
 
+    /** Where plate rows go: the screen, or the picture PlateTexture makes. */
+    interface Fills {
+        void fill(int x1, int y1, int x2, int y2, int colour);
+    }
+
+    /** The plate as rows, into whatever takes fills. */
+    static void plateInto(Fills graphics,
+                          int x, int y, int width, int height,
+                          int tint, int radius) {
         int alpha = (tint >>> 24) & 0xFF;
         if (alpha == 0) return;
 
@@ -174,10 +187,8 @@ public final class Glass {
         int top = insets.length > 0 ? insets[0] : 0;
         int edge = Math.min(46, Math.round(alpha * 0.20f));
         if (edge > 2) {
-            band(graphics, x + top + 2, y, x + width - top - 2, y + 1,
-                    edge << 24, NO_CLIP_TOP, NO_CLIP_BOTTOM);
-            band(graphics, x + top + 2, y + height - 1,
-                    x + width - top - 2, y + height, edge << 24, NO_CLIP_TOP, NO_CLIP_BOTTOM);
+            graphics.fill(x + top + 2, y, x + width - top - 2, y + 1, edge << 24);
+            graphics.fill(x + top + 2, y + height - 1, x + width - top - 2, y + height, edge << 24);
         }
     }
 
@@ -273,6 +284,14 @@ public final class Glass {
      * pixels drawn are identical, they are simply asked for in runs.
      */
     private static void roundedRows(GuiGraphicsExtractor graphics,
+                                    int x, int y, int width, int height,
+                                    int radius, java.util.function.IntUnaryOperator colourOf,
+                                    int clipTop, int clipBottom) {
+        roundedRows((Fills) graphics::fill, x, y, width, height, radius, colourOf, clipTop, clipBottom);
+    }
+
+    /** The same, into anything that takes fills. */
+    private static void roundedRows(Fills graphics,
                                     int x, int y, int width, int height,
                                     int radius, java.util.function.IntUnaryOperator colourOf,
                                     int clipTop, int clipBottom) {
