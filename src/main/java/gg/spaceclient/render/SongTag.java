@@ -130,7 +130,10 @@ public final class SongTag {
             if (cover != null) {
                 // Square, as tall as the rows it sits beside, left of the title
                 float size = hasLyric ? 2 * rowHeight + 1 : rowHeight;
-                float x1 = -top.width() / 2f - 1;
+                // Left of whichever row is wider, so it never covers the
+                // start of a lyric line longer than the title
+                float widest = bottom != null ? Math.max(top.width(), bottom.width()) : top.width();
+                float x1 = -widest / 2f - 1;
                 quad(collector, poseStack, cover, x1 - size, topRowY, x1, topRowY + size);
             }
         } finally {
