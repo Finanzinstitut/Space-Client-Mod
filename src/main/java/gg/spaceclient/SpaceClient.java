@@ -351,6 +351,14 @@ public class SpaceClient {
         for (HudModule module : moduleManager.getHudModules()) {
             if (!module.isEnabled()) continue;
 
+            // Each element in a layer of its own. The game places everything
+            // drawn by testing it against what is already in its layer, so
+            // with the whole HUD in one layer the cost grew with the square of
+            // the shapes on screen. One layer per element keeps each test to
+            // the element's own handful. Drawing order is unchanged: later
+            // layers go on top, as later draws always did.
+            graphics.nextStratum();
+
             // Timed per element, so the diagnostics page can say which one
             // costs the frames instead of the HUD as a whole being blamed
             long start = System.nanoTime();
