@@ -38,7 +38,44 @@ public final class SongTag {
     private SongTag() {}
 
     /** What one card shows. Any part but the title may be empty. */
-    public record Card(String title, String artist, String source, String lyric) {}
+    public record Card(String title, String artist, String source, gg.spaceclient.music.Lyrics.Moment lyric) {}
+
+    /** Words already sung, the word being sung, and the ones still to come. */
+    private static final int SUNG = 0xFFFFFF;
+    private static final int TO_COME = 0x9A9AA2;
+
+    /**
+     * The lyric line as coloured runs, with the word being sung in the
+     * player's colour.
+     */
+    private static List<TextPlate.Run> lyricRuns(gg.spaceclient.music.Lyrics.Moment moment, int accent) {
+        String text = moment.text();
+        if (!moment.hasWord()) return List.of(new TextPlate.Run(text, SUNG));
+        int a = Math.min(text.length(), moment.wordStart());
+        int b = Math.min(text.length(), moment.wordEnd());
+        List<TextPlate.Run> runs = new java.util.ArrayList<>(3);
+        if (a > 0) runs.add(new TextPlate.Run(text.substring(0, a), SUNG));
+        // A player without a colour of its own is white, which is what the
+        // sung words already are; the word then goes gold instead
+        int word = (accent & 0xFFFFFF) == 0xFFFFFF ? 0xFFD54A : accent & 0xFFFFFF;
+        runs.add(new TextPlate.Run(text.substring(a, b), word));
+        if (b < text.length()) runs.add(new TextPlate.Run(text.substring(b), TO_COME));
+        return runs;
+    }
+
+    /**
+     * The last lyric picture shown for each song, for while the next one is
+     * still being drawn. Every word is a picture of its own, made off the
+     * render thread; without this the line blinked out for a frame or two at
+     * each word.
+     */
+    private static final java.util.Map<String, TextPlate.Plate> lastLyric =
+            new java.util.LinkedHashMap<>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(java.util.Map.Entry<String, TextPlate.Plate> eldest) {
+                    return size() > 32;
+                }
+            };
 
     public static void submit(SubmitNodeCollector collector, PoseStack poseStack, Vec3 position,
                               CameraRenderState camera, Card card) {
@@ -49,14 +86,22 @@ public final class SongTag {
                 ? List.of(new TextPlate.Run("\u266A " + card.title(), accent & 0xFFFFFF))
                 : List.of(new TextPlate.Run("\u266A " + card.title(), accent & 0xFFFFFF),
                           new TextPlate.Run("  " + card.artist(), 0xC8C8C8));
-        boolean hasLyric = !card.lyric().isEmpty();
+        boolean hasLyric = card.lyric() != null && !card.lyric().isEmpty();
 
         // Pictures are drawn off the render thread; until they are ready the
         // card waits, rather than showing a cover next to a gap
         TextPlate.Plate top = TextPlate.get(topRuns);
-        TextPlate.Plate bottom = hasLyric
-                ? TextPlate.get(List.of(new TextPlate.Run(card.lyric(), 0xFFFFFF)))
-                : null;
+        TextPlate.Plate bottom = null;
+        if (hasLyric) {
+            // Per song: until the next picture is ready the last one stays up
+            String lineKey = card.artist() + "\u0000" + card.title();
+            bottom = TextPlate.get(lyricRuns(card.lyric(), accent));
+            if (bottom != null) lastLyric.put(lineKey, bottom);
+            else bottom = lastLyric.get(lineKey);
+            // The plain line too, ready for the first word of the next line
+            if (bottom == null) bottom = TextPlate.get(List.of(new TextPlate.Run(card.lyric().text(), SUNG)));
+        }
+        hasLyric = bottom != null;
         if (top == null) return;
 
         Identifier cover = Artwork.texture(card.artist(), card.title());

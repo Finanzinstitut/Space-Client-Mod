@@ -401,3 +401,66 @@ test("the list carries the feed version, so a first poll can wait on it", async 
   assert.notEqual(woke.version, list.version);
   assert.ok(Date.now() - started < 5000, "woke at once");
 });
+
+// ---------------------------------------------------------------- now playing
+
+test("a song is one write, and listeners get its position worked out", async () => {
+  const alice = await signIn(ALICE);
+  const set = await body(await call("/np/set", {
+    token: alice.token,
+    body: { artist: "Daft Punk", title: "Veridis Quo", source: "Spotify", playing: true, position: 30, duration: 345 },
+  }));
+  assert.ok(set.ok && !set.unchanged, JSON.stringify(set));
+
+  // Asked for without signing in, in either uuid spelling
+  const dashed = "11111111-1111-1111-1111-111111111111";
+  const got = await body(await call("/np/get", { body: { uuids: [dashed, "nonsense"] } }));
+  const song = got.songs[dashed];
+  assert.equal(song.title, "Veridis Quo");
+  assert.equal(song.playing, true);
+  assert.equal(song.position, 30);
+  assert.ok(song.age >= 0 && song.age < 5, "age " + song.age);
+  assert.equal(song.duration, 345);
+  assert.equal(Object.keys(got.songs).length, 1);
+});
+
+test("the same song again, where listeners already expect it, is not written", async () => {
+  const alice = await signIn(ALICE);
+  const again = await body(await call("/np/set", {
+    token: alice.token,
+    body: { artist: "Daft Punk", title: "Veridis Quo", source: "Spotify", playing: true, position: 30.5, duration: 345 },
+  }));
+  assert.equal(again.unchanged, true, JSON.stringify(again));
+
+  // A jump is news
+  const jumped = await body(await call("/np/set", {
+    token: alice.token,
+    body: { artist: "Daft Punk", title: "Veridis Quo", source: "Spotify", playing: true, position: 120, duration: 345 },
+  }));
+  assert.ok(!jumped.unchanged);
+
+  // So is a pause
+  const paused = await body(await call("/np/set", {
+    token: alice.token,
+    body: { artist: "Daft Punk", title: "Veridis Quo", source: "Spotify", playing: false, position: 121, duration: 345 },
+  }));
+  assert.ok(!paused.unchanged);
+});
+
+test("an empty title takes the song down, and setting one needs a sign-in", async () => {
+  const alice = await signIn(ALICE);
+  await call("/np/set", { token: alice.token, body: { title: "" } });
+  const got = await body(await call("/np/get", { body: { uuids: [ALICE.id] } }));
+  assert.deepEqual(got.songs, {});
+
+  const anonymous = await call("/np/set", { body: { title: "x", playing: true } });
+  assert.equal(anonymous.status, 401);
+});
+
+test("a song runs out on its own after it should have ended", async () => {
+  const { songExpiry } = await import("../src/index.js");
+  const now = 1_000_000;
+  assert.equal(songExpiry(now, true, 100, 160), now + 60_000 + 20_000);
+  assert.equal(songExpiry(now, true, -1, 0), now + 12 * 60_000);
+  assert.equal(songExpiry(now, false, 50, 160), now + 20 * 60_000);
+});

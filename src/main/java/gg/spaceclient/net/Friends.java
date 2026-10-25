@@ -597,6 +597,75 @@ public final class Friends {
         changed();
     }
 
+    // ---------------------------------------------------------------- now playing
+
+    /**
+     * Shares the song this player is listening to, or takes it down when the
+     * title is empty. Sent rarely: the worker works the position out from
+     * this one reading for as long as the song plays.
+     *
+     * @return whether the worker took it
+     */
+    public static boolean setSong(String source, String artist, String title,
+                                  boolean playing, double position, double duration) {
+        if (!ensureToken()) return false;
+        String body = "{\"source\":" + quote(source) + ",\"artist\":" + quote(artist)
+                + ",\"title\":" + quote(title) + ",\"playing\":" + playing
+                + ",\"position\":" + (Double.isFinite(position) ? position : -1)
+                + ",\"duration\":" + (Double.isFinite(duration) && duration > 0 ? duration : 0) + "}";
+        return songCall("/np/set", body, true) != null;
+    }
+
+    /** What the given players are playing, or null when the worker could not be asked. */
+    public static JsonObject songsFor(java.util.List<java.util.UUID> uuids) {
+        if (uuids.isEmpty()) return null;
+        StringBuilder body = new StringBuilder("{\"uuids\":[");
+        for (int i = 0; i < uuids.size(); i++) {
+            if (i > 0) body.append(',');
+            body.append('"').append(uuids.get(i)).append('"');
+        }
+        body.append("]}");
+        JsonObject answer = songCall("/np/get", body.toString(), false);
+        return answer != null && answer.has("songs") ? answer.getAsJsonObject("songs") : null;
+    }
+
+    /** What the last song call ran into, for the diagnostics page. */
+    private static volatile String songStatus = "";
+
+    public static String songStatus() { return songStatus; }
+
+    /**
+     * A call for the song feature. Kept apart from call() so a song request
+     * that fails does not overwrite the friends list's own status line.
+     */
+    private static JsonObject songCall(String path, String body, boolean withToken) {
+        try {
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
+                    .uri(URI.create(BASE + path))
+                    .header("Content-Type", "application/json")
+                    .timeout(Duration.ofSeconds(15))
+                    .POST(HttpRequest.BodyPublishers.ofString(body));
+            if (withToken && !token.isEmpty()) builder = builder.header("Authorization", "Bearer " + token);
+
+            HttpResponse<String> response = SpaceApi.client()
+                    .send(builder.build(), HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 401) {
+                token = "";
+                songStatus = "signed out - trying again";
+                return null;
+            }
+            if (response.statusCode() != 200) {
+                songStatus = path + " refused (" + response.statusCode() + ")";
+                return null;
+            }
+            songStatus = path + " ok";
+            return JsonParser.parseString(response.body()).getAsJsonObject();
+        } catch (Throwable t) {
+            songStatus = path + " failed: " + t.getClass().getSimpleName();
+            return null;
+        }
+    }
+
     // ---------------------------------------------------------------- plumbing
 
     private interface Tweak { HttpRequest.Builder apply(HttpRequest.Builder builder); }
