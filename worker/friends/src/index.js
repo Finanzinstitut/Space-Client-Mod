@@ -430,7 +430,9 @@ async function poll(request_, env, who, url) {
     const grouped = await env.DB
       .prepare("SELECT m.id, m.group_id, m.sender, m.body, m.sent FROM group_messages m " +
                "JOIN group_members g ON g.group_id = m.group_id AND g.uuid = ? " +
-               "WHERE m.id > ? AND m.sent >= g.joined ORDER BY m.id LIMIT 50")
+               "LEFT JOIN group_floor f ON f.group_id = m.group_id AND f.uuid = g.uuid " +
+               "WHERE m.id > ? AND (CASE WHEN f.after_id IS NULL THEN m.sent >= g.joined " +
+               "ELSE m.id > f.after_id END) ORDER BY m.id LIMIT 50")
       .bind(who.uuid, gsince)
       .all();
     const groupLines = grouped.results || [];
@@ -543,6 +545,7 @@ async function createGroup(request_, env, who) {
     ...[who.uuid, ...people].map((uuid) =>
       env.DB.prepare("INSERT INTO group_members (group_id, uuid, joined) VALUES (?, ?, ?)")
         .bind(id, uuid, now)),
+    ...[who.uuid, ...people].map((uuid) => floorFor(env, id, uuid)),
     ...[who.uuid, ...people].map((uuid) => bump(env, uuid)),
   ]);
 
@@ -567,6 +570,7 @@ async function inviteToGroup(request_, env, who) {
     ...people.map((uuid) =>
       env.DB.prepare("INSERT OR IGNORE INTO group_members (group_id, uuid, joined) VALUES (?, ?, ?)")
         .bind(groupId, uuid, now)),
+    ...people.map((uuid) => floorFor(env, groupId, uuid)),
     ...[...members, ...people].map((uuid) => bump(env, uuid)),
   ]);
 
@@ -582,6 +586,7 @@ async function leaveGroup(request_, env, who) {
   const rest = members.filter((m) => m !== who.uuid);
   const statements = [
     env.DB.prepare("DELETE FROM group_members WHERE group_id = ? AND uuid = ?").bind(groupId, who.uuid),
+    env.DB.prepare("DELETE FROM group_floor WHERE group_id = ? AND uuid = ?").bind(groupId, who.uuid),
     ...members.map((uuid) => bump(env, uuid)),
   ];
   // The last one out takes the group and what was said in it along
@@ -592,6 +597,14 @@ async function leaveGroup(request_, env, who) {
   }
   await env.DB.batch(statements);
   return json({ ok: true, note: "left the group" });
+}
+
+/** Notes the group's last message as where a new member starts reading. */
+function floorFor(env, groupId, uuid) {
+  return env.DB.prepare(
+    "INSERT OR REPLACE INTO group_floor (group_id, uuid, after_id) " +
+    "SELECT ?, ?, COALESCE(MAX(id), 0) FROM group_messages WHERE group_id = ?")
+    .bind(groupId, uuid, groupId);
 }
 
 async function sendGroupMessage(request_, env, who) {

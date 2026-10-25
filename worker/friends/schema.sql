@@ -68,6 +68,18 @@ CREATE TABLE IF NOT EXISTS group_messages (
 );
 CREATE INDEX IF NOT EXISTS group_messages_by_group ON group_messages (group_id, id);
 
+-- Where each member came in: the last message the group had when they
+-- joined. What they may read starts after it. Kept by message number rather
+-- than by time, because two things in the same millisecond - a message and
+-- an invite - left it to chance which came first. Members from before this
+-- table have no row and fall back to the time they joined.
+CREATE TABLE IF NOT EXISTS group_floor (
+  group_id INTEGER NOT NULL,
+  uuid     TEXT NOT NULL,
+  after_id INTEGER NOT NULL,
+  PRIMARY KEY (group_id, uuid)
+);
+
 -- What everybody is playing, for the song over their name. One row per
 -- player, written only when something a listener could not work out alone
 -- changes: a new song, a pause, a jump. Where they are in the song is a
