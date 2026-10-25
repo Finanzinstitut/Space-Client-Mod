@@ -228,11 +228,13 @@ public abstract class HudModule extends Module {
      * text changes.
      */
     private int sizeWidth, sizeHeight;
-    private long sizedAt = Long.MIN_VALUE;
+    private long sizedAt = 0L;
+    private boolean sized = false;
 
     private void measure() {
         long now = System.nanoTime();
-        if (now - sizedAt < SIZE_HOLD_NANOS) return;
+        if (sized && now - sizedAt < SIZE_HOLD_NANOS) return;
+        sized = true;
         sizeWidth = getWidth();
         sizeHeight = getHeight();
         sizedAt = now;
