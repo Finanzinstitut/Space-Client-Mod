@@ -101,3 +101,21 @@ of each other.
 - `test/worker.test.mjs` - the whole worker over real SQLite with the real
   schema, including a poll that wakes up when a request arrives while it is
   waiting.
+
+## Now playing
+
+The song over a player's name lives here too (`/np/set`, signed in, and
+`/np/get`, open), in the `songs` table. It moved from the badge worker's KV,
+whose free plan allows 1,000 writes a day - two people listening for two hours
+used that up, because the client sent its position every few seconds.
+
+Here a song is one write: title, length, position and whether it plays.
+Listeners work the position out themselves, and a row expires on its own
+shortly after its song should have ended, so there is no keepalive. A client
+writes again only on the next song, a pause, or a jump that has held for a few
+seconds; the worker also skips a write that would not change what listeners
+see. Lookups run every 20 seconds with lyrics on (60 without), plus right after
+a known song should have ended and when somebody new comes into view.
+
+After deploying, run the workflow with "apply schema" on once, so the `songs`
+table exists.

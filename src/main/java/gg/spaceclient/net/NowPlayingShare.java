@@ -22,40 +22,50 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Publishes the local track and keeps what other people are playing.
  *
- * Two timers, deliberately different: reporting only happens when the track
- * actually changed, or once a minute so the entry does not expire; looking up
- * runs on a slower beat, because a song lasting three minutes does not need to
- * be fetched every second.
+ * Built so the free plan of the server it runs on lasts. It used to send the
+ * position every few seconds - every small hiccup in the position Windows
+ * reports looked like a jump and went out as one - and two people listening
+ * for two hours used up a day's allowance. Now a song goes out once: its
+ * title, how long it is, where it is and whether it plays. Everyone else works
+ * the position out from that themselves for as long as the song plays, so
+ * the next message is only due when something they could not have worked out
+ * happens: the next song, a pause, a real jump.
+ *
+ * Looking up runs on a slow beat, plus right after a known song should have
+ * ended - which is when the next one is to be expected - and soon after
+ * somebody new comes into view.
  *
  * Nothing here runs while the setting is off, with one exception - the moment
- * it is switched off, one last call goes out to clear the entry. Otherwise the
- * last song anyone saw would keep hanging over the name until the worker's own
- * expiry caught up with it, which is not what switching a thing off means.
+ * it is switched off, one last call goes out to clear the entry.
  */
 public final class NowPlayingShare {
 
-    /** How often the local track may be sent, at the very most. */
-    private static final long REPORT_MIN_MS = 5_000;
+    /** A song change waits this long, so skipping through three is one message. */
+    private static final long REPORT_CHANGE_MS = 1_500;
 
-    /** A track change is news, so it waits far less than a routine report. */
-    private static final long REPORT_CHANGE_MS = 800;
+    /** A jump is only believed when it has held for this long. */
+    private static final long JUMP_CONFIRM_MS = 4_000;
 
-    /** Sent again after this long even when nothing changed, to stay alive. */
-    private static final long REPORT_KEEPALIVE_MS = 60_000;
+    /** And at most one jump correction goes out in this time. */
+    private static final long JUMP_EVERY_MS = 30_000;
 
-    /** How often everyone else's tracks are fetched. */
-    private static final long FETCH_MS = 10_000;
+    /** How far off the worked-out position may be before it counts as a jump. */
+    private static final double JUMP_SECONDS = 3.0;
 
-    /**
-     * The same, while lyrics are on. A song change reaches other people on the
-     * next lookup, and until then they keep extrapolating the old song - which
-     * with ten seconds between lookups meant up to ten seconds of the previous
-     * song's words over the head.
-     */
-    private static final long FETCH_LYRICS_MS = 4_000;
+    /** A song of unknown length expires on the server; sent again before that. */
+    private static final long REPORT_UNKNOWN_LENGTH_MS = 10 * 60_000;
 
-    /** Still a floor, so a busy spawn cannot turn every arrival into a request. */
-    private static final long FETCH_NEW_MS = 1_500;
+    /** How often everyone else's songs are looked up. */
+    private static final long FETCH_MS = 60_000;
+
+    /** The same, while lyrics are on: a pause somebody else makes shows sooner. */
+    private static final long FETCH_LYRICS_MS = 20_000;
+
+    /** Soonest after the last lookup that a newcomer or a song end may ask again. */
+    private static final long FETCH_SOON_MS = 3_000;
+
+    /** How long after a song should have ended its successor is looked up. */
+    private static final long FETCH_AFTER_END_MS = 2_000;
 
     /** Who the last lookup covered, so an arrival can be told from a regular. */
     private static final java.util.Set<UUID> asked =
@@ -74,7 +84,14 @@ public final class NowPlayingShare {
      * frame rather than lurching once per poll.
      */
     private record Remote(String artist, String title, String source, double position,
-                          boolean playing, long receivedAt) {}
+                          boolean playing, double duration, long receivedAt) {
+
+        /** When this song should end, by the local clock, or 0 when unknown. */
+        long endsAt() {
+            if (!playing || duration <= 0 || position < 0) return 0;
+            return receivedAt + (long) ((duration - position) * 1000);
+        }
+    }
 
     private static final Map<UUID, Remote> remotes = new ConcurrentHashMap<>();
 
@@ -87,6 +104,15 @@ public final class NowPlayingShare {
     private static double lastPosition = -1;
     private static boolean lastPlaying = false;
     private static boolean wasSharing = false;
+
+    /** When the song on show first differed from what was last sent. */
+    private static long changeSeen = 0;
+    /** When the position first disagreed with what listeners work out. */
+    private static long jumpSeen = 0;
+    private static long lastJumpReport = 0;
+    /** How many messages went out, for the diagnostics page. */
+    private static int reportsSent = 0;
+    private static int lookups = 0;
 
     /**
      * Whether your own track should be drawn over your own head.
@@ -141,8 +167,9 @@ public final class NowPlayingShare {
 
     /** What the local track last sent was, for the diagnostics page. */
     public static String reportStatus() {
-        if (lastReport == 0) return "nothing sent yet";
-        return lastReported.isEmpty() ? "sent: (cleared)" : "sent: " + lastReported;
+        String counts = " (" + reportsSent + " sent, " + lookups + " lookups; " + Friends.songStatus() + ")";
+        if (lastReport == 0) return "nothing sent yet" + counts;
+        return (lastReported.isEmpty() ? "sent: (cleared)" : "sent: " + lastReported) + counts;
     }
 
     /**
@@ -201,6 +228,17 @@ public final class NowPlayingShare {
         return Lyrics.line(remote.artist(), remote.title(), position);
     }
 
+    /** The same, with the word being sung. */
+    public static Lyrics.Moment momentFor(UUID uuid) {
+        if (uuid == null || !showsLyrics()) return Lyrics.Moment.NONE;
+        Remote remote = remotes.get(uuid);
+        if (remote == null || remote.title().isEmpty() || remote.position() < 0) return Lyrics.Moment.NONE;
+        double position = remote.playing()
+                ? remote.position() + (System.currentTimeMillis() - remote.receivedAt()) / 1000.0
+                : remote.position();
+        return Lyrics.moment(remote.artist(), remote.title(), position);
+    }
+
     /**
      * Everything the card over a player's head shows, or null when that player
      * shares no song. Called from the render thread.
@@ -218,21 +256,19 @@ public final class NowPlayingShare {
             if (module == null || !module.isEnabled()) return null;
             NowPlaying own = module.track();
             if (own.isEmpty()) return null;
-            String lyric = "";
+            Lyrics.Moment lyric = Lyrics.Moment.NONE;
             if (module.showsLyrics()) {
                 double position = MediaSession.position();
-                if (position >= 0) lyric = Lyrics.line(own.artist(), own.title(), position);
+                if (position >= 0) lyric = Lyrics.moment(own.artist(), own.title(), position);
             }
-            return new gg.spaceclient.render.SongTag.Card(own.title(), own.artist(), own.source(),
-                    lyric == null ? "" : lyric);
+            return new gg.spaceclient.render.SongTag.Card(own.title(), own.artist(), own.source(), lyric);
         }
 
         String song = songs.get(uuid);
         if (song == null || song.isEmpty()) return null;
 
         Remote remote = remotes.get(uuid);
-        String lyric = lyricFor(uuid);
-        if (lyric == null) lyric = "";
+        Lyrics.Moment lyric = momentFor(uuid);
 
         if (remote == null || remote.title().isEmpty()) {
             // Only the combined line is known: shown as the title
@@ -305,54 +341,63 @@ public final class NowPlayingShare {
         if (reporting) return;
 
         long now = System.currentTimeMillis();
-
         NowPlaying playing = module.track();
         String line = playing.isEmpty() ? "" : playing.display();
-
-        // The floor used to be checked before the track was even read, so a
-        // song that changed one second after the last report sat unsent for
-        // four more. A change now only waits out a much shorter floor; the
-        // long one still applies to keepalives and seek corrections, which is
-        // what it was there to hold back.
-        boolean fresh = !line.equals(lastReported) || playing.playing() != lastPlaying;
-        long floor = fresh ? REPORT_CHANGE_MS : REPORT_MIN_MS;
-        if (now - lastReport < floor) return;
-
         double position = MediaSession.position();
+        double duration = MediaSession.duration();
 
-        // Sent when the track changes, when the keepalive is due, or when the
-        // position no longer matches what listeners would have extrapolated -
-        // which is how seeking gets corrected without reporting constantly
-        double expected = lastPlaying
-                ? lastPosition + (now - lastReport) / 1000.0
-                : lastPosition;
-        boolean seeked = position >= 0 && lastPosition >= 0
-                && Math.abs(position - expected) > 2.0;
+        // A new song, or play/pause: news, after a moment to settle
+        boolean changed = !line.equals(lastReported) || playing.playing() != lastPlaying;
+        if (changed) {
+            if (changeSeen == 0) changeSeen = now;
+            if (now - changeSeen < REPORT_CHANGE_MS) return;
+        } else {
+            changeSeen = 0;
+        }
 
-        // Pausing and resuming are news too. Without them a listener kept
-        // running the song on through a pause and was ahead by however long
-        // it lasted - the lyrics then led the music until the next keepalive.
-        boolean pausedOrResumed = playing.playing() != lastPlaying;
+        // Where listeners believe this song is, worked out from the last message
+        double expected = lastPosition < 0 ? -1
+                : lastPosition + (lastPlaying ? (now - lastReport) / 1000.0 : 0);
 
-        // A position that was unknown at the song change and has turned up
-        // since. It used to wait for the minute keepalive, and until then
-        // nobody else could show a single line.
-        boolean positionArrived = lastPosition < 0 && position >= 0;
+        boolean jumped = false;
+        if (!changed && position >= 0 && expected >= 0
+                && Math.abs(position - expected) > JUMP_SECONDS) {
+            // Believed only once it has held for a while: the position Windows
+            // hands out stalls and catches up, and each of those used to go
+            // out as a jump - which is what used up the server's allowance
+            if (jumpSeen == 0) jumpSeen = now;
+            jumped = now - jumpSeen >= JUMP_CONFIRM_MS && now - lastJumpReport >= JUMP_EVERY_MS;
+        } else {
+            jumpSeen = 0;
+        }
 
-        boolean changed = !line.equals(lastReported);
-        boolean stale = now - lastReport > REPORT_KEEPALIVE_MS;
-        if (!changed && !stale && !seeked && !pausedOrResumed && !positionArrived) return;
+        // The first position after a song change, so listeners can show lines
+        boolean positionArrived = !changed && lastPosition < 0 && position >= 0;
+
+        // Only a song of unknown length has to be said again before it expires
+        boolean refresh = !line.isEmpty() && !(duration > 0)
+                && now - lastReport > REPORT_UNKNOWN_LENGTH_MS;
+
+        if (!changed && !jumped && !positionArrived && !refresh) return;
 
         lastReport = now;
         lastReported = line;
         lastPosition = position;
         lastPlaying = playing.playing();
+        changeSeen = 0;
+        jumpSeen = 0;
+        if (jumped) lastJumpReport = now;
         reporting = true;
+        reportsSent++;
 
         CompletableFuture.runAsync(() -> {
             try {
-                SpaceApi.report(playing.source(), playing.artist(),
-                        playing.title(), playing.playing(), position);
+                if (line.isEmpty()) {
+                    Friends.setSong("", "", "", false, -1, 0);
+                } else {
+                    Friends.setSong(playing.source(), playing.artist(), playing.title(),
+                            playing.playing(), position, duration);
+                }
             } finally {
                 reporting = false;
             }
@@ -360,7 +405,7 @@ public final class NowPlayingShare {
     }
 
     private static void clearRemote() {
-        CompletableFuture.runAsync(() -> SpaceApi.report("", "", "", false, -1));
+        CompletableFuture.runAsync(() -> Friends.setSong("", "", "", false, -1, 0));
     }
 
     private static void maybeFetch(Minecraft mc) {
@@ -398,8 +443,18 @@ public final class NowPlayingShare {
             if (!asked.contains(uuid)) { newcomer = true; break; }
         }
 
-        long wait = newcomer ? FETCH_NEW_MS : showsLyrics() ? FETCH_LYRICS_MS : FETCH_MS;
+        // A song somebody here was playing should have ended: the next one is
+        // what they are listening to now, and worth asking for straight away
+        boolean songEnded = false;
+        for (Remote remote : remotes.values()) {
+            long end = remote.endsAt();
+            if (end > 0 && end > lastFetch && now >= end + FETCH_AFTER_END_MS) { songEnded = true; break; }
+        }
+
+        long wait = newcomer || songEnded ? FETCH_SOON_MS
+                : showsLyrics() ? FETCH_LYRICS_MS : FETCH_MS;
         if (now - lastFetch < wait) return;
+        lookups++;
 
         lastFetch = now;
         asked.clear();
@@ -408,7 +463,7 @@ public final class NowPlayingShare {
         fetching = true;
         CompletableFuture.runAsync(() -> {
             try {
-                JsonObject answer = SpaceApi.songsFor(wanted);
+                JsonObject answer = Friends.songsFor(wanted);
                 if (answer == null) return;
 
                 // Replaced wholesale rather than merged: someone who stopped
@@ -422,11 +477,10 @@ public final class NowPlayingShare {
                         UUID uuid = UUID.fromString(entry.getKey());
                         JsonObject value = entry.getValue().getAsJsonObject();
 
-                        String line = value.has("song") ? value.get("song").getAsString() : "";
-                        if (!line.isEmpty()) fresh.put(uuid, line);
-
                         String title = value.has("title") ? value.get("title").getAsString() : "";
                         if (title.isEmpty()) continue;
+                        String artist = value.has("artist") ? value.get("artist").getAsString() : "";
+                        fresh.put(uuid, artist.isEmpty() ? title : artist + " - " + title);
 
                         // The worker reports how long ago the position was
                         // taken, so a reading that sat in storage for a while
@@ -442,13 +496,20 @@ public final class NowPlayingShare {
                         if (!Double.isFinite(age)) age = 0;
                         if (!Double.isFinite(position)) position = -1;
 
+                        double duration = value.has("duration") ? value.get("duration").getAsDouble() : 0;
+                        if (!Double.isFinite(duration)) duration = 0;
+
+                        // The worker says how long ago the position was true;
+                        // a paused song has stayed where it was
+                        double current = position < 0 ? -1 : isPlaying ? position + age : position;
                         freshRemotes.put(uuid, new Remote(
-                                value.has("artist") ? value.get("artist").getAsString() : "",
+                                artist,
                                 title,
                                 value.has("source") && !value.get("source").isJsonNull()
                                         ? value.get("source").getAsString() : "",
-                                position + age,
+                                current,
                                 isPlaying,
+                                duration,
                                 arrived));
 
                     } catch (Throwable ignored) {

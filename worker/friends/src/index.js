@@ -71,6 +71,8 @@ export default {
     try {
       if (path === "/" ) return json({ ok: true, service: "space-client-friends" });
       if (path === "/session") return await session(request_, env);
+      // Anybody may see what the players around them are playing
+      if (path === "/np/get") return await songsFor(request_, env);
 
       // Everything past here needs a token
       const who = await whoIs(request_, env);
@@ -87,6 +89,7 @@ export default {
         case "/groups/invite": return await inviteToGroup(request_, env, who);
         case "/groups/leave": return await leaveGroup(request_, env, who);
         case "/groups/message": return await sendGroupMessage(request_, env, who);
+        case "/np/set": return await setSong(request_, env, who);
         default: return fail("no such thing here", 404);
       }
     } catch (error) {
@@ -608,6 +611,116 @@ async function sendGroupMessage(request_, env, who) {
     ...members.map((uuid) => bump(env, uuid)),
   ]);
   return json({ ok: true, sent: now });
+}
+
+// ---------------------------------------------------------------- now playing
+
+/**
+ * The song over a player's name.
+ *
+ * Built around the free plan's limits rather than against them. It moved
+ * here from the badge worker's KV, which allows a thousand writes a day: two
+ * people listening for two hours used it up, because a client sent its
+ * position every few seconds. Here a song is one write - its start, length
+ * and whether it plays - and listeners work out the position from that. A
+ * row expires by itself shortly after its song should have ended, so nothing
+ * has to keep it alive either.
+ */
+const SONG_TEXT = 200;
+const SONG_GRACE_MS = 20_000;          // past the end, for clocks and gaps
+const SONG_UNKNOWN_MS = 12 * 60_000;   // playing, length unknown
+const SONG_PAUSED_MS = 20 * 60_000;    // paused
+const SONG_LOOKUP = 100;
+
+const plainUuid = (value) => String(value || "").toLowerCase().replace(/-/g, "");
+
+/** When a song row stops counting. */
+export function songExpiry(now, playing, position, duration) {
+  if (!playing) return now + SONG_PAUSED_MS;
+  if (duration > 0 && position >= 0) {
+    return now + Math.max(0, duration - position) * 1000 + SONG_GRACE_MS;
+  }
+  return now + SONG_UNKNOWN_MS;
+}
+
+async function setSong(request_, env, who) {
+  const body = await readJson(request_);
+  const uuid = plainUuid(who.uuid);
+  const title = String(body.title || "").slice(0, SONG_TEXT);
+
+  if (!title) {
+    await env.DB.prepare("DELETE FROM songs WHERE uuid = ?").bind(uuid).run();
+    return json({ ok: true, cleared: true });
+  }
+
+  const now = Date.now();
+  const artist = String(body.artist || "").slice(0, SONG_TEXT);
+  const source = String(body.source || "").slice(0, 40);
+  const playing = body.playing ? 1 : 0;
+  const position = Number.isFinite(body.position) ? Math.max(-1, body.position) : -1;
+  const duration = Number.isFinite(body.duration) ? Math.max(0, body.duration) : 0;
+
+  // A client that sends more than it needs to costs a read here, not a write
+  const existing = await env.DB
+    .prepare("SELECT artist, title, playing, position, at FROM songs WHERE uuid = ?")
+    .bind(uuid).first();
+  if (existing && existing.artist === artist && existing.title === title
+      && existing.playing === playing) {
+    const expected = existing.position < 0 ? -1
+      : existing.position + (playing ? (now - existing.at) / 1000 : 0);
+    if (position < 0 || (expected >= 0 && Math.abs(expected - position) < 3)) {
+      return json({ ok: true, unchanged: true, now });
+    }
+  }
+
+  await env.DB.batch([
+    env.DB.prepare(
+      "INSERT INTO songs (uuid, artist, title, source, playing, position, at, duration, expires) " +
+      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(uuid) DO UPDATE SET " +
+      "artist = excluded.artist, title = excluded.title, source = excluded.source, " +
+      "playing = excluded.playing, position = excluded.position, at = excluded.at, " +
+      "duration = excluded.duration, expires = excluded.expires")
+      .bind(uuid, artist, title, source, playing, position, now, duration,
+            songExpiry(now, playing, position, duration)),
+    // Old rows go with the next write, so there is no sweep to schedule
+    env.DB.prepare("DELETE FROM songs WHERE expires < ?").bind(now),
+  ]);
+  return json({ ok: true, now });
+}
+
+async function songsFor(request_, env) {
+  const body = await readJson(request_);
+  const asked = Array.isArray(body.uuids) ? body.uuids.slice(0, SONG_LOOKUP) : [];
+  const byPlain = new Map();
+  for (const raw of asked) {
+    const plain = plainUuid(raw);
+    if (/^[0-9a-f]{32}$/.test(plain)) byPlain.set(plain, String(raw));
+  }
+
+  const now = Date.now();
+  const songs = {};
+  if (byPlain.size > 0) {
+    const ids = [...byPlain.keys()];
+    const rows = await env.DB
+      .prepare("SELECT uuid, artist, title, source, playing, position, at, duration FROM songs " +
+               `WHERE uuid IN (${ids.map(() => "?").join(", ")}) AND expires > ?`)
+      .bind(...ids, now)
+      .all();
+    for (const row of rows.results || []) {
+      songs[byPlain.get(row.uuid)] = {
+        artist: row.artist,
+        title: row.title,
+        source: row.source,
+        playing: !!row.playing,
+        position: row.position,
+        // How long ago the position was true, by this worker's clock - the
+        // client does not have to agree with it about what time it is
+        age: (now - row.at) / 1000,
+        duration: row.duration,
+      };
+    }
+  }
+  return json({ ok: true, now, songs });
 }
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));

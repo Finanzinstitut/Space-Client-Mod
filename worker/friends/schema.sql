@@ -67,3 +67,21 @@ CREATE TABLE IF NOT EXISTS group_messages (
   sent     INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS group_messages_by_group ON group_messages (group_id, id);
+
+-- What everybody is playing, for the song over their name. One row per
+-- player, written only when something a listener could not work out alone
+-- changes: a new song, a pause, a jump. Where they are in the song is a
+-- start time, so the position never has to be sent again while it plays,
+-- and a row runs out on its own when the song should have ended.
+CREATE TABLE IF NOT EXISTS songs (
+  uuid     TEXT PRIMARY KEY,          -- without dashes
+  artist   TEXT NOT NULL,
+  title    TEXT NOT NULL,
+  source   TEXT NOT NULL,
+  playing  INTEGER NOT NULL,
+  position REAL NOT NULL,             -- seconds into the song at "at"
+  at       INTEGER NOT NULL,          -- ms, the worker's clock
+  duration REAL NOT NULL,             -- seconds, 0 when unknown
+  expires  INTEGER NOT NULL           -- ms
+);
+CREATE INDEX IF NOT EXISTS songs_by_expiry ON songs (expires);

@@ -270,8 +270,9 @@ public class MusicModule extends HudModule {
         double duration = idle ? -1 : MediaSession.duration();
 
         if (lyrics.get() && !idle) {
-            String line = position < 0 ? "" : Lyrics.line(playing.artist(), playing.title(), position);
-            if (!line.isEmpty()) drawLyric(graphics, "\u266A " + line, textX, y, room);
+            Lyrics.Moment moment = position < 0 ? Lyrics.Moment.NONE
+                    : Lyrics.moment(playing.artist(), playing.title(), position);
+            if (!moment.isEmpty()) drawLyric(graphics, moment, textX, y, room, colours.accent());
         }
 
         // Bottom row: bar and time on the left, the three controls on the right
@@ -352,37 +353,78 @@ public class MusicModule extends HudModule {
      * line that does not fit is drawn smaller, and if it still does not fit it
      * is wrapped onto a second small line in the same space.
      */
-    private void drawLyric(GuiGraphicsExtractor graphics, String line, int x, int y, int room) {
-        int colour = 0xFFE6E6E6;
+    private void drawLyric(GuiGraphicsExtractor graphics, Lyrics.Moment moment, int x, int y,
+                           int room, int accent) {
+        // The note in front shifts every character position by two
+        String line = "\u266A " + moment.text();
+        int wordStart = moment.hasWord() ? moment.wordStart() + 2 : -1;
+        int wordEnd = moment.hasWord() ? moment.wordEnd() + 2 : -1;
+
         if (mc.font.width(line) <= room) {
-            graphics.text(mc.font, line, x, y + 31, colour, false);
+            sung(graphics, line, 0, line.length(), wordStart, wordEnd, x, y + 31, 1f, accent);
             return;
         }
 
         int smallRoom = (int) (room / SMALL);
         if (mc.font.width(line) <= smallRoom) {
-            small(graphics, line, x, y + 32, colour);
+            sung(graphics, line, 0, line.length(), wordStart, wordEnd, x, y + 32, SMALL, accent);
             return;
         }
 
         // Two small lines, broken between words
-        String[] words = line.split(" ");
-        StringBuilder first = new StringBuilder();
-        int i = 0;
-        for (; i < words.length; i++) {
-            String next = first.length() == 0 ? words[i] : first + " " + words[i];
-            if (mc.font.width(next) > smallRoom && first.length() > 0) break;
-            first.setLength(0);
-            first.append(next);
+        int split = line.length();
+        int lastSpace = -1;
+        for (int i = 0; i < line.length(); i++) {
+            if (line.charAt(i) != ' ') continue;
+            if (mc.font.width(line.substring(0, i)) > smallRoom && lastSpace > 0) { split = lastSpace; break; }
+            lastSpace = i;
         }
-        StringBuilder second = new StringBuilder();
-        for (; i < words.length; i++) {
-            if (second.length() > 0) second.append(' ');
-            second.append(words[i]);
+        if (split == line.length() && mc.font.width(line) > smallRoom && lastSpace > 0) split = lastSpace;
+
+        sung(graphics, line, 0, split, wordStart, wordEnd, x, y + 29, SMALL, accent);
+        if (split < line.length()) {
+            // Whatever still does not fit is left off the end of the second line
+            int end = line.length();
+            while (end > split + 1 && mc.font.width(line.substring(split + 1, end)) > smallRoom) end--;
+            sung(graphics, line, split + 1, end, wordStart, wordEnd, x, y + 36, SMALL, accent);
         }
-        small(graphics, trim(first.toString(), smallRoom), x, y + 29, colour);
-        if (second.length() > 0) {
-            small(graphics, trim(second.toString(), smallRoom), x, y + 36, colour);
+    }
+
+    /** Words already sung, the word being sung, and the ones still to come. */
+    private static final int SUNG = 0xFFE6E6E6;
+    private static final int TO_COME = 0xFF8E8E96;
+
+    /**
+     * Draws part of a lyric line - from `from` to `to` - with the word being
+     * sung picked out: what came before it bright, the word in the accent
+     * colour, what follows dimmed. Without a word the whole part is bright.
+     */
+    private void sung(GuiGraphicsExtractor graphics, String line, int from, int to,
+                      int wordStart, int wordEnd, int x, int y, float scale, int accent) {
+        if (to <= from) return;
+        graphics.pose().pushMatrix();
+        try {
+            graphics.pose().translate(x, y);
+            if (scale != 1f) graphics.pose().scale(scale, scale);
+
+            String part = line.substring(from, to);
+            if (wordStart < 0 || wordEnd <= from || wordStart >= to) {
+                graphics.text(mc.font, part, 0, 0, wordStart >= to ? TO_COME : SUNG, false);
+                return;
+            }
+            int a = Math.max(from, wordStart);
+            int b = Math.min(to, wordEnd);
+            String before = line.substring(from, a);
+            String word = line.substring(a, b);
+            String after = line.substring(b, to);
+            int cursor = 0;
+            graphics.text(mc.font, before, cursor, 0, SUNG, false);
+            cursor += mc.font.width(before);
+            graphics.text(mc.font, word, cursor, 0, accent | 0xFF000000, false);
+            cursor += mc.font.width(word);
+            graphics.text(mc.font, after, cursor, 0, TO_COME, false);
+        } finally {
+            graphics.pose().popMatrix();
         }
     }
 

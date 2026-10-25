@@ -42,7 +42,26 @@ public final class Lyrics {
     /** How many tracks are kept. Enough for everyone in sight, not unbounded. */
     private static final int MAX_TRACKS = 24;
 
-    private record Line(double at, String text) {}
+    /**
+     * One timed line, and where in it each word starts - by character and by
+     * time. Word times come from the lyrics when they carry them (enhanced
+     * LRC, a <mm:ss.xx> before each word) and are estimated from the words'
+     * lengths when they do not, which is most of the time.
+     */
+    private record Line(double at, String text, int[] wordStart, int[] wordEnd, double[] wordAt) {
+        Line(double at, String text) { this(at, text, null, null, null); }
+    }
+
+    /**
+     * What is being sung right now: the line, and which part of it is the
+     * word being sung (character positions, end exclusive), or -1 when no
+     * word is - an instrumental gap, or before the line's first word.
+     */
+    public record Moment(String text, int wordStart, int wordEnd) {
+        public static final Moment NONE = new Moment("", -1, -1);
+        public boolean isEmpty() { return text.isEmpty(); }
+        public boolean hasWord() { return wordStart >= 0 && wordEnd > wordStart; }
+    }
 
     /**
      * A lookup result. A failed lookup - the network, not "no lyrics" - is
@@ -79,26 +98,41 @@ public final class Lyrics {
      * rather than freeze on its last words.
      */
     public static String line(String artist, String title, double position) {
-        if (title == null || title.isEmpty() || position < 0) return "";
+        return moment(artist, title, position).text();
+    }
+
+    /** The line for the current moment and the word in it, or Moment.NONE. */
+    public static Moment moment(String artist, String title, double position) {
+        if (title == null || title.isEmpty() || position < 0) return Moment.NONE;
 
         String key = key(artist, title);
         Track track = cache.get(key);
 
         if (track == null || System.currentTimeMillis() > track.expires()) {
             request(artist, title, key);
-            return track == null ? "" : lineAt(track, position);
+            return track == null ? Moment.NONE : momentAt(track, position);
         }
-        return lineAt(track, position);
+        return momentAt(track, position);
     }
 
-    private static String lineAt(Track track, double position) {
-
-        String found = "";
+    private static Moment momentAt(Track track, double position) {
+        Line found = null;
         for (Line line : track.lines()) {
             if (line.at() > position) break;
-            found = line.text();
+            found = line;
         }
-        return found;
+        if (found == null || found.text().isEmpty()) return Moment.NONE;
+        if (found.wordAt() == null || found.wordAt().length == 0) return new Moment(found.text(), -1, -1);
+
+        // The last word that has started; the final one stays lit until the
+        // next line takes over
+        int word = -1;
+        for (int i = 0; i < found.wordAt().length; i++) {
+            if (found.wordAt()[i] <= position) word = i;
+            else break;
+        }
+        if (word < 0) return new Moment(found.text(), -1, -1);
+        return new Moment(found.text(), found.wordStart()[word], found.wordEnd()[word]);
     }
 
     /** Drops everything, for when the setting goes off. */
@@ -220,7 +254,7 @@ public final class Lyrics {
      * instrumental gaps, and dropping them would leave the previous line
      * hanging on screen through the whole solo.
      */
-    private static List<Line> parse(String lrc) {
+    static List<Line> parse(String lrc) {
         List<Line> out = new ArrayList<>();
 
         for (String raw : lrc.split("\n")) {
@@ -240,14 +274,108 @@ public final class Lyrics {
 
             if (stamps.isEmpty()) continue;
 
-            String text = rest.trim();
+            // Word stamps, where the lyrics have them: taken out of the text,
+            // remembered by where they stood in it
+            StringBuilder clean = new StringBuilder();
+            List<int[]> marks = new ArrayList<>();
+            List<Double> markTimes = new ArrayList<>();
+            int i = 0;
+            String body = rest.trim();
+            while (i < body.length()) {
+                char c = body.charAt(i);
+                int close = c == '<' ? body.indexOf('>', i) : -1;
+                Double at = close > i ? seconds(body.substring(i + 1, close)) : null;
+                if (at != null) {
+                    marks.add(new int[]{clean.length()});
+                    markTimes.add(at);
+                    i = close + 1;
+                } else {
+                    clean.append(c);
+                    i++;
+                }
+            }
+            String text = clean.toString().replaceAll("\\s+", " ").trim();
             if (text.length() > MAX_LINE) text = text.substring(0, MAX_LINE);
 
-            for (double at : stamps) out.add(new Line(at, text));
+            for (double at : stamps) out.add(withWords(at, text, clean.toString(), marks, markTimes));
         }
 
         out.sort((a, b) -> Double.compare(a.at(), b.at()));
-        return out;
+
+        // Lines without word stamps get them estimated, which needs to know
+        // when the next line starts
+        List<Line> timed = new ArrayList<>(out.size());
+        for (int n = 0; n < out.size(); n++) {
+            Line line = out.get(n);
+            if (line.wordStart() != null && line.wordAt() == null) {
+                double next = line.at() + 5.0;
+                for (int m = n + 1; m < out.size(); m++) {
+                    if (out.get(m).at() > line.at()) { next = out.get(m).at(); break; }
+                }
+                line = new Line(line.at(), line.text(), line.wordStart(), line.wordEnd(),
+                        estimate(line.at(), next, line.text(), line.wordStart(), line.wordEnd()));
+            }
+            timed.add(line);
+        }
+        return timed;
+    }
+
+    /**
+     * Splits a line into words and, when the lyrics stamped them, gives each
+     * its time. Without stamps the times stay null for estimate() to fill in.
+     */
+    private static Line withWords(double at, String text, String raw,
+                                  List<int[]> marks, List<Double> markTimes) {
+        if (text.isEmpty()) return new Line(at, text);
+
+        List<int[]> spans = new ArrayList<>();
+        int start = -1;
+        for (int c = 0; c <= text.length(); c++) {
+            boolean space = c == text.length() || Character.isWhitespace(text.charAt(c));
+            if (!space && start < 0) start = c;
+            if (space && start >= 0) { spans.add(new int[]{start, c}); start = -1; }
+        }
+        int[] wordStart = new int[spans.size()];
+        int[] wordEnd = new int[spans.size()];
+        for (int w = 0; w < spans.size(); w++) { wordStart[w] = spans.get(w)[0]; wordEnd[w] = spans.get(w)[1]; }
+
+        // Stamped lines: the stamp in front of each word is its time. Only
+        // used when every word has one; otherwise the estimate is better than
+        // half a line of guesses
+        if (!marks.isEmpty() && raw.trim().equals(text)) {
+            double[] wordAt = new double[spans.size()];
+            int leading = raw.length() - raw.stripLeading().length();
+            boolean all = true;
+            for (int w = 0; w < spans.size() && all; w++) {
+                double found = Double.NaN;
+                for (int m = 0; m < marks.size(); m++) {
+                    int pos = marks.get(m)[0] - leading;
+                    if (pos <= wordStart[w] && (w == 0 || pos > wordEnd[w - 1] - 1)) found = markTimes.get(m);
+                }
+                if (Double.isNaN(found)) all = false; else wordAt[w] = found;
+            }
+            if (all) return new Line(at, text, wordStart, wordEnd, wordAt);
+        }
+        return new Line(at, text, wordStart, wordEnd, null);
+    }
+
+    /**
+     * Word times for a line that has none: the line is assumed to be sung at
+     * about thirteen characters a second, from its start, and never past the
+     * next line; each word gets a share of that time by its length.
+     */
+    static double[] estimate(double at, double next, String text, int[] wordStart, int[] wordEnd) {
+        double gap = Math.max(0.2, next - at);
+        double sung = Math.min(gap * 0.92, Math.max(0.6, 0.3 + text.length() * 0.075));
+        double total = 0;
+        for (int w = 0; w < wordStart.length; w++) total += (wordEnd[w] - wordStart[w]) + 1;
+        double[] times = new double[wordStart.length];
+        double t = at;
+        for (int w = 0; w < wordStart.length; w++) {
+            times[w] = t;
+            t += sung * ((wordEnd[w] - wordStart[w]) + 1) / total;
+        }
+        return times;
     }
 
     /** Reads mm:ss.xx, or null when the brackets held metadata instead. */

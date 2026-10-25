@@ -46,7 +46,8 @@ public final class TextPlate {
     private static final int PAD_X = 3;
     private static final int PAD_Y = 1;
     private static final int MAX_CHARS = 90;
-    private static final int MAX = 40;
+    /** One picture per word of a lyric line now, for everyone in sight. */
+    private static final int MAX = 160;
     private static final long RETRY_FAILED_MS = 30_000;
 
     /** Plate height in text pixels, for laying rows out. */
