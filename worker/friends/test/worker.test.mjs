@@ -351,7 +351,7 @@ test("a group: made from friends, everybody writes, invite, leave", async () => 
   const invited = await body(await call("/groups/invite",
     { token: bob.token, body: { group, members: [dana.uuid] } }));
   assert.ok(invited.ok, JSON.stringify(invited));
-  await new Promise((r) => setTimeout(r, 5));
+  // No pause: within the same millisecond the old time rule let "gg" through
   await call("/groups/message", { token: alice.token, body: { group, text: "welcome" } });
   const danaSees = await body(await call("/poll?since=999999&gsince=0&version=-1", { token: dana.token }));
   assert.deepEqual(danaSees.groupMessages.map((m) => m.text), ["welcome"]);
