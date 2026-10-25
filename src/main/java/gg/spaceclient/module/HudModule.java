@@ -165,8 +165,8 @@ public abstract class HudModule extends Module {
                 // sane corner; darker and more opaque than the old plate, with
                 // the edge falling off into the world instead of stopping dead.
                 int padding = 5;
-                int plateW = getWidth() + padding * 2;
-                int plateH = getHeight() + padding * 2;
+                int plateW = measuredWidth() + padding * 2;
+                int plateH = measuredHeight() + padding * 2;
 
                 gg.spaceclient.ui.Glass.plate(graphics,
                         drawX - padding, drawY - padding, plateW, plateH,
@@ -214,8 +214,34 @@ public abstract class HudModule extends Module {
      * asking where the element *is* - the editor's outline, its grab area -
      * wants these instead.
      */
-    public int getScaledWidth() { return Math.round(getWidth() * scale); }
-    public int getScaledHeight() { return Math.round(getHeight() * scale); }
+    public int getScaledWidth() { return Math.round(measuredWidth() * scale); }
+    public int getScaledHeight() { return Math.round(measuredHeight() * scale); }
+
+    /**
+     * getWidth and getHeight, measured once a frame.
+     *
+     * Every frame asks each element for its size several times - for its
+     * position, for its plate, for the editor - and measuring means laying
+     * the text out, bidi reordering and all. The profiler had that at more
+     * than a quarter of what the HUD cost. A size held for a few milliseconds
+     * is the same size within a frame, and at worst a frame late after the
+     * text changes.
+     */
+    private int sizeWidth, sizeHeight;
+    private long sizedAt = Long.MIN_VALUE;
+
+    private void measure() {
+        long now = System.nanoTime();
+        if (now - sizedAt < SIZE_HOLD_NANOS) return;
+        sizeWidth = getWidth();
+        sizeHeight = getHeight();
+        sizedAt = now;
+    }
+
+    private static final long SIZE_HOLD_NANOS = 4_000_000L;
+
+    protected int measuredWidth() { measure(); return sizeWidth; }
+    protected int measuredHeight() { measure(); return sizeHeight; }
 
     public void setPosition(float x, float y) {
         // Same reasoning as setScale: a non finite value survives the clamp
