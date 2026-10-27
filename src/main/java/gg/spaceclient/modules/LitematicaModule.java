@@ -182,6 +182,8 @@ public class LitematicaModule extends Module {
             try {
                 var shape = wanted.getShape(schematic, pos);
                 lift = shape.isEmpty() ? 0.2f : (float) shape.max(Direction.Axis.Y);
+                // A repeater's shape is its slab; its torches stand higher
+                lift = Math.max(lift, 0.5f);
             } catch (Throwable t) {
                 lift = 1f;
             }

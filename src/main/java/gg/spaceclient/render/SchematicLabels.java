@@ -23,7 +23,7 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class SchematicLabels {
 
-    private static final float SCALE = 0.75f;
+    private static final float SCALE = 0.9f;
     /** Name tags sit half a block over their point; this takes that back out. */
     private static final Vec3 ATTACH = new Vec3(0, -0.5, 0);
     /** The text hangs down from its point: this much room keeps it off the block. */
