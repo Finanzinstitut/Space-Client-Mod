@@ -49,6 +49,7 @@ public final class ModuleCategories {
             Map.entry("blockhighlight", VISUAL),
 
             Map.entry("coordscopy", UTILITY),
+            Map.entry("litematica", UTILITY),
             Map.entry("yawlock", UTILITY),
             Map.entry("autotext", UTILITY)
     );

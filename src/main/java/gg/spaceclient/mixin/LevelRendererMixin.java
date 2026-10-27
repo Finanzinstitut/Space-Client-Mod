@@ -42,6 +42,7 @@ public class LevelRendererMixin {
             HitboxRenderer.submit(collector);
             gg.spaceclient.render.BlockHighlightRenderer.submit(collector);
             gg.spaceclient.render.LightLevelRenderer.submit(collector);
+            gg.spaceclient.render.SchematicLabels.submit(collector, levelRenderState.cameraRenderState);
         } catch (Throwable ignored) {
             // A hitbox problem must never take the world renderer down with it
         }

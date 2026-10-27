@@ -65,6 +65,7 @@ public class ModuleManager {
         register(new TotemPopModule());
         register(new LightLevelModule());
         register(new MotionBlurModule());
+        register(new LitematicaModule());
     }
 
     private void register(Module module) {

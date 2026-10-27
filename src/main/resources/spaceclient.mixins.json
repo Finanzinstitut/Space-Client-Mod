@@ -34,7 +34,8 @@
     "ServerTimeMixin",
     "ScreenBackgroundMixin",
     "ScreenEffectMixin",
-    "HudAccessor"
+    "HudAccessor",
+    "GameModeUseMixin"
   ],
   "injectors": {
     "defaultRequire": 0
