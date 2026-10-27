@@ -17,11 +17,13 @@ import net.minecraft.world.phys.Vec3;
  * schematic block with a value worth knowing.
  *
  * Name tags because they already face the camera and sort themselves into
- * the frame; the labels are smaller than a player's tag and always lit.
+ * the frame; the labels are smaller than a player's tag and always lit, and
+ * like a tag of a player who is not sneaking they show faintly through
+ * blocks - so a value inside a wall of ghost blocks can still be read.
  */
 public final class SchematicLabels {
 
-    private static final float SCALE = 0.6f;
+    private static final float SCALE = 0.75f;
     /** Name tags sit half a block over their point; this takes that back out. */
     private static final Vec3 ATTACH = new Vec3(0, -0.5, 0);
     /** The text hangs down from its point: this much room keeps it off the block. */
@@ -53,7 +55,9 @@ public final class SchematicLabels {
                 pose.translate(x, y, z);
                 pose.scale(SCALE, SCALE, SCALE);
                 Component text = Component.literal(texts[i]).withColor(colours[i]);
-                gg.spaceclient.compat.NameTags.submit(collector, pose, ATTACH, 0, text, false,
+                // Drawn the see-through way: full colour, and still readable
+                // behind Litematica's translucent ghost blocks
+                gg.spaceclient.compat.NameTags.submit(collector, pose, ATTACH, 0, text, true,
                         FULL_BRIGHT, x * x + y * y + z * z, cameraState);
             }
         } catch (Throwable t) {
