@@ -528,7 +528,7 @@ public class LitematicaModule extends Module {
             }
             // Sneaking would place the held block instead of opening; wait
             if (mc.player.isShiftKeyDown()) return;
-            if (mc.player.getEyePosition().distanceToSqr(Vec3.atCenterOf(pos)) > 25) continue;
+            if (!mc.player.isWithinBlockInteractionRange(pos, 0.0)) continue;
 
             done.add(pos.asLong());
             opening = pos;
