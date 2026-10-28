@@ -91,6 +91,17 @@ public class LitematicaModule extends Module {
                 SettingGroup.of("Containers", "Items from the schematic", fill, openPlaced, closeFilled, speed)
         );
         instance = this;
+        // The list of what is missing, on the container itself: the line over
+        // the hotbar is drawn under the screen and barely shows through it
+        gg.spaceclient.platform.Hooks.onScreenInit((client, screen, width, height) -> {
+            if (!(screen instanceof AbstractContainerScreen<?> container)) return;
+            gg.spaceclient.platform.Hooks.onScreenDrawn(screen, (shown, graphics, mouseX, mouseY, delta) -> {
+                String line = missingLine;
+                if (line == null || !isEnabled() || container.getMenu().containerId != missingContainer) return;
+                int x = (shown.width - mc.font.width(line)) / 2;
+                graphics.text(mc.font, line, x, shown.height - 28, 0xFFFF6B6B, true);
+            });
+        });
     }
 
     // ---------------------------------------------------------------- labels
@@ -187,6 +198,8 @@ public class LitematicaModule extends Module {
             } catch (Throwable t) {
                 lift = 1f;
             }
+            // Litematica boxes a wrong block in orange; the label goes over the box
+            if (colour == WRONG) lift = Math.max(lift, 1f);
             buildingLift.add(lift);
         }
 
@@ -254,6 +267,9 @@ public class LitematicaModule extends Module {
     private record Placed(BlockPos pos, long until) {}
 
     private Job job = null;
+    /** What the last filled container is missing, shown on its screen. */
+    private volatile String missingLine = null;
+    private volatile int missingContainer = -1;
     private int handledContainer = -1;
     private final List<Placed> placed = new ArrayList<>();
     /** Containers already filled, so a closed one is not opened again. */
@@ -324,6 +340,7 @@ public class LitematicaModule extends Module {
             if (job != null && job.containerId != menu.containerId) job = null;
             if (job == null && menu.containerId != handledContainer) {
                 handledContainer = menu.containerId;
+                missingLine = null;
                 job = start(menu, schematic, level);
             }
             if (job != null) step(menu);
@@ -503,6 +520,8 @@ public class LitematicaModule extends Module {
                 line.append(e.getValue()).append("x ").append(e.getKey());
             }
             overlay(line.toString());
+            missingLine = line.toString();
+            missingContainer = j.containerId;
         } else if (complete && j.moved > 0) {
             overlay("Filled like the schematic");
         }
