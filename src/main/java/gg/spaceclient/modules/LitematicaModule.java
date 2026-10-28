@@ -187,6 +187,8 @@ public class LitematicaModule extends Module {
             } catch (Throwable t) {
                 lift = 1f;
             }
+            // Litematica boxes a wrong block in orange; the label goes over the box
+            if (colour == WRONG) lift = Math.max(lift, 1f);
             buildingLift.add(lift);
         }
 
