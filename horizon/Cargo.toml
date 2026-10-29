@@ -1,0 +1,20 @@
+[package]
+name = "spaceclient-horizon"
+version = "1.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "Space Client for Horizon: the HUD modules, keystrokes and zoom as a Horizon mod."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Horizon's SDK, pinned to the commit the mod was built and tested against
+horizon-mod-sdk = { git = "https://github.com/horizon-rust/horizon", rev = "071580e7160c6fdfdcdd3f0dedd84fde93b7b864" }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true

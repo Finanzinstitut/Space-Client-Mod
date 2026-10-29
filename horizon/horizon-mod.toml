@@ -1,0 +1,9 @@
+id = "spaceclient"
+name = "Space Client"
+version = "1.0.0"
+description = "Space Client's HUD for Horizon: FPS, CPS, coordinates, direction, compass, time, speed, session, health, the block you look at, keystrokes and zoom. /sc opens the settings."
+authors = ["Space Client"]
+api = "0.1"
+side = "client"
+capabilities = ["game-read", "render", "input", "ui", "storage"]
+experimental = ["render", "input", "ui"]
