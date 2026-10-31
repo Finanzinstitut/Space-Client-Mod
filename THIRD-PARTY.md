@@ -37,6 +37,17 @@ Two lawful alternatives, if the goal is to ship ItemPhysic's actual behaviour:
 2. Relicense the parts of Space Client that would contain LGPL code, and meet
    the LGPL's source and relinking requirements.
 
+## Inter — The Inter Project Authors (Rasmus Andersson)
+- Licence: SIL Open Font License 1.1 (see `src/main/resources/assets/spaceclient/font/inter-OFL.txt`)
+- https://github.com/rsms/inter
+
+Inter Display SemiBold, subset to Latin, Greek and Cyrillic, is the typeface
+of the lyrics in the sky (`assets/spaceclient/font/sky.ttf`). The OFL allows
+bundling and subsetting; Inter declares no Reserved Font Name.
+
+Apple's SF fonts were asked for instead and are deliberately not used: their
+licence allows them only for mock-ups of software for Apple's own systems.
+
 ## Minecraft — Mojang Studios
 Space Client is a modification and is not affiliated with, endorsed by, or
 connected to Mojang Studios or Microsoft.
