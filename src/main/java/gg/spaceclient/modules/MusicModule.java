@@ -92,7 +92,7 @@ public class MusicModule extends HudModule {
                 0.34f, 0.02f, false);
         requires(gg.spaceclient.module.Access.VIP);
         addSettings(source, theme, showCover, showProgress, showSource, hideWhenIdle,
-                overName, showOnSelf, lyrics, skyLyrics, skyHeight, skySize, titleColor, artistColor, accentColor);
+                overName, showOnSelf, lyrics, skyLyrics, skyFont, skyHeight, skySize, titleColor, artistColor, accentColor);
     }
 
     /**
@@ -132,6 +132,10 @@ public class MusicModule extends HudModule {
             "Only the lyrics, large, floating in the sky ahead of you. Spotify only.", false);
     private final IntSetting skyHeight = new IntSetting(
             "sky_height", "Sky height (degrees)", "How far above the horizon the lyrics float", 28, 10, 70);
+    private final ModeSetting skyFont = new ModeSetting(
+            "sky_font", "Sky font",
+            "SYSTEM: your computer's own (SF Pro on a Mac, Segoe UI on Windows). OWN_FILE: config/spaceclient/sky-font.ttf",
+            gg.spaceclient.render.SkyFont.CHOICES, gg.spaceclient.render.SkyFont.SYSTEM);
     private final IntSetting skySize = new IntSetting(
             "sky_size", "Sky text size (percent)", "How large the lyrics are in the sky", 100, 40, 250);
 
@@ -144,6 +148,9 @@ public class MusicModule extends HudModule {
         if (position < 0) return Lyrics.Moment.NONE;
         return Lyrics.moment(playing.artist(), playing.title(), position);
     }
+
+    /** Which typeface the sky lyrics are set in (SkyFont). */
+    public String skyFont() { return skyFont.get(); }
 
     /** Degrees above the horizon. */
     public int skyHeight() { return skyHeight.get(); }

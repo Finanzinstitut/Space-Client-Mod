@@ -41,12 +41,14 @@ Two lawful alternatives, if the goal is to ship ItemPhysic's actual behaviour:
 - Licence: SIL Open Font License 1.1 (see `src/main/resources/assets/spaceclient/font/inter-OFL.txt`)
 - https://github.com/rsms/inter
 
-Inter Display SemiBold, subset to Latin, Greek and Cyrillic, is the typeface
-of the lyrics in the sky (`assets/spaceclient/font/sky.ttf`). The OFL allows
-bundling and subsetting; Inter declares no Reserved Font Name.
+Inter Display SemiBold, subset to Latin, Greek and Cyrillic, is the bundled
+choice for the lyrics in the sky (`assets/spaceclient/font/sky.ttf`). The OFL
+allows bundling and subsetting; Inter declares no Reserved Font Name.
 
-Apple's SF fonts were asked for instead and are deliberately not used: their
-licence allows them only for mock-ups of software for Apple's own systems.
+Apple's SF fonts are **not** bundled: their licence allows them only for
+mock-ups of software for Apple's own systems. On a Mac the sky lyrics read
+the copy of SF Pro that macOS itself has installed, as any program drawing
+text with the system font does; nothing of it is in the jar.
 
 ## Minecraft — Mojang Studios
 Space Client is a modification and is not affiliated with, endorsed by, or
