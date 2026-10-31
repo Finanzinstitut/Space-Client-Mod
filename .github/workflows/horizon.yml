@@ -110,10 +110,10 @@ jobs:
             # As Horizon builds it: the C runtime linked in
             rustflags: -C target-feature=+crt-static
           - name: macos
-            os: macos-14
+            os: macos-latest
             asset: horizon-macos-arm64.zip
           - name: macos-x64
-            os: macos-14
+            os: macos-latest
             target: x86_64-apple-darwin
             asset: horizon-macos-x64.zip
     runs-on: ${{ matrix.os }}
@@ -146,14 +146,16 @@ jobs:
 
       - name: Horizon's source with Space Client in it
         run: |
-          mkdir -p "$RUNNER_TEMP/src"
-          tar xzf nightly/horizon-source.tar.gz -C "$RUNNER_TEMP/src"
-          src=$(ls -d "$RUNNER_TEMP"/src/horizon-*)
+          # In bash's own form (/d/a/_temp on Windows): tar reads D:\ as a host
+          T=$(cd "$RUNNER_TEMP" && pwd)
+          mkdir -p "$T/src"
+          tar xzf nightly/horizon-source.tar.gz -C "$T/src"
+          src=$(ls -d "$T"/src/horizon-*)
           # horizon-mixins refuses links; the source has a few (docs), none needed to build
           find "$src" -type l -delete
-          mkdir -p "$RUNNER_TEMP/mods"
-          cp -R horizon-native/mixins/spaceclient "$RUNNER_TEMP/mods/"
-          "$RUNNER_TEMP/mixins/bin/horizon-mixins" apply --workspace "$src" --mods "$RUNNER_TEMP/mods" --out "$RUNNER_TEMP/stage"
+          mkdir -p "$T/mods"
+          cp -R horizon-native/mixins/spaceclient "$T/mods/"
+          "$T/mixins/bin/horizon-mixins" apply --workspace "$src" --mods "$T/mods" --out "$T/stage"
 
       - name: Build the game
         working-directory: ${{ runner.temp }}/stage
@@ -169,11 +171,11 @@ jobs:
           test "$want" = "$have"
           mkdir -p work dist
           case "$asset" in
-            *.tar.gz) tar xzf "nightly/$asset" -C work ;;
+            *.tar.gz) tar xzf "nightly/$asset" -C work ;;  # Linux only
             *) (cd work && unzip -q "../nightly/$asset") ;;
           esac
           dir=$(ls -d work/*/ | head -1)
-          bin="$RUNNER_TEMP/stage/target/${{ matrix.target && format('{0}/', matrix.target) || '' }}fast/horizon-client${{ matrix.exe }}"
+          bin="$(cd "$RUNNER_TEMP" && pwd)/stage/target/${{ matrix.target && format('{0}/', matrix.target) || '' }}fast/horizon-client${{ matrix.exe }}"
           test -f "$dir/horizon-client${{ matrix.exe }}"
           cp "$bin" "$dir/horizon-client${{ matrix.exe }}"
           chmod +x "$dir/horizon-client${{ matrix.exe }}" || true
