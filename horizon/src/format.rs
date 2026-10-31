@@ -97,9 +97,83 @@ pub fn pill_insets(radius: u32) -> Vec<u32> {
         .collect()
 }
 
+/// What the launcher writes for Now Playing (`nowplaying` in the mod's
+/// storage, see the launcher's music.rs): one `key=value` per line.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct NowPlaying {
+    /// playing, paused, idle or unsupported
+    pub state: String,
+    pub source: String,
+    pub title: String,
+    pub artist: String,
+    pub position: f64,
+    pub duration: f64,
+    pub line: Option<String>,
+    /// The word being sung, as char offsets into `line`.
+    pub word: Option<(usize, usize)>,
+}
+
+pub fn now_playing(text: &str) -> Option<NowPlaying> {
+    let mut out = NowPlaying { position: -1.0, duration: -1.0, ..Default::default() };
+    let mut versioned = false;
+    for line in text.lines() {
+        let Some((key, value)) = line.split_once('=') else { continue };
+        match key {
+            "v" => versioned = value == "1",
+            "state" => out.state = value.into(),
+            "source" => out.source = value.into(),
+            "title" => out.title = value.into(),
+            "artist" => out.artist = value.into(),
+            "position" => out.position = value.parse().unwrap_or(-1.0),
+            "duration" => out.duration = value.parse().unwrap_or(-1.0),
+            "line" => out.line = Some(value.into()).filter(|l: &String| !l.is_empty()),
+            "word" => {
+                out.word = value
+                    .split_once(',')
+                    .and_then(|(a, b)| Some((a.parse().ok()?, b.parse().ok()?)))
+            }
+            _ => {}
+        }
+    }
+    versioned.then_some(out)
+}
+
+/// `3:07` from seconds; `--:--` when unknown.
+pub fn clock(seconds: f64) -> String {
+    if seconds < 0.0 || !seconds.is_finite() {
+        return "--:--".into();
+    }
+    let s = seconds as u64;
+    format!("{}:{:02}", s / 60, s % 60)
+}
+
+/// A lyric line in three parts: sung, the word being sung, still to come.
+pub fn split_word(line: &str, word: Option<(usize, usize)>) -> (String, String, String) {
+    let chars: Vec<char> = line.chars().collect();
+    let Some((start, end)) = word else { return (line.into(), String::new(), String::new()) };
+    let start = start.min(chars.len());
+    let end = end.clamp(start, chars.len());
+    (
+        chars[..start].iter().collect(),
+        chars[start..end].iter().collect(),
+        chars[end..].iter().collect(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_launchers_file() {
+        let np = now_playing("v=1\nstate=playing\nsource=Spotify\ntitle=T\nartist=A\nposition=12.35\nduration=200.00\nline=Über den Wolken\nword=5,8\n").unwrap();
+        assert_eq!(np.state, "playing");
+        assert_eq!(np.position, 12.35);
+        assert_eq!(np.word, Some((5, 8)));
+        assert_eq!(split_word(np.line.as_deref().unwrap(), np.word), ("Über ".into(), "den".into(), " Wolken".into()));
+        assert_eq!(clock(187.9), "3:07");
+        assert!(now_playing("state=playing\n").is_none());
+    }
 
     #[test]
     fn coordinates_round_like_java() {
@@ -126,7 +200,7 @@ mod tests {
     }
 
     #[test]
-    fn clock() {
+    fn day_clock() {
         assert_eq!(day_time(0), "Day 1, 06:00");
         assert_eq!(day_time(6000), "Day 1, 12:00");
         assert_eq!(day_time(18000), "Day 2, 00:00");

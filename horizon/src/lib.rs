@@ -48,9 +48,10 @@ enum Part {
     Compass,
     Keystrokes,
     Zoom,
+    Music,
 }
 
-const PARTS: [(Part, &str, &str, bool); 12] = [
+const PARTS: [(Part, &str, &str, bool); 13] = [
     (Part::Fps, "fps", "FPS", true),
     (Part::Cps, "cps", "CPS", true),
     (Part::Coordinates, "coordinates", "Coordinates", true),
@@ -63,7 +64,13 @@ const PARTS: [(Part, &str, &str, bool); 12] = [
     (Part::Compass, "compass", "Compass", false),
     (Part::Keystrokes, "keystrokes", "Keystrokes", true),
     (Part::Zoom, "zoom", "Zoom (hold C)", true),
+    (Part::Music, "music", "Now Playing (/music)", false),
 ];
+
+/// Buttons of the /music screen.
+const MUSIC_PREV: u32 = 201;
+const MUSIC_TOGGLE: u32 = 202;
+const MUSIC_NEXT: u32 = 203;
 
 /// The settings list; its rows are the parts in order, then these two.
 const LIST: u32 = 1;
@@ -77,6 +84,21 @@ struct View {
     lines: Vec<String>,
     keys: Option<([(bool, String); 4], bool, bool, bool)>,
     compass: Option<i32>,
+    music: Option<MusicView>,
+}
+
+/// The Now Playing card as drawn: rounded so a playing song redraws a few
+/// times a second, not every frame.
+#[derive(Clone, PartialEq, Default)]
+struct MusicView {
+    state: String,
+    source: String,
+    title: String,
+    artist: String,
+    lyric: Option<(String, String, String)>,
+    /// Thousandths of the song played, when its length is known.
+    progress: Option<u32>,
+    time: String,
 }
 
 struct SpaceClient {
@@ -97,6 +119,9 @@ struct SpaceClient {
     shown: Option<View>,
     /// The /sc screen is open (the settings page in Options > Mods is not it).
     screen_open: bool,
+    /// What the launcher last wrote for Now Playing; None without a launcher.
+    now_playing: Option<format::NowPlaying>,
+    music_screen: bool,
 }
 
 fn stored(key: &str) -> Option<String> {
@@ -133,6 +158,8 @@ impl SpaceClient {
             zoom: 4.0,
             shown: None,
             screen_open: false,
+            now_playing: None,
+            music_screen: false,
         }
     }
 
@@ -171,6 +198,54 @@ impl SpaceClient {
 
     fn page(&self) {
         ui::set_settings(&self.widgets());
+    }
+
+    /// `/music`: the controls; `/music pause|next|prev` straight away.
+    fn music_command(&mut self, args: &str) -> Result<Option<String>, String> {
+        match args {
+            "" => {
+                self.music_screen = true;
+                self.screen_open = false;
+                self.music_screen_open();
+                Ok(None)
+            }
+            "pause" | "play" | "toggle" => self.music_now("toggle"),
+            "next" | "skip" => self.music_now("next"),
+            "prev" | "previous" | "back" => self.music_now("prev"),
+            _ => Err("Use /music, or /music pause, next or prev".into()),
+        }
+    }
+
+    fn music_now(&mut self, what: &str) -> Result<Option<String>, String> {
+        if self.now_playing.is_none() && stored("nowplaying").is_none() {
+            return Err("Now Playing needs Horizon started from the Space Client launcher".into());
+        }
+        self.send_music(what);
+        Ok(None)
+    }
+
+    /// Hands a press to the launcher, which tells the player.
+    fn send_music(&mut self, what: &str) {
+        let _ = storage::set("music-command", what.as_bytes());
+    }
+
+    fn music_screen_open(&self) {
+        let np = self.now_playing.clone().or_else(|| stored("nowplaying").and_then(|t| format::now_playing(&t)));
+        let line = match &np {
+            Some(np) if !np.title.is_empty() => format!("{} - {}", np.title, np.artist),
+            Some(_) => "Nothing is playing".into(),
+            None => "Start Horizon from the Space Client launcher to see and control your music".into(),
+        };
+        let button = |id, label: &str| Widget::Button(ui::ButtonWidget { id, label: label.into() });
+        ui::open_screen(&ui::Screen {
+            title: "Now Playing".into(),
+            widgets: vec![
+                Widget::Text(TextWidget { id: 0, text: line, color: 0 }),
+                button(MUSIC_TOGGLE, "Play / Pause"),
+                button(MUSIC_NEXT, "Next"),
+                button(MUSIC_PREV, "Previous"),
+            ],
+        });
     }
 
     fn screen(&mut self) {
@@ -239,7 +314,29 @@ impl SpaceClient {
                 .as_ref()
                 .filter(|_| self.is_on(Part::Compass))
                 .map(|p| (p.yaw * 2.0).round() as i32),
+            music: self.music_view(),
         }
+    }
+
+    fn music_view(&self) -> Option<MusicView> {
+        if !self.is_on(Part::Music) {
+            return None;
+        }
+        let np = self.now_playing.as_ref()?;
+        Some(MusicView {
+            state: np.state.clone(),
+            source: np.source.clone(),
+            title: np.title.clone(),
+            artist: np.artist.clone(),
+            lyric: np.line.as_deref().map(|l| format::split_word(l, np.word)),
+            progress: (np.duration > 0.0 && np.position >= 0.0)
+                .then(|| ((np.position / np.duration).clamp(0.0, 1.0) * 1000.0) as u32),
+            time: if np.duration > 0.0 {
+                format!("{} / {}", format::clock(np.position), format::clock(np.duration))
+            } else {
+                String::new()
+            },
+        })
     }
 
     fn draw(&mut self) {
@@ -274,6 +371,11 @@ impl SpaceClient {
         }
         if let Some(yaw2) = view.compass {
             compass(&mut out, width, yaw2 as f32 / 2.0);
+        }
+        if let Some(music) = &view.music {
+            // Top centre, as in the Java client; under the compass when it is on
+            let top = if view.compass.is_some() { MARGIN + 22.0 } else { MARGIN };
+            music_card(&mut out, width, top, music);
         }
         render::set_hud(&out);
         self.shown = Some(view);
@@ -336,7 +438,12 @@ impl SpaceClient {
 
 /// A rounded plate: full rows in the middle, the ends cut from a circle.
 fn pill(out: &mut Vec<Shape>, x: f32, y: f32, w: f32, h: f32, color: u32) {
-    let radius = (h / 2.0).floor().min(w / 2.0) as u32;
+    rounded(out, x, y, w, h, (h / 2.0).floor(), color);
+}
+
+/// A rectangle with corners cut from a circle of `radius`.
+fn rounded(out: &mut Vec<Shape>, x: f32, y: f32, w: f32, h: f32, radius: f32, color: u32) {
+    let radius = radius.min(h / 2.0).min(w / 2.0).floor() as u32;
     let insets = format::pill_insets(radius);
     let r = insets.len() as f32;
     if h > 2.0 * r {
@@ -363,6 +470,84 @@ fn text(out: &mut Vec<Shape>, s: &str, x: f32, y: f32, color: u32, shadow: bool)
         centered: false,
         shadow,
     }));
+}
+
+/// Text cut to fit `room` GUI pixels, with an ellipsis when it was cut.
+fn fit(s: &str, room: f32) -> String {
+    if render::text_width(s) <= room {
+        return s.into();
+    }
+    let mut chars: Vec<char> = s.chars().collect();
+    while !chars.is_empty() {
+        chars.pop();
+        let cut: String = chars.iter().collect::<String>() + "...";
+        if render::text_width(&cut) <= room {
+            return cut;
+        }
+    }
+    String::new()
+}
+
+/// The Now Playing card: state and player, title, artist, the lyric line
+/// with the word being sung, and the time bar - the Java card without its
+/// cover, which Horizon's mods cannot draw.
+fn music_card(out: &mut Vec<Shape>, width: f32, top: f32, m: &MusicView) {
+    const W: f32 = 200.0;
+    let accent = if m.source.to_lowercase().contains("amazon") { 0x4CC8F4 } else { 0x1DB954 };
+    let x = ((width - W) / 2.0).round();
+    let room = W - 16.0;
+    let mut rows: Vec<(String, u32)> = Vec::new();
+    let status = match m.state.as_str() {
+        "playing" => format!("PLAYING  \u{00B7}  {}", m.source.to_uppercase()),
+        "paused" => format!("PAUSED  \u{00B7}  {}", m.source.to_uppercase()),
+        "unsupported" => "NOW PLAYING  \u{00B7}  NO PLAYER FOUND".into(),
+        _ => "NOTHING PLAYING".into(),
+    };
+    let status_colour = if m.state == "playing" { accent } else { DIM };
+    rows.push((fit(&status, room), status_colour));
+    if !m.title.is_empty() {
+        rows.push((fit(&m.title, room), TEXT));
+        if !m.artist.is_empty() {
+            rows.push((fit(&m.artist, room), DIM));
+        }
+    }
+    let lyric_row = m.lyric.is_some() && !m.title.is_empty();
+    let bar = m.progress.is_some();
+    let h = 8.0 + rows.len() as f32 * 10.0 + if lyric_row { 12.0 } else { 0.0 } + if bar { 14.0 } else { 0.0 };
+    rounded(out, x, top, W, h, 6.0, PLATE);
+    let mut y = top + 6.0;
+    for (i, (line, colour)) in rows.iter().enumerate() {
+        if i == 0 {
+            out.push(fill(x + 8.0, y + 2.0, 3.0, 3.0, 0xFF00_0000 | status_colour));
+            text(out, line, x + 14.0, y, *colour, false);
+        } else {
+            text(out, line, x + 8.0, y, *colour, false);
+        }
+        y += 10.0;
+    }
+    if let (true, Some((sung, word, ahead))) = (lyric_row, &m.lyric) {
+        y += 2.0;
+        // The three parts side by side, each where the one before ended
+        let mut lx = x + 8.0;
+        let end = x + W - 8.0;
+        for (part, colour) in [(sung, TEXT), (word, accent), (ahead, 0x8E8E96)] {
+            if part.is_empty() || lx >= end {
+                continue;
+            }
+            let shown = fit(part, end - lx);
+            text(out, &shown, lx, y, colour, false);
+            lx += render::text_width(&shown);
+        }
+        y += 10.0;
+    }
+    if let Some(progress) = m.progress {
+        y += 3.0;
+        let time_w = render::text_width(&m.time);
+        let bar_w = W - 16.0 - time_w - 6.0;
+        out.push(fill(x + 8.0, y + 3.0, bar_w, 2.0, 0x40FF_FFFF));
+        out.push(fill(x + 8.0, y + 3.0, (bar_w * progress as f32 / 1000.0).round(), 2.0, 0xFF00_0000 | accent));
+        text(out, &m.time, x + W - 8.0 - time_w, y, DIM, false);
+    }
 }
 
 /// A key: a rounded box, lit while held, with its label centred.
@@ -417,10 +602,13 @@ impl Mod for SpaceClient {
         let sc = SpaceClient::load();
         input::register_key("zoom", "Zoom", "key.keyboard.c")?;
         sc.page();
-        Ok((sc, Registration::new().on_tick().on_frame().command("sc")))
+        Ok((sc, Registration::new().on_tick().on_frame().command("sc").command("music")))
     }
 
-    fn tick(&mut self, _tick: u64) {
+    fn tick(&mut self, tick: u64) {
+        if self.is_on(Part::Music) && tick % 2 == 0 {
+            self.now_playing = stored("nowplaying").and_then(|t| format::now_playing(&t));
+        }
         let player = game::get_player();
         match &player {
             Some(p) => {
@@ -455,14 +643,21 @@ impl Mod for SpaceClient {
         self.draw();
     }
 
-    fn command(&mut self, _name: &str, _args: &str) -> Result<Option<String>, String> {
+    fn command(&mut self, name: &str, args: &str) -> Result<Option<String>, String> {
+        if name == "music" {
+            return self.music_command(args.trim());
+        }
         self.screen();
         Ok(None)
     }
 
     fn ui_select(&mut self, id: u32, row: u32) {
-        if id != LIST {
-            return;
+        match id {
+            MUSIC_PREV => return self.send_music("prev"),
+            MUSIC_TOGGLE => return self.send_music("toggle"),
+            MUSIC_NEXT => return self.send_music("next"),
+            LIST => {}
+            _ => return,
         }
         self.toggle(row as usize);
         self.page();
@@ -474,6 +669,7 @@ impl Mod for SpaceClient {
 
     fn ui_closed(&mut self) {
         self.screen_open = false;
+        self.music_screen = false;
     }
 
     fn ui_settings_opened(&mut self) {

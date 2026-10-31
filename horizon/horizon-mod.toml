@@ -1,7 +1,7 @@
 id = "spaceclient"
 name = "Space Client"
-version = "1.0.0"
-description = "Space Client's HUD for Horizon: FPS, CPS, coordinates, direction, compass, time, speed, session, health, the block you look at, keystrokes and zoom. /sc opens the settings."
+version = "1.1.0"
+description = "Space Client's HUD for Horizon: FPS, CPS, coordinates, direction, compass, time, speed, session, health, the block you look at, keystrokes, zoom and Now Playing with lyrics. /sc opens the settings, /music the player controls."
 authors = ["Space Client"]
 api = "0.1"
 side = "client"
