@@ -25,16 +25,21 @@ import net.minecraft.resources.Identifier;
  * player faces, but slowly, so turning the head moves the view across it the
  * way it would across anything far away, and it drifts back in front after.
  *
- * Drawn without depth, so terrain never cuts a word in half, and in Inter
- * Display (assets/spaceclient/font/sky.json) rasterised large and scaled into
- * the world. A new line fades in.
+ * Drawn in Inter Display (assets/spaceclient/font/sky.json), rasterised large
+ * and scaled into the world, full bright with a shadow so it reads on a blue
+ * sky and a night one alike. A new line fades in.
  */
 public final class SkyLyrics {
 
     private static final Style FONT = Style.EMPTY.withFont(new FontDescription.Resource(
             Identifier.fromNamespaceAndPath(SpaceClient.MOD_ID, "sky")));
-    /** How far away the line hangs, in blocks. Far enough not to swim with steps. */
-    private static final double DISTANCE = 40.0;
+    /**
+     * How far away the line hangs, in blocks. It moves with the camera, so
+     * the distance does not make it swim; it only decides what can stand in
+     * front of it. Near enough that fog at a short render distance leaves it
+     * alone, far enough that only a roof or a tree overhead covers it.
+     */
+    private static final double DISTANCE = 16.0;
     /** The line's height on screen, as an angle, at size 100%. */
     private static final double ANGLE = Math.toRadians(4.2);
     /** Wider than this many degrees and the line is scaled down to fit. */
@@ -110,12 +115,13 @@ public final class SkyLyrics {
 
         PoseStack pose = new PoseStack();
         pose.translate(x, y, z);
-        // Facing the player, upright: turned about the vertical only, so it
-        // reads like a sign in the sky rather than a sticker on the lens
-        gg.spaceclient.compat.Pose.rotate(pose, new org.joml.Quaternionf().rotationY((float) (-anchorYaw + Math.PI)));
+        // Facing the player square on, as the camera's own rotation would be
+        // when looking straight at it: no roll, so it never tilts sideways
+        gg.spaceclient.compat.Pose.rotate(pose, new org.joml.Quaternionf()
+                .rotationYXZ((float) (Math.PI - anchorYaw), (float) elevation, 0f));
         pose.scale((float) scale, (float) -scale, (float) scale);
         collector.submitText(pose, -width / 2f, -height / 2f, line.getVisualOrderText(), true,
-                Font.DisplayMode.SEE_THROUGH, FULL_BRIGHT, (alpha << 24) | 0xFFFFFF, 0, 0);
+                Font.DisplayMode.NORMAL, FULL_BRIGHT, (alpha << 24) | 0xFFFFFF, 0, 0);
     }
 
     /** Sung words white, the word being sung in the accent, what is ahead dimmed. */
