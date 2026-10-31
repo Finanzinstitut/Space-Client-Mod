@@ -32,6 +32,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * the sky - from the copy here, and a turned-away lookup waits a while
  * before asking again instead of hammering the limit.
  *
+ * When LRCLIB is down, turns a lookup away or has no timed lyrics for a
+ * song, NetEase Cloud Music's public lyric endpoint is asked instead (see
+ * NetEase): the same kind of user-timed lyrics, unofficial and unlicensed
+ * like LRCLIB's, from a service that is up when LRCLIB is not.
+ *
  * No lyrics pass through the Space Client backend at all. Each client fetches
  * the words for whatever the people around it are playing and works out the
  * current line itself, from a playback position. That is what keeps the line
@@ -131,7 +136,7 @@ public final class Lyrics {
         if (title == null || title.isEmpty()) return "";
         Track track = cache.get(key(artist, title));
         if (track == null || !track.lines().isEmpty()) return "";
-        if (UNREACHABLE.equals(track.status())) return "Lyrics: LRCLIB is not answering, trying again";
+        if (UNREACHABLE.equals(track.status())) return "Lyrics: LRCLIB is down and NetEase has none, trying again";
         if (track.status().equals("lookup failed")) return "Lyrics: lookup failed, trying again";
         return "";
     }
@@ -233,43 +238,71 @@ public final class Lyrics {
             status = parsed.size() + " lines (saved)";
             return;
         }
+
+        // LRCLIB, unless it turned a lookup away a moment ago
+        String synced = null;
+        boolean plainOnly = false;
+        RateLimited lrclibDown = null;
         if (System.currentTimeMillis() < limitedUntil) {
-            throw new RateLimited("waiting before asking again", false);
-        }
-
-        String url = "https://lrclib.net/api/get"
-                + "?artist_name=" + encode(artist)
-                + "&track_name=" + encode(title);
-
-        String body = get(url);
-
-        // The exact match endpoint is strict about spelling, so a miss falls
-        // back to a search - which is what makes live and remastered versions
-        // resolve at all
-        if (body == null) {
-            body = searchFor(artist, title);
-            if (body == null) {
-                cache.put(key, new Track(List.of(), "no lyrics found"));
-                status = "no lyrics found";
-                return;
+            lrclibDown = new RateLimited("waiting before asking LRCLIB again", false);
+        } else {
+            try {
+                String body = lrclibBody(artist, title);
+                if (body != null) {
+                    JsonObject json = JsonParser.parseString(body).getAsJsonObject();
+                    if (json.has("syncedLyrics") && !json.get("syncedLyrics").isJsonNull()) {
+                        synced = json.get("syncedLyrics").getAsString();
+                    } else {
+                        // Plain lyrics carry no timestamps and cannot be shown
+                        // one line at a time
+                        plainOnly = true;
+                    }
+                }
+            } catch (RateLimited limited) {
+                lrclibDown = limited;
+                long wait = limited.tooMany ? LIMIT_BACKOFF_MS : DOWN_BACKOFF_MS;
+                limitedUntil = Math.max(limitedUntil, System.currentTimeMillis() + wait);
             }
         }
 
-        JsonObject json = JsonParser.parseString(body).getAsJsonObject();
+        // NetEase when LRCLIB is down or has nothing timed for this song
+        String source = "LRCLIB";
+        if (synced == null || synced.isBlank()) {
+            try {
+                String fallback = NetEase.synced(artist, title);
+                if (fallback != null) {
+                    synced = fallback;
+                    source = "NetEase";
+                }
+            } catch (Throwable t) {
+                // Only the fallback: what LRCLIB said stands
+            }
+        }
 
-        if (!json.has("syncedLyrics") || json.get("syncedLyrics").isJsonNull()) {
-            // Plain lyrics exist for many tracks but carry no timestamps, and
-            // an unsynced block cannot be shown one line at a time
-            cache.put(key, new Track(List.of(), "found, but not synced"));
-            status = "found, but not synced";
+        if (synced == null || synced.isBlank()) {
+            if (lrclibDown != null) throw lrclibDown;
+            String why = plainOnly ? "found, but not synced" : "no lyrics found";
+            cache.put(key, new Track(List.of(), why));
+            status = why;
             return;
         }
 
-        String synced = json.get("syncedLyrics").getAsString();
         List<Line> parsed = parse(synced);
         if (!parsed.isEmpty()) save(key, synced);
-        cache.put(key, new Track(parsed, parsed.size() + " lines"));
-        status = parsed.isEmpty() ? "synced lyrics were empty" : parsed.size() + " lines";
+        cache.put(key, new Track(parsed, parsed.size() + " lines (" + source + ")"));
+        status = parsed.isEmpty() ? "synced lyrics were empty" : parsed.size() + " lines (" + source + ")";
+    }
+
+    /** LRCLIB's entry for the song, exact match first, then a search; null when none. */
+    private static String lrclibBody(String artist, String title) throws Exception {
+        String url = "https://lrclib.net/api/get"
+                + "?artist_name=" + encode(artist)
+                + "&track_name=" + encode(title);
+        String body = get(url);
+        // The exact match endpoint is strict about spelling, so a miss falls
+        // back to a search - which is what makes live and remastered versions
+        // resolve at all
+        return body != null ? body : searchFor(artist, title);
     }
 
     private static String searchFor(String artist, String title) throws Exception {
@@ -290,7 +323,7 @@ public final class Lyrics {
         return null;
     }
 
-    private static String get(String url) throws Exception {
+    static String get(String url) throws Exception {
         try {
             return getOnce(url);
         } catch (RateLimited down) {
@@ -328,7 +361,7 @@ public final class Lyrics {
         throw new java.io.IOException("LRCLIB answered " + response.statusCode());
     }
 
-    private static String encode(String text) {
+    static String encode(String text) {
         return URLEncoder.encode(text == null ? "" : text, StandardCharsets.UTF_8);
     }
 

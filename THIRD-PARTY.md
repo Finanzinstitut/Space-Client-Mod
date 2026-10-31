@@ -67,6 +67,12 @@ Horizon's official native mods (horizon-rust/horizon-mods, MIT).
 
 Used as a build tool only; none of its code is in the game.
 
+## Lyrics sources — LRCLIB and NetEase Cloud Music
+Lyrics are fetched at runtime by each player's client and never shipped:
+LRCLIB (https://lrclib.net, community-made) first, and NetEase Cloud
+Music's public web lyric endpoint when LRCLIB has none or is down. Neither
+licenses the words from their publishers, which the Lyrics setting says.
+
 ## Minecraft — Mojang Studios
 Space Client is a modification and is not affiliated with, endorsed by, or
 connected to Mojang Studios or Microsoft.
