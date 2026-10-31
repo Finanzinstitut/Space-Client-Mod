@@ -43,6 +43,7 @@ public class LevelRendererMixin {
             gg.spaceclient.render.BlockHighlightRenderer.submit(collector);
             gg.spaceclient.render.LightLevelRenderer.submit(collector);
             gg.spaceclient.render.SchematicLabels.submit(collector, levelRenderState.cameraRenderState);
+            gg.spaceclient.render.SkyLyrics.submit(collector, levelRenderState.cameraRenderState);
         } catch (Throwable ignored) {
             // A hitbox problem must never take the world renderer down with it
         }

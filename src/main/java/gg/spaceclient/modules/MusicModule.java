@@ -8,6 +8,7 @@ import gg.spaceclient.music.MusicWatcher;
 import gg.spaceclient.music.NowPlaying;
 import gg.spaceclient.setting.BooleanSetting;
 import gg.spaceclient.setting.ColorSetting;
+import gg.spaceclient.setting.IntSetting;
 import gg.spaceclient.setting.ModeSetting;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -91,7 +92,7 @@ public class MusicModule extends HudModule {
                 0.34f, 0.02f, false);
         requires(gg.spaceclient.module.Access.VIP);
         addSettings(source, theme, showCover, showProgress, showSource, hideWhenIdle,
-                overName, showOnSelf, lyrics, titleColor, artistColor, accentColor);
+                overName, showOnSelf, lyrics, skyLyrics, skyHeight, skySize, titleColor, artistColor, accentColor);
     }
 
     /**
@@ -120,6 +121,38 @@ public class MusicModule extends HudModule {
             "Show the current line under the track. Lyrics come from LRCLIB, "
                     + "a community database - they are not licensed, and enabling "
                     + "this shares one line with other players. Spotify only.", false);
+
+    /**
+     * The lyrics, and only the lyrics, large in the sky ahead of you - in
+     * Inter Display, with the word being sung lit. Drawn by SkyLyrics.
+     * Fetching them is the same lookup as above; nothing is shared for it.
+     */
+    private final BooleanSetting skyLyrics = new BooleanSetting(
+            "sky_lyrics", "Lyrics in the sky",
+            "Only the lyrics, large, floating in the sky ahead of you. Spotify only.", false);
+    private final IntSetting skyHeight = new IntSetting(
+            "sky_height", "Sky height (degrees)", "How far above the horizon the lyrics float", 28, 10, 70);
+    private final IntSetting skySize = new IntSetting(
+            "sky_size", "Sky text size (percent)", "How large the lyrics are in the sky", 100, 40, 250);
+
+    /** The line to put in the sky now, or NONE. */
+    public Lyrics.Moment skyMoment() {
+        if (!isEnabled() || !skyLyrics.get()) return Lyrics.Moment.NONE;
+        NowPlaying playing = track();
+        if (playing.isEmpty() || !playing.playing()) return Lyrics.Moment.NONE;
+        double position = MediaSession.position();
+        if (position < 0) return Lyrics.Moment.NONE;
+        return Lyrics.moment(playing.artist(), playing.title(), position);
+    }
+
+    /** Degrees above the horizon. */
+    public int skyHeight() { return skyHeight.get(); }
+
+    /** 1 is the default size. */
+    public float skyScale() { return skySize.get() / 100f; }
+
+    /** The colour the sung word is lit in, from the card's theme. */
+    public int skyAccent() { return accentColor.get(); }
 
     /** Whether the current lyric line should be shown and shared. */
     public boolean showsLyrics() {
