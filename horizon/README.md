@@ -8,7 +8,11 @@ built against Horizon's mod SDK (API 0.1, pinned in `Cargo.toml`).
 the block you look at, keystrokes and zoom (hold C, scroll to zoom further). `/sc` opens the settings, which are also
 on the mod's page in Horizon's Options > Mods.
 
-**What it cannot have yet:** everything that needs the network (friends, badges, now playing, skins), the world
+**Now Playing:** the mod cannot ask the music player itself (no programs, no network in the sandbox), so the Space
+Client launcher does, for as long as the game runs: it writes the track, the time and the lyric line with the word
+being sung into the mod's storage (`nowplaying`), and reads presses back from `music-command` (`/music`).
+
+**What it cannot have yet:** everything that needs the network (friends, badges, the songs of other players, skins), the world
 around the player (light levels, the Litematica helper), the inventory (armour, durability) or drawing in the world
 (hitboxes, block highlight). Horizon's mod API has no way in for those today; it lists most of them as planned.
 
