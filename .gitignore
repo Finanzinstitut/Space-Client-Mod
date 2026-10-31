@@ -7,3 +7,4 @@ versions/*/build/
 versions/*/run/
 buildSrc/build/
 buildSrc/.gradle/
+horizon-native/target/

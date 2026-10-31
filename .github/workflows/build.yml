@@ -37,29 +37,11 @@ jobs:
       - name: Build
         run: gradle build --no-daemon --stacktrace
 
-      # Space Client for Horizon (horizon/): the HUD as a WebAssembly mod for
-      # the Rust rewrite of Minecraft, which runs no Java mods. Built with
-      # Horizon's own tool, pinned to the same commit as the mod's SDK.
-      - name: Set up Rust for the Horizon mod
-        run: rustup target add wasm32-unknown-unknown
-
-      - name: Cache cargo-horizon-mod
-        id: horizon-tool
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/bin/cargo-horizon-mod
-          key: cargo-horizon-mod-071580e7160c6fdfdcdd3f0dedd84fde93b7b864
-
-      - name: Install cargo-horizon-mod
-        if: steps.horizon-tool.outputs.cache-hit != 'true'
-        run: cargo install --locked --git https://github.com/horizon-rust/horizon --rev 071580e7160c6fdfdcdd3f0dedd84fde93b7b864 cargo-horizon-mod
-
-      - name: Build the Horizon mod
-        working-directory: horizon
-        run: |
-          cargo test --lib
-          cargo horizon-mod build
-          cargo horizon-mod check target/horizon-mod/spaceclient.hmod
+      # Space Client for Horizon is built into Horizon itself now
+      # (horizon-native/, .github/workflows/horizon.yml): here only its tests
+      - name: Space Client for Horizon tests
+        working-directory: horizon-native
+        run: cargo test
 
       - name: Read mod version
         id: version
@@ -74,15 +56,12 @@ jobs:
           cp versions/*/build/libs/spaceclient-${{ steps.version.outputs.value }}-mc*.jar dist/
           ls -la dist
           test "$(ls dist/*.jar | wc -l)" -eq "$(ls -d versions/*/ | wc -l)"
-          cp horizon/target/horizon-mod/spaceclient.hmod dist/spaceclient-horizon.hmod
 
       - name: Upload jars
         uses: actions/upload-artifact@v4
         with:
           name: spaceclient-mod
-          path: |
-            dist/*.jar
-            dist/*.hmod
+          path: dist/*.jar
           if-no-files-found: error
 
       # Two ways in, because a tag cannot always be pushed from outside: a
@@ -99,7 +78,5 @@ jobs:
           # which is the one thing a tag is for.
           target_commitish: ${{ github.sha }}
           name: Release v${{ steps.version.outputs.value }}
-          files: |
-            dist/*.jar
-            dist/*.hmod
+          files: dist/*.jar
           fail_on_unmatched_files: true

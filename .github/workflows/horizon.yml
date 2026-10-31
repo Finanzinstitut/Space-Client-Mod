@@ -1,0 +1,239 @@
+name: Build Horizon with Space Client
+
+# Horizon (horizon-rust/horizon) runs no WebAssembly mods any more: a mod is
+# a horizon-mixins bundle compiled into the game. This builds Horizon's
+# current Nightly, from the source that Nightly ships, with Space Client's
+# bundle (horizon-native/) in it, and publishes the four game archives under
+# the release tag `horizon`. The Space Client launcher installs those instead
+# of Horizon's own, so a player gets Space Client without building anything.
+#
+# Each archive is Horizon's own signed Nightly archive with only its
+# horizon-client program replaced, so the preparer and the rest of the
+# folder are exactly the Nightly's.
+
+on:
+  # Horizon publishes a Nightly most days: build each new one.
+  schedule:
+    - cron: "37 3 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "horizon-native/**"
+      - ".github/workflows/horizon.yml"
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish the build (also when the Nightly is the one already published)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  NIGHTLY: https://github.com/horizon-rust/horizon/releases/download/nightly
+  # Horizon's release signing key (SHA256SUMS.sig), as the launcher pins it.
+  HORIZON_KEY: MU4oiIQcCxkZvbwSjjXs7SySCuM6ywRQ3nGaJYZG0gw=
+  MIXINS_GIT: https://github.com/horizon-rust/horizon-mixins
+  MIXINS_REV: 0d6b103c70633d8fd9443d8d0acd3aadaacedb06
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    outputs:
+      source: ${{ steps.check.outputs.source }}
+      short: ${{ steps.check.outputs.short }}
+      date: ${{ steps.check.outputs.date }}
+      build: ${{ steps.check.outputs.build }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: The bundle's own tests
+        working-directory: horizon-native
+        run: cargo test
+
+      - name: Download and verify the Nightly's checksums
+        run: |
+          mkdir -p nightly
+          curl -fsSL -o nightly/SHA256SUMS "$NIGHTLY/SHA256SUMS"
+          curl -fsSL -o nightly/SHA256SUMS.sig "$NIGHTLY/SHA256SUMS.sig"
+          pip install --quiet cryptography
+          python3 horizon-native/tools/verify_sums.py nightly/SHA256SUMS nightly/SHA256SUMS.sig "$HORIZON_KEY"
+
+      - name: Is it new
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          source=$(awk '$2 == "horizon-source.tar.gz" {print $1}' nightly/SHA256SUMS)
+          test -n "$source"
+          curl -fsSL -o nightly/horizon-source.tar.gz "$NIGHTLY/horizon-source.tar.gz"
+          echo "$source  nightly/horizon-source.tar.gz" | sha256sum -c -
+          top=$(tar tzf nightly/horizon-source.tar.gz | head -1 | cut -d/ -f1)
+          short=${top#horizon-}
+          tag=$(git ls-remote https://github.com/horizon-rust/horizon "refs/tags/nightly-source/*-$short" | awk '{print $2}' | head -1)
+          date=$(echo "$tag" | sed -E 's#refs/tags/nightly-source/([0-9-]{10})-.*#\1#')
+          test -n "$date" || date=$(date -u +%F)
+          echo "source=$source" >> "$GITHUB_OUTPUT"
+          echo "short=$short" >> "$GITHUB_OUTPUT"
+          echo "date=$date" >> "$GITHUB_OUTPUT"
+          published=$(curl -fsSL "https://github.com/${{ github.repository }}/releases/download/horizon/horizon-build.txt" 2>/dev/null | awk -F= '$1 == "source" {print $2}' || true)
+          bundle=$(cd horizon-native && find mixins -type f | sort | xargs sha256sum | sha256sum | cut -c1-64)
+          published_bundle=$(curl -fsSL "https://github.com/${{ github.repository }}/releases/download/horizon/horizon-build.txt" 2>/dev/null | awk -F= '$1 == "bundle" {print $2}' || true)
+          if [ "$published" = "$source" ] && [ "$published_bundle" = "$bundle" ] && [ "${{ inputs.release }}" != "true" ]; then
+            echo "Nightly $short with this bundle is already published."
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nightly
+          path: nightly/
+
+  build:
+    needs: nightly
+    if: needs.nightly.outputs.build == 'true'
+    name: build ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-22.04
+            asset: horizon-linux-x86_64.tar.gz
+          - name: windows
+            os: windows-latest
+            asset: horizon-windows-x64.zip
+            exe: .exe
+            # As Horizon builds it: the C runtime linked in
+            rustflags: -C target-feature=+crt-static
+          - name: macos
+            os: macos-14
+            asset: horizon-macos-arm64.zip
+          - name: macos-x64
+            os: macos-14
+            target: x86_64-apple-darwin
+            asset: horizon-macos-x64.zip
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUSTFLAGS: ${{ matrix.rustflags }}
+      HORIZON_VERSION: nightly-${{ needs.nightly.outputs.date }}
+      HORIZON_NIGHTLY: ${{ needs.nightly.outputs.date }} ${{ needs.nightly.outputs.short }} + Space Client
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nightly
+          path: nightly
+
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libasound2-dev libudev-dev libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libfontconfig-dev libvulkan-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: horizon-mixins
+        run: cargo install --locked --quiet --git "$MIXINS_GIT" --rev "$MIXINS_REV" --root "$RUNNER_TEMP/mixins" horizon-mixins-cli
+
+      - name: Horizon's source with Space Client in it
+        run: |
+          mkdir -p "$RUNNER_TEMP/src"
+          tar xzf nightly/horizon-source.tar.gz -C "$RUNNER_TEMP/src"
+          src=$(ls -d "$RUNNER_TEMP"/src/horizon-*)
+          # horizon-mixins refuses links; the source has a few (docs), none needed to build
+          find "$src" -type l -delete
+          mkdir -p "$RUNNER_TEMP/mods"
+          cp -R horizon-native/mixins/spaceclient "$RUNNER_TEMP/mods/"
+          "$RUNNER_TEMP/mixins/bin/horizon-mixins" apply --workspace "$src" --mods "$RUNNER_TEMP/mods" --out "$RUNNER_TEMP/stage"
+
+      - name: Build the game
+        working-directory: ${{ runner.temp }}/stage
+        run: cargo build --locked --profile fast ${{ matrix.target && format('--target {0}', matrix.target) || '' }} -p horizon-client --bin horizon-client
+
+      - name: Horizon's archive with this game in it
+        run: |
+          set -e
+          asset=${{ matrix.asset }}
+          curl -fsSL -o "nightly/$asset" "$NIGHTLY/$asset"
+          want=$(awk -v a="$asset" '$2 == a {print $1}' nightly/SHA256SUMS)
+          have=$( (sha256sum "nightly/$asset" 2>/dev/null || shasum -a 256 "nightly/$asset") | cut -c1-64)
+          test "$want" = "$have"
+          mkdir -p work dist
+          case "$asset" in
+            *.tar.gz) tar xzf "nightly/$asset" -C work ;;
+            *) (cd work && unzip -q "../nightly/$asset") ;;
+          esac
+          dir=$(ls -d work/*/ | head -1)
+          bin="$RUNNER_TEMP/stage/target/${{ matrix.target && format('{0}/', matrix.target) || '' }}fast/horizon-client${{ matrix.exe }}"
+          test -f "$dir/horizon-client${{ matrix.exe }}"
+          cp "$bin" "$dir/horizon-client${{ matrix.exe }}"
+          chmod +x "$dir/horizon-client${{ matrix.exe }}" || true
+          if [ "${{ runner.os }}" = "macOS" ]; then codesign --force --sign - "$dir/horizon-client"; fi
+          name=$(basename "$dir")
+          case "$asset" in
+            *.tar.gz) tar czf "dist/$asset" -C work "$name" ;;
+            *) if [ "${{ runner.os }}" = "Windows" ]; then (cd work && 7z a -tzip -r "../dist/$asset" "$name" > /dev/null); else (cd work && zip -qry "../dist/$asset" "$name"); fi ;;
+          esac
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: game-${{ matrix.name }}
+          path: dist/${{ matrix.asset }}
+          if-no-files-found: error
+
+  publish:
+    needs: [nightly, build]
+    if: github.ref == 'refs/heads/main' || inputs.release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: game-*
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums and what was built
+        run: |
+          cd dist
+          sha256sum horizon-*.tar.gz horizon-*.zip > SHA256SUMS
+          bundle=$(cd ../horizon-native && find mixins -type f | sort | xargs sha256sum | sha256sum | cut -c1-64)
+          {
+            echo "source=${{ needs.nightly.outputs.source }}"
+            echo "nightly=${{ needs.nightly.outputs.date }} ${{ needs.nightly.outputs.short }}"
+            echo "bundle=$bundle"
+            echo "commit=${{ github.sha }}"
+          } > horizon-build.txt
+          cat SHA256SUMS horizon-build.txt
+
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: horizon
+          target_commitish: ${{ github.sha }}
+          name: Horizon with Space Client
+          # A pre-release, never "latest": the launcher looks for the mod's
+          # jars among the published releases and skips pre-releases, and
+          # reaches this one by its tag
+          prerelease: true
+          make_latest: false
+          body: |
+            Horizon's Nightly ${{ needs.nightly.outputs.date }} (${{ needs.nightly.outputs.short }}) with Space Client built in.
+            The Space Client launcher installs and updates this by itself; there is nothing to download here.
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/SHA256SUMS
+            dist/horizon-build.txt
+          fail_on_unmatched_files: true
