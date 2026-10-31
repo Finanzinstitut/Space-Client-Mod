@@ -312,7 +312,14 @@ public class MusicModule extends HudModule {
         if (lyrics.get() && !idle) {
             Lyrics.Moment moment = position < 0 ? Lyrics.Moment.NONE
                     : Lyrics.moment(playing.artist(), playing.title(), position);
-            if (!moment.isEmpty()) drawLyric(graphics, moment, textX, y, room, colours.accent());
+            if (!moment.isEmpty()) {
+                drawLyric(graphics, moment, textX, y, room, colours.accent());
+            } else {
+                // Said rather than left blank: LRCLIB being down looked the
+                // same as the lyrics feature being broken
+                String why = Lyrics.unavailable(playing.artist(), playing.title());
+                if (!why.isEmpty()) small(graphics, trim(why, (int) (room / SMALL)), textX, y + 32, TO_COME);
+            }
         }
 
         // Bottom row: bar and time on the left, the three controls on the right
