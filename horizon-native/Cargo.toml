@@ -1,0 +1,11 @@
+[package]
+name = "spaceclient-horizon-native"
+version = "2.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "Space Client for Horizon as a native mod (a horizon-mixins bundle built into the game)."
+
+# The mod's logic and its tests: the same file the bundle adds to the game.
+[lib]
+path = "mixins/spaceclient/runtime.rs"

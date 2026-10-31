@@ -50,6 +50,23 @@ mock-ups of software for Apple's own systems. On a Mac the sky lyrics read
 the copy of SF Pro that macOS itself has installed, as any program drawing
 text with the system font does; nothing of it is in the jar.
 
+## Horizon — Ludovic Marie and the Horizon contributors
+- Licence: MIT
+- https://github.com/horizon-rust/horizon
+
+`horizon-native/` is a horizon-mixins bundle that Space Client's CI compiles
+into Horizon (`.github/workflows/horizon.yml`). The published archives are
+Horizon's own Nightly archives, its `LICENSE` included, with only the
+`horizon-client` program rebuilt from that Nightly's source with the bundle
+applied. The helpers' shape (one small file per hook point) follows
+Horizon's official native mods (horizon-rust/horizon-mods, MIT).
+
+## horizon-mixins — levzzz5154 and contributors
+- Licence: MIT
+- https://github.com/horizon-rust/horizon-mixins
+
+Used as a build tool only; none of its code is in the game.
+
 ## Minecraft — Mojang Studios
 Space Client is a modification and is not affiliated with, endorsed by, or
 connected to Mojang Studios or Microsoft.
