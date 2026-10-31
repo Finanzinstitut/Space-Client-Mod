@@ -81,8 +81,16 @@ public final class Lyrics {
 
     private static final long RETRY_FAILED_MS = 20_000;
 
-    /** After LRCLIB (or Cloudflare in front of it) turns a lookup away. */
-    private static final long LIMIT_BACKOFF_MS = 90_000;
+    /** After LRCLIB says too many (429): its limit needs a real pause. */
+    private static final long LIMIT_BACKOFF_MS = 60_000;
+
+    /**
+     * After LRCLIB is down or overloaded (Cloudflare's 5xx, a block page):
+     * short, so lines come back soon after it does. A flaky LRCLIB answers
+     * one request in a few, and a long pause would hide every song after a
+     * single bad answer.
+     */
+    private static final long DOWN_BACKOFF_MS = 15_000;
 
     /** Until when no lookup goes out: LRCLIB said too many. */
     private static volatile long limitedUntil = 0;
@@ -92,7 +100,8 @@ public final class Lyrics {
 
     /** LRCLIB turned the lookup away: too many requests, or it is down. */
     static final class RateLimited extends java.io.IOException {
-        RateLimited(String message) { super(message); }
+        final boolean tooMany;
+        RateLimited(String message, boolean tooMany) { super(message); this.tooMany = tooMany; }
     }
 
     /**
@@ -110,6 +119,22 @@ public final class Lyrics {
     private static volatile String status = "off";
 
     public static String status() { return status; }
+
+    /** A track's status when LRCLIB could not be reached for it. */
+    private static final String UNREACHABLE = "lyrics unreachable";
+
+    /**
+     * Why a playing song shows no line, for the overlay: "" when it has
+     * lyrics, is still being looked up, or simply has none.
+     */
+    public static String unavailable(String artist, String title) {
+        if (title == null || title.isEmpty()) return "";
+        Track track = cache.get(key(artist, title));
+        if (track == null || !track.lines().isEmpty()) return "";
+        if (UNREACHABLE.equals(track.status())) return "Lyrics: LRCLIB is not answering, trying again";
+        if (track.status().equals("lookup failed")) return "Lyrics: lookup failed, trying again";
+        return "";
+    }
 
     /**
      * The line for the current moment, or empty.
@@ -181,11 +206,12 @@ public final class Lyrics {
             try {
                 fetch(artist, title, key);
             } catch (RateLimited limited) {
-                limitedUntil = System.currentTimeMillis() + LIMIT_BACKOFF_MS;
-                cache.put(key, new Track(List.of(), "lyrics limit reached",
-                        System.currentTimeMillis() + LIMIT_BACKOFF_MS));
+                long wait = limited.tooMany ? LIMIT_BACKOFF_MS : DOWN_BACKOFF_MS;
+                long until = System.currentTimeMillis() + wait;
+                if (until > limitedUntil) limitedUntil = until;
+                cache.put(key, new Track(List.of(), UNREACHABLE, limitedUntil));
                 status = "LRCLIB not answering (" + limited.getMessage()
-                        + ") - saved lyrics only for a while";
+                        + ") - saved lyrics only for now";
             } catch (Throwable t) {
                 cache.put(key, new Track(List.of(), "lookup failed",
                         System.currentTimeMillis() + RETRY_FAILED_MS));
@@ -208,7 +234,7 @@ public final class Lyrics {
             return;
         }
         if (System.currentTimeMillis() < limitedUntil) {
-            throw new RateLimited("still waiting out LRCLIB's limit");
+            throw new RateLimited("waiting before asking again", false);
         }
 
         String url = "https://lrclib.net/api/get"
@@ -265,6 +291,17 @@ public final class Lyrics {
     }
 
     private static String get(String url) throws Exception {
+        try {
+            return getOnce(url);
+        } catch (RateLimited down) {
+            if (down.tooMany) throw down;
+            // A flaky LRCLIB often answers the next request: one more try
+            Thread.sleep(1_500);
+            return getOnce(url);
+        }
+    }
+
+    private static String getOnce(String url) throws Exception {
         HttpResponse<String> response = HttpClient.newHttpClient().send(
                 HttpRequest.newBuilder(URI.create(url))
                         .header("User-Agent", USER_AGENT)
@@ -284,8 +321,9 @@ public final class Lyrics {
         int code = response.statusCode();
         boolean cloudflare = response.headers().firstValue("server").orElse("")
                 .toLowerCase().contains("cloudflare");
-        if (code == 429 || cloudflare && (code == 403 || code >= 500)) {
-            throw new RateLimited("LRCLIB answered " + code);
+        if (code == 429) throw new RateLimited("LRCLIB answered 429", true);
+        if (cloudflare && (code == 403 || code >= 500)) {
+            throw new RateLimited("LRCLIB answered " + code, false);
         }
         throw new java.io.IOException("LRCLIB answered " + response.statusCode());
     }
