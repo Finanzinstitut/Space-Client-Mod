@@ -1,0 +1,27 @@
+{
+  "_comment": [
+    "The sky lyrics' typeface: Inter Display SemiBold (SIL OFL 1.1, see",
+    "inter-OFL.txt), subset to Latin, Greek and Cyrillic. Drawn small and",
+    "scaled up in the world, so it is rasterised at a high oversample.",
+    "What it has no glyph for falls through to Minecraft's own font and to",
+    "Unifont, so Arabic, Chinese or Japanese lines still show."
+  ],
+  "providers": [
+    {
+      "type": "ttf",
+      "file": "spaceclient:sky.ttf",
+      "size": 11.0,
+      "oversample": 8.0,
+      "shift": [0.0, 0.0],
+      "skip": []
+    },
+    {
+      "type": "reference",
+      "id": "minecraft:include/default"
+    },
+    {
+      "type": "reference",
+      "id": "minecraft:include/unifont"
+    }
+  ]
+}
