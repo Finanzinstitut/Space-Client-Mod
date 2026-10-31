@@ -25,6 +25,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * contributed by users rather than licensed from publishers, which is worth
  * knowing before switching this on - hence the warning on the setting.
  *
+ * Every song's lyrics are also kept on disk (config/spaceclient/lyrics/)
+ * once fetched, and read from there first. LRCLIB sits behind Cloudflare,
+ * which turns a busy client away with a rate limit; a song that was played
+ * before then still shows its lines - over the head, in the overlay and in
+ * the sky - from the copy here, and a turned-away lookup waits a while
+ * before asking again instead of hammering the limit.
+ *
  * No lyrics pass through the Space Client backend at all. Each client fetches
  * the words for whatever the people around it are playing and works out the
  * current line itself, from a playback position. That is what keeps the line
@@ -73,6 +80,20 @@ public final class Lyrics {
     }
 
     private static final long RETRY_FAILED_MS = 20_000;
+
+    /** After LRCLIB (or Cloudflare in front of it) turns a lookup away. */
+    private static final long LIMIT_BACKOFF_MS = 90_000;
+
+    /** Until when no lookup goes out: LRCLIB said too many. */
+    private static volatile long limitedUntil = 0;
+
+    /** How many songs the disk keeps; the oldest go first past this. */
+    private static final int MAX_SAVED = 2_000;
+
+    /** LRCLIB turned the lookup away: too many requests, or it is down. */
+    static final class RateLimited extends java.io.IOException {
+        RateLimited(String message) { super(message); }
+    }
 
     /**
      * Lyrics per track, not just for the local one.
@@ -159,6 +180,12 @@ public final class Lyrics {
         CompletableFuture.runAsync(() -> {
             try {
                 fetch(artist, title, key);
+            } catch (RateLimited limited) {
+                limitedUntil = System.currentTimeMillis() + LIMIT_BACKOFF_MS;
+                cache.put(key, new Track(List.of(), "lyrics limit reached",
+                        System.currentTimeMillis() + LIMIT_BACKOFF_MS));
+                status = "LRCLIB not answering (" + limited.getMessage()
+                        + ") - saved lyrics only for a while";
             } catch (Throwable t) {
                 cache.put(key, new Track(List.of(), "lookup failed",
                         System.currentTimeMillis() + RETRY_FAILED_MS));
@@ -172,6 +199,18 @@ public final class Lyrics {
     // ---------------- fetching ----------------
 
     private static void fetch(String artist, String title, String key) throws Exception {
+        // The copy on disk first: no request at all for a song played before
+        String saved = readSaved(key);
+        if (saved != null) {
+            List<Line> parsed = parse(saved);
+            cache.put(key, new Track(parsed, parsed.size() + " lines (saved)"));
+            status = parsed.size() + " lines (saved)";
+            return;
+        }
+        if (System.currentTimeMillis() < limitedUntil) {
+            throw new RateLimited("still waiting out LRCLIB's limit");
+        }
+
         String url = "https://lrclib.net/api/get"
                 + "?artist_name=" + encode(artist)
                 + "&track_name=" + encode(title);
@@ -200,7 +239,9 @@ public final class Lyrics {
             return;
         }
 
-        List<Line> parsed = parse(json.get("syncedLyrics").getAsString());
+        String synced = json.get("syncedLyrics").getAsString();
+        List<Line> parsed = parse(synced);
+        if (!parsed.isEmpty()) save(key, synced);
         cache.put(key, new Track(parsed, parsed.size() + " lines"));
         status = parsed.isEmpty() ? "synced lyrics were empty" : parsed.size() + " lines";
     }
@@ -237,11 +278,83 @@ public final class Lyrics {
         // than cached as "no lyrics" for the rest of the session.
         if (response.statusCode() == 200) return response.body();
         if (response.statusCode() == 404) return null;
+        // Turned away: LRCLIB's own 429, or Cloudflare in front of it with a
+        // block page (403) or with LRCLIB down or overloaded behind it (5xx).
+        // Either way asking again at once only makes it worse
+        int code = response.statusCode();
+        boolean cloudflare = response.headers().firstValue("server").orElse("")
+                .toLowerCase().contains("cloudflare");
+        if (code == 429 || cloudflare && (code == 403 || code >= 500)) {
+            throw new RateLimited("LRCLIB answered " + code);
+        }
         throw new java.io.IOException("LRCLIB answered " + response.statusCode());
     }
 
     private static String encode(String text) {
         return URLEncoder.encode(text == null ? "" : text, StandardCharsets.UTF_8);
+    }
+
+    // ---------------- saved on disk ----------------
+
+    private static java.nio.file.Path savedDir() {
+        return gg.spaceclient.platform.Platform.configDir().resolve("spaceclient").resolve("lyrics");
+    }
+
+    /** The file a song's lyrics are kept in: named by a hash of artist and title. */
+    static String fileName(String key) {
+        try {
+            byte[] hash = java.security.MessageDigest.getInstance("SHA-1")
+                    .digest(key.getBytes(StandardCharsets.UTF_8));
+            StringBuilder out = new StringBuilder();
+            for (byte b : hash) out.append(String.format("%02x", b));
+            return out + ".lrc";
+        } catch (java.security.NoSuchAlgorithmException e) {
+            return Integer.toHexString(key.hashCode()) + ".lrc";
+        }
+    }
+
+    private static String readSaved(String key) {
+        try {
+            java.nio.file.Path file = savedDir().resolve(fileName(key));
+            if (!java.nio.file.Files.isRegularFile(file)) return null;
+            String text = java.nio.file.Files.readString(file, StandardCharsets.UTF_8);
+            // Touched, so the songs played most recently are the ones kept
+            java.nio.file.Files.setLastModifiedTime(file,
+                    java.nio.file.attribute.FileTime.fromMillis(System.currentTimeMillis()));
+            return text.isBlank() ? null : text;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private static void save(String key, String lrc) {
+        try {
+            java.nio.file.Path dir = savedDir();
+            java.nio.file.Files.createDirectories(dir);
+            java.nio.file.Path file = dir.resolve(fileName(key));
+            java.nio.file.Path partial = dir.resolve(fileName(key) + ".partial");
+            java.nio.file.Files.writeString(partial, lrc, StandardCharsets.UTF_8);
+            java.nio.file.Files.move(partial, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            prune(dir);
+        } catch (Throwable t) {
+            // Only a copy: the song still shows from memory this session
+        }
+    }
+
+    /** Past MAX_SAVED songs, the ones not played for longest go. */
+    private static void prune(java.nio.file.Path dir) throws java.io.IOException {
+        List<java.nio.file.Path> files;
+        try (var stream = java.nio.file.Files.list(dir)) {
+            files = stream.filter(f -> f.toString().endsWith(".lrc")).collect(java.util.stream.Collectors.toList());
+        }
+        if (files.size() <= MAX_SAVED) return;
+        files.sort(java.util.Comparator.comparingLong(f -> {
+            try { return java.nio.file.Files.getLastModifiedTime(f).toMillis(); }
+            catch (java.io.IOException e) { return 0L; }
+        }));
+        for (int i = 0; i < files.size() - MAX_SAVED; i++) {
+            java.nio.file.Files.deleteIfExists(files.get(i));
+        }
     }
 
     // ---------------- LRC format ----------------
