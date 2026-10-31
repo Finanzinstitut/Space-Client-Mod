@@ -48,7 +48,7 @@ public final class SkyLyrics {
     /** How far away the line hangs, in blocks; it moves with the camera. */
     private static final double DISTANCE = 16.0;
     /** The letters' height on screen, as an angle, at size 100%. */
-    private static final double ANGLE = Math.toRadians(4.2);
+    private static final double ANGLE = Math.toRadians(6.5);
     /** Wider than this many degrees and the line is scaled down to fit. */
     private static final double MAX_WIDTH = Math.toRadians(75);
     private static final int FULL_BRIGHT = 0xF000F0;
