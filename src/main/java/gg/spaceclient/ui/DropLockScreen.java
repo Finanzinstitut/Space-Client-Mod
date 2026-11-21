@@ -157,10 +157,7 @@ public class DropLockScreen extends Screen {
 
         int footer = this.height - 46;
         this.addRenderableWidget(new FlatButton(left, footer, 150, 22,
-                () -> {
-                    Module m = module();
-                    return "Protection: " + (m != null && m.isEnabled() ? "ON" : "OFF");
-                },
+                () -> "Protection",
                 () -> {
                     Module m = module();
                     return m != null && m.isEnabled();
