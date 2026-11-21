@@ -51,7 +51,8 @@ public final class ModuleCategories {
             Map.entry("coordscopy", UTILITY),
             Map.entry("litematica", UTILITY),
             Map.entry("yawlock", UTILITY),
-            Map.entry("autotext", UTILITY)
+            Map.entry("autotext", UTILITY),
+            Map.entry("droplock", UTILITY)
     );
 
     private ModuleCategories() {}

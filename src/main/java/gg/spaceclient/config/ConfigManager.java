@@ -43,6 +43,10 @@ public class ConfigManager {
         ItemSizes.save(itemSizes);
         root.add("itemsizes", itemSizes);
 
+        JsonObject dropLock = new JsonObject();
+        DropLock.save(dropLock);
+        root.add("droplock", dropLock);
+
         JsonObject profiles = new JsonObject();
         Profiles.saveState(profiles);
         root.add("profiles", profiles);
@@ -122,6 +126,9 @@ public class ConfigManager {
         }
         if (data.has("itemsizes")) {
             section("item sizes", () -> ItemSizes.load(data.getAsJsonObject("itemsizes")));
+        }
+        if (data.has("droplock")) {
+            section("drop lock", () -> DropLock.load(data.getAsJsonObject("droplock")));
         }
         if (data.has("profiles")) {
             section("profiles", () -> Profiles.loadState(data.getAsJsonObject("profiles")));
