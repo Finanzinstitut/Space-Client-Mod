@@ -3,5 +3,6 @@
   "key.spaceclient.zoom": "Zoom",
   "key.spaceclient.clip": "Save clip",
   "key.spaceclient.middleclick": "Middle mouse button (Mouse Tracker)",
-  "key.categories.spaceclient.main": "Space Client"
+  "key.categories.spaceclient.main": "Space Client",
+  "key.spaceclient.droplock": "Toggle Drop Lock"
 }

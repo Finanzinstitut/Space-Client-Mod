@@ -66,6 +66,7 @@ public class ModuleManager {
         register(new LightLevelModule());
         register(new MotionBlurModule());
         register(new LitematicaModule());
+        register(new DropLockModule());
     }
 
     private void register(Module module) {

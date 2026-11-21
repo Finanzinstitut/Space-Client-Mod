@@ -69,6 +69,7 @@ public class SpaceClient {
     private static KeyMapping middleClickKey;
     private static KeyMapping zoomKey;
     private static KeyMapping clipKey;
+    private static KeyMapping dropLockKey;
 
     public static ModuleManager getModuleManager() { return moduleManager; }
     public static ConfigManager getConfigManager() { return configManager; }
@@ -76,6 +77,7 @@ public class SpaceClient {
 
     public static KeyMapping getZoomKey() { return zoomKey; }
     public static KeyMapping getClipKey() { return clipKey; }
+    public static KeyMapping getDropLockKey() { return dropLockKey; }
 
     /** True while the middle mouse button is held. */
     public static boolean isMiddleClickDown() {
@@ -134,6 +136,15 @@ public class SpaceClient {
                 "key.spaceclient.clip",
                 gg.spaceclient.compat.Keys.KEYBOARD,
                 InputConstants.KEY_F9,
+                category
+        ));
+
+        // Unbound until the player picks a key, in Drop Lock's settings or the
+        // controls screen: there is no key every player could spare for it
+        dropLockKey = Hooks.key(new KeyMapping(
+                "key.spaceclient.droplock",
+                gg.spaceclient.compat.Keys.KEYBOARD,
+                InputConstants.UNKNOWN.getValue(),
                 category
         ));
 
@@ -247,6 +258,13 @@ public class SpaceClient {
                 if (moduleManager.get("clip")
                         instanceof gg.spaceclient.modules.ClipModule clips) {
                     clips.request();
+                }
+            }
+
+            while (dropLockKey.consumeClick()) {
+                if (moduleManager.get("droplock")
+                        instanceof gg.spaceclient.modules.DropLockModule lock) {
+                    lock.togglePressed();
                 }
             }
 
